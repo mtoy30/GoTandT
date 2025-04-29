@@ -9,7 +9,7 @@
 // @match        https://gotandt.crm.dynamics.com/*
 // @grant        none
 // ==/UserScript==
-//Testing Updates
+//Moved to GitHub for 1.0.7+
 
 (function () {
     'use strict';
