@@ -6,7 +6,7 @@
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
 // @match        https://gotandt.crm.dynamics.com/*
-//@author        Michael Toy
+// @author        Michael Toy
 // @grant        GM_setClipboard
 // @grant        GM_registerMenuCommand
 // ==/UserScript==
