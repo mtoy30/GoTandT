@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         DD_Buttons
-// @namespace    mtoy
+// @namespace    https://github.com/mtoy30/GoTandT
 // @version      3.2.5
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
 // @match        https://gotandt.crm.dynamics.com/*
+// @author       Michael Toy
 // @grant        GM_setClipboard
 // @grant        GM_registerMenuCommand
 // ==/UserScript==
