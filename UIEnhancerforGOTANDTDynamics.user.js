@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
-// @namespace    http://tampermonkey.net/
+// @namespace    https://github.com/mtoy30/GoTandT
 // @version      1.0.7
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Enhances UI with banner, row highlights, spacing, and styled notifications
-// @author       You
+// @author       Michael Toy
 // @match        https://gotandt.crm.dynamics.com/*
 // @grant        none
 // ==/UserScript==
