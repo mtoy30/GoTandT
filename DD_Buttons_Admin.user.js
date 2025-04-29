@@ -9,7 +9,7 @@
 // @grant        GM_setClipboard
 // @grant        GM_registerMenuCommand
 // ==/UserScript==
-//Moved to GitHub for 3.2.5
+//Moved to GitHub for 3.2.5+
 
 (function() {
     'use strict';
