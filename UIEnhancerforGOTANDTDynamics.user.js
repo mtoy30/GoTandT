@@ -11,6 +11,8 @@
 // ==/UserScript==
 //Moved to GitHub for 1.0.7+
 
+//Testing auto updated
+
 (function () {
     'use strict';
 
