@@ -233,7 +233,7 @@ function finalizeCopy(claimant, claim, referralDate, selectedOption) {
 }
 
 // Wait for SavePrimary button to appear
-function waitForSavePrimary(retries = 10, delay = 500) {
+function waitForSavePrimary(retries = 10, delay = 1500) {
     return new Promise((resolve, reject) => {
         function tryFind() {
             var btn = document.querySelector('[id*="SavePrimary"]');
