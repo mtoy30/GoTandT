@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.2.6
+// @version      3.2.7
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -11,8 +11,6 @@
 // @grant        GM_registerMenuCommand
 // ==/UserScript==
 //Moved to GitHub for 3.2.5+
-
-//Testing auto update
 
 (function() {
     'use strict';
