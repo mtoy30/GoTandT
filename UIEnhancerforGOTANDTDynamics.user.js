@@ -7,7 +7,7 @@
 // @description  Enhances UI with banner, row highlights, spacing, and styled notifications
 // @author       Michael Toy
 // @match        https://gotandt.crm.dynamics.com/*
-// @match        https://gttqap2.crm.dynamics.com/
+// @match        https://gttqap2.crm.dynamics.com/*
 // @grant        none
 // ==/UserScript==
 //Moved to GitHub for 1.0.7+
