@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.3.0
+// @version      3.3.1
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -52,105 +52,169 @@
     }
 
     function showCalculatorUI() {
-        // Remove existing calculator if it exists
-        const existing = document.getElementById("calcBox");
-        if (existing) existing.remove();
+    const existing = document.getElementById("calcBox");
+    if (existing) existing.remove();
 
-        // Create calculator box
-        const box = document.createElement("div");
-        box.id = "calcBox";
-        box.style.position = "fixed";
-        box.style.top = "30%";
-        box.style.left = "50%";
-        box.style.transform = "translate(-50%, -50%)";
-        box.style.background = "#fff";
-        box.style.padding = "20px";
-        box.style.border = "2px solid #000";
-        box.style.borderRadius = "10px";
-        box.style.zIndex = "10000";
-        box.style.minWidth = "300px";
+    const box = document.createElement("div");
+    box.id = "calcBox";
+    box.style.position = "fixed";
+    box.style.top = "30%";
+    box.style.left = "50%";
+    box.style.transform = "translate(-50%, -50%)";
+    box.style.background = "#fff";
+    box.style.padding = "20px";
+    box.style.border = "2px solid #000";
+    box.style.borderRadius = "10px";
+    box.style.zIndex = "10000";
+    box.style.minWidth = "320px";
 
-        const closeButton = document.createElement("button");
-        closeButton.innerText = "X";
-        closeButton.style.position = "absolute";
-        closeButton.style.top = "5px";
-        closeButton.style.right = "10px";
-        closeButton.style.border = "none";
-        closeButton.style.background = "transparent";
-        closeButton.style.color = "#000";
-        closeButton.style.fontSize = "16px";
-        closeButton.style.cursor = "pointer";
-        closeButton.onclick = () => box.remove();
+    const closeButton = document.createElement("button");
+    closeButton.innerText = "X";
+    closeButton.style.position = "absolute";
+    closeButton.style.top = "5px";
+    closeButton.style.right = "10px";
+    closeButton.style.border = "none";
+    closeButton.style.background = "transparent";
+    closeButton.style.color = "#000";
+    closeButton.style.fontSize = "16px";
+    closeButton.style.cursor = "pointer";
+    closeButton.onclick = () => box.remove();
 
-        const label = document.createElement("label");
-        label.innerText = "Enter Provider Flat Rate: ";
-        label.style.display = "block";
+    const modeLabel = document.createElement("div");
+    modeLabel.innerText = "Select Rate Type:";
+    modeLabel.style.marginTop = "5px";
+    modeLabel.style.marginBottom = "5px";
+    modeLabel.style.fontWeight = "bold";  // Make bold
 
-        const input = document.createElement("input");
-        input.type = "number";
-        input.style.width = "100%";
-        input.style.marginTop = "10px";
-        input.style.marginBottom = "15px";
+    const flatRadio = document.createElement("input");
+    flatRadio.type = "radio";
+    flatRadio.name = "rateType";
+    flatRadio.value = "flat";
+    flatRadio.id = "rateFlat";
+    flatRadio.checked = true;
 
-        const button = document.createElement("button");
-        button.innerText = "Calculate Margin";
-        button.style.padding = "10px";
-        button.style.background = "#007bff";
-        button.style.color = "#fff";
-        button.style.border = "none";
-        button.style.borderRadius = "5px";
-        button.style.cursor = "pointer";
+    const flatLabel = document.createElement("label");
+    flatLabel.htmlFor = "rateFlat";
+    flatLabel.innerText = "Flat Rate";
+    flatLabel.style.marginRight = "20px";
 
-        const result = document.createElement("div");
-        result.style.marginTop = "10px";
-        result.style.fontWeight = "bold";
-        result.style.whiteSpace = "pre-line";
+    const mileRadio = document.createElement("input");
+    mileRadio.type = "radio";
+    mileRadio.name = "rateType";
+    mileRadio.value = "mile";
+    mileRadio.id = "rateMile";
 
-        button.onclick = () => {
-            const paid = parseFloat(input.value); // Paid amount entered by the user
-            if (isNaN(paid) || paid <= 0) {
-                result.innerText = "Please enter a valid amount paid.";
-                return;
-            }
+    const mileLabel = document.createElement("label");
+    mileLabel.htmlFor = "rateMile";
+    mileLabel.innerText = "Per Mile";
 
-            const rows = document.querySelectorAll('div[row-index]');
-            let totalBilled = 0;
+    const inputLabel = document.createElement("label");
+    inputLabel.innerText = "Enter Provider Rate:";
+    inputLabel.style.display = "block";
+    inputLabel.style.marginTop = "15px";
+    inputLabel.style.fontWeight = "bold";  // Make bold
 
-            rows.forEach(row => {
-                const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
-                const totalCell = row.querySelector('[col-id="gtt_total"]');
+    const input = document.createElement("input");
+    input.type = "number";
+    input.style.width = "100%";
+    input.style.marginTop = "10px";
+    input.style.marginBottom = "15px";
 
-                if (productCell && totalCell) {
-                    const product = productCell.innerText.trim();
-                    const totalText = totalCell.innerText.trim().replace(/[^0-9.-]+/g, ''); // Remove any non-numeric characters
-                    const totalValue = parseFloat(totalText);
+    const result = document.createElement("div");
+    result.style.marginTop = "10px";
+    result.style.fontWeight = "bold";
+    result.style.whiteSpace = "pre-line";
 
-                    if ((product === "Transport Ambulatory" || product === "Transport Wheelchair" || product === "Load Fee") && !isNaN(totalValue)) {
-                        totalBilled += totalValue; // Sum the total billed values
-                        console.log(`Matched: ${product}, Total: ${totalValue}`);
+    const calculateMargin = () => {
+        const rateType = document.querySelector('input[name="rateType"]:checked').value;
+        const inputValue = parseFloat(input.value);
+        if (isNaN(inputValue) || inputValue <= 0) {
+            result.innerText = "Please enter a valid amount.";
+            return;
+        }
+
+        const rows = document.querySelectorAll('div[row-index]');
+        let totalBilled = 0;
+        let quantity = 0;
+
+        rows.forEach(row => {
+            const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+            const totalCell = row.querySelector('[col-id="gtt_total"]');
+            const qtyCell = row.querySelector('[col-id="gtt_quantity"]');
+
+            if (productCell && totalCell) {
+                const product = productCell.innerText.trim();
+                const totalText = totalCell.innerText.trim().replace(/[^0-9.-]+/g, '');
+                const totalValue = parseFloat(totalText);
+
+                const matchProduct = [
+                    "Transport Ambulatory",
+                    "Transport Wheelchair",
+                    "Transport Stretcher, ALS & BLS",
+                    "Miscellaneous Dead Miles",
+                    "Load Fee"
+                ];
+
+                if (matchProduct.includes(product) && !isNaN(totalValue)) {
+                    totalBilled += totalValue;
+                }
+
+                if (
+                    rateType === "mile" &&
+                    quantity === 0 &&
+                    ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(product) &&
+                    qtyCell
+                ) {
+                    const qty = parseFloat(qtyCell.innerText.trim().replace(/[^0-9.-]+/g, ''));
+                    if (!isNaN(qty)) {
+                        quantity = qty;
                     }
                 }
-            });
+            }
+        });
 
-            // Calculate Paid-to-Billed Percentage
-            const paidBilledPercentage = (paid / totalBilled) * 100;
+        if (totalBilled === 0) {
+            result.innerText = "Could not find any billed total.";
+            return;
+        }
 
-            // Calculate the Remaining Margin (100% - Paid-to-Billed Percentage)
-            const remainingMargin = 100 - paidBilledPercentage;
+        let paidAmount = inputValue;
+        if (rateType === "mile") {
+            if (quantity === 0) {
+                result.innerText = "Could not find transport quantity.";
+                return;
+            }
+            paidAmount = inputValue * quantity;
+        }
 
-            // Display the results
-            result.innerText = `Total Billed: $${totalBilled.toFixed(2)}\n Margin: ${remainingMargin.toFixed(2)}%`;
-        };
+        const margin = 100 - ((paidAmount / totalBilled) * 100);
+        result.innerText = `Total Billed: $${totalBilled.toFixed(2)}\n` +
+            (rateType === "mile" ? `Miles: ${quantity}, Total Paid: $${paidAmount.toFixed(2)}\n` : "") +
+            `Margin: ${margin.toFixed(2)}%`;
+    };
 
-        // Append all elements to the box
-        box.appendChild(closeButton);
-        box.appendChild(label);
-        box.appendChild(input);
-        box.appendChild(button);
-        box.appendChild(result);
+    input.addEventListener("input", calculateMargin);
+    flatRadio.addEventListener("change", () => {
+        input.value = '';  // Clear input when rate type changes
+        calculateMargin();
+    });
+    mileRadio.addEventListener("change", () => {
+        input.value = '';  // Clear input when rate type changes
+        calculateMargin();
+    });
 
-        document.body.appendChild(box);
-    }
+    box.appendChild(closeButton);
+    box.appendChild(modeLabel);
+    box.appendChild(flatRadio);
+    box.appendChild(flatLabel);
+    box.appendChild(mileRadio);
+    box.appendChild(mileLabel);
+    box.appendChild(inputLabel);
+    box.appendChild(input);
+    box.appendChild(result);
+
+    document.body.appendChild(box);
+}
 
     // Add event listener for the calculator button
     const calculatorButton = document.querySelector('#yourCalculatorButtonSelector'); // Replace with actual button selector
