@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.3.2
+// @version      3.3.3
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -768,7 +768,7 @@ function createButtons() {
         addTooltip(button3, "This will copy the claimant ID used for prev vendor search");
 
         var button4 = document.createElement('button');
-        button4.textContent = 'Calculator';
+        button4.textContent = 'Margin';
         button4.style.backgroundColor = '#007BFF';
         button4.style.color = '#fff';
         button4.style.fontWeight = 'bold';
@@ -780,10 +780,10 @@ function createButtons() {
         addTooltip(button4, "Calculate Margins");
 
         // Append buttons in order
-        searchBox.parentNode.insertBefore(button1, searchBox.nextSibling);
-        searchBox.parentNode.insertBefore(button2, button1.nextSibling); // Ensure button2 appears after button1
-        searchBox.parentNode.insertBefore(button3, button2.nextSibling); // Ensure button3 appears after button2
-        searchBox.parentNode.insertBefore(button4, button3.nextSibling); // Ensure button4 appears after button3
+        searchBox.parentNode.insertBefore(button3, searchBox.nextSibling);
+        searchBox.parentNode.insertBefore(button2, button3.nextSibling);
+        searchBox.parentNode.insertBefore(button1, button2.nextSibling);
+        searchBox.parentNode.insertBefore(button4, button1.nextSibling);
 
         console.log('Buttons created and inserted in order next to #searchBoxLiveRegion.');
     } else {
