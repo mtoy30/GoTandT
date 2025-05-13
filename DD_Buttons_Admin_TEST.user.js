@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.3.1
+// @version      3.3.2
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -39,19 +39,19 @@
     }
 
 // Function to show calculator UI
-    function showCalculatorBox() {
-        const tab8 = document.querySelector('[id^="tab8_"]');
-        if (tab8) {
-            tab8.click();
-            console.log("Clicked tab8_ before showing calculator.");
-            setTimeout(showCalculatorUI, 1000); // Wait for content to load
-        } else {
-            console.warn("tab8_ not found.");
-            showCalculatorUI(); // Proceed anyway if not found
-        }
+function showCalculatorBox() {
+    const tab8 = document.querySelector('[id^="tab8_"]');
+    if (tab8) {
+        tab8.click();
+        console.log("Clicked tab8_ before showing calculator.");
+        setTimeout(showCalculatorUI, 1000); // Wait for content to load
+    } else {
+        console.warn("tab8_ not found.");
+        showCalculatorUI(); // Proceed anyway if not found
     }
+}
 
-    function showCalculatorUI() {
+function showCalculatorUI() {
     const existing = document.getElementById("calcBox");
     if (existing) existing.remove();
 
@@ -125,6 +125,10 @@
     result.style.fontWeight = "bold";
     result.style.whiteSpace = "pre-line";
 
+    const targetLabel = document.createElement("div");
+    targetLabel.style.marginTop = "10px";
+    targetLabel.style.fontWeight = "bold";
+
     const calculateMargin = () => {
         const rateType = document.querySelector('input[name="rateType"]:checked').value;
         const inputValue = parseFloat(input.value);
@@ -191,6 +195,10 @@
         result.innerText = `Total Billed: $${totalBilled.toFixed(2)}\n` +
             (rateType === "mile" ? `Miles: ${quantity}, Total Paid: $${paidAmount.toFixed(2)}\n` : "") +
             `Margin: ${margin.toFixed(2)}%`;
+
+        // Calculate Target based on 35% margin
+        const target = totalBilled * (1 - 0.35);
+        targetLabel.innerText = `Target (35% Margin): $${target.toFixed(2)}`;
     };
 
     input.addEventListener("input", calculateMargin);
@@ -212,9 +220,11 @@
     box.appendChild(inputLabel);
     box.appendChild(input);
     box.appendChild(result);
+    box.appendChild(targetLabel);
 
     document.body.appendChild(box);
 }
+
 
     // Add event listener for the calculator button
     const calculatorButton = document.querySelector('#yourCalculatorButtonSelector'); // Replace with actual button selector
@@ -717,11 +727,10 @@ function extractAndCopyTitle() {
 }
 
 
-// Function to create and style the buttons
 function createButtons() {
     const searchBox = document.querySelector('#searchBoxLiveRegion');
     if (searchBox) {
-        // Payer Emails Both button
+        // Create and style buttons
         var button1 = document.createElement('button');
         button1.textContent = 'Payer Emails';
         button1.style.backgroundColor = '#007BFF';
@@ -732,64 +741,56 @@ function createButtons() {
         button1.style.padding = '5px 10px';
         button1.style.marginLeft = '10px';
         button1.addEventListener('click', copyBoth);
-        searchBox.parentNode.insertBefore(button1, searchBox.nextSibling);
-
-        // Add tooltip to the Payer Emails button
         addTooltip(button1, "Clicking Payer emails then cancel on date input will still copy name and claim");
 
-        // Copy Name button
         var button2 = document.createElement('button');
         button2.textContent = 'Copy Name/SP Tab';
         button2.style.backgroundColor = '#007BFF';
         button2.style.color = '#fff';
         button2.style.fontWeight = 'bold';
-        button2.style.letterSpacing = "1.2px"
+        button2.style.letterSpacing = "1.2px";
         button2.style.borderRadius = '15px';
         button2.style.padding = '5px 10px';
         button2.style.marginLeft = '10px';
         button2.addEventListener('click', copyClaimantName);
-        searchBox.parentNode.insertBefore(button2, searchBox.nextSibling);
-
-        // Add tooltip to the Payer Emails button
         addTooltip(button2, "This will copy name and take you to Service Provider Tab");
 
-        // Claimant ID button
         var button3 = document.createElement('button');
         button3.textContent = 'ClaimantID';
         button3.style.backgroundColor = '#007BFF';
         button3.style.color = '#fff';
         button3.style.fontWeight = 'bold';
-        button3.style.letterSpacing = "1.2px"
+        button3.style.letterSpacing = "1.2px";
         button3.style.borderRadius = '15px';
         button3.style.padding = '5px 10px';
         button3.style.marginLeft = '10px';
         button3.addEventListener('click', extractAndCopyTitle);
-        searchBox.parentNode.insertBefore(button3, searchBox.nextSibling);
-
-        // Add tooltip to the Payer Emails button
         addTooltip(button3, "This will copy the claimant ID used for prev vendor search");
 
-        // Calculator button
         var button4 = document.createElement('button');
         button4.textContent = 'Calculator';
         button4.style.backgroundColor = '#007BFF';
         button4.style.color = '#fff';
         button4.style.fontWeight = 'bold';
-        button4.style.letterSpacing = "1.2px"
+        button4.style.letterSpacing = "1.2px";
         button4.style.borderRadius = '15px';
         button4.style.padding = '5px 10px';
         button4.style.marginLeft = '10px';
         button4.addEventListener('click', showCalculatorBox);
-        searchBox.parentNode.insertBefore(button4, searchBox.nextSibling);
-
-        // Add tooltip to the Payer Emails button
         addTooltip(button4, "Calculate Margins");
 
-        console.log('Buttons created and inserted next to #searchBoxLiveRegion.');
+        // Append buttons in order
+        searchBox.parentNode.insertBefore(button1, searchBox.nextSibling);
+        searchBox.parentNode.insertBefore(button2, button1.nextSibling); // Ensure button2 appears after button1
+        searchBox.parentNode.insertBefore(button3, button2.nextSibling); // Ensure button3 appears after button2
+        searchBox.parentNode.insertBefore(button4, button3.nextSibling); // Ensure button4 appears after button3
+
+        console.log('Buttons created and inserted in order next to #searchBoxLiveRegion.');
     } else {
         console.log('Search box not found, retrying...');
     }
 }
+
 
 // Function to add a custom tooltip to the button
 function addTooltip(button, message) {
