@@ -198,7 +198,7 @@ function showCalculatorUI() {
 
         // Calculate Target based on 35% margin
         const target = totalBilled * (1 - 0.35);
-        targetLabel.innerText = `Target (35% Margin): $${target.toFixed(2)}`;
+        targetLabel.innerText = `Target to pay this or less: $${target.toFixed(2)}`;
     };
 
     input.addEventListener("input", calculateMargin);
