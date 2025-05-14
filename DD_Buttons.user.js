@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.2.9
+// @version      3.4
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -11,8 +11,6 @@
 // @grant        GM_registerMenuCommand
 // ==/UserScript==
 //Moved to GitHub for 3.2.5+
-
-//Testing auto update
 
 (function() {
     'use strict';
@@ -37,6 +35,221 @@
             popup.style.opacity = '0';
             setTimeout(() => popup.remove(), 500);
         }, 3000);
+    }
+
+// Function to show calculator UI
+function showCalculatorBox() {
+    const tab8 = document.querySelector('[id^="tab8_"]');
+    if (tab8) {
+        tab8.click();
+        console.log("Clicked tab8_ before showing calculator.");
+        setTimeout(showCalculatorUI, 1000); // Wait for content to load
+    } else {
+        console.warn("tab8_ not found.");
+        showCalculatorUI(); // Proceed anyway if not found
+    }
+}
+
+function showCalculatorUI() {
+    const existing = document.getElementById("calcBox");
+    if (existing) existing.remove();
+
+    const box = document.createElement("div");
+    box.id = "calcBox";
+    box.style.position = "fixed";
+    box.style.top = "30%";
+    box.style.left = "50%";
+    box.style.transform = "translate(-50%, -50%)";
+    box.style.background = "#fff";
+    box.style.padding = "20px";
+    box.style.border = "2px solid #000";
+    box.style.borderRadius = "10px";
+    box.style.zIndex = "10000";
+    box.style.minWidth = "320px";
+
+    const closeButton = document.createElement("button");
+    closeButton.innerText = "X";
+    closeButton.style.position = "absolute";
+    closeButton.style.top = "5px";
+    closeButton.style.right = "10px";
+    closeButton.style.border = "none";
+    closeButton.style.background = "transparent";
+    closeButton.style.color = "#000";
+    closeButton.style.fontSize = "16px";
+    closeButton.style.cursor = "pointer";
+    closeButton.onclick = () => box.remove();
+
+    const modeLabel = document.createElement("div");
+    modeLabel.innerText = "Select Rate Type:";
+    modeLabel.style.marginTop = "5px";
+    modeLabel.style.marginBottom = "5px";
+    modeLabel.style.fontWeight = "bold";
+    modeLabel.style.fontSize = "22px"
+
+    const flatRadio = document.createElement("input");
+    flatRadio.type = "radio";
+    flatRadio.name = "rateType";
+    flatRadio.value = "flat";
+    flatRadio.id = "rateFlat";
+    flatRadio.checked = true;
+    flatRadio.style.fontSize = "18px"
+
+    const flatLabel = document.createElement("label");
+    flatLabel.htmlFor = "rateFlat";
+    flatLabel.innerText = "Flat Rate";
+    flatLabel.style.marginRight = "20px";
+    flatLabel.style.fontSize = "18px"
+
+    const mileRadio = document.createElement("input");
+    mileRadio.type = "radio";
+    mileRadio.name = "rateType";
+    mileRadio.value = "mile";
+    mileRadio.id = "rateMile";
+
+    const mileLabel = document.createElement("label");
+    mileLabel.htmlFor = "rateMile";
+    mileLabel.innerText = "Per Mile";
+    mileLabel.style.fontSize = "18px"
+
+    const inputLabel = document.createElement("label");
+    inputLabel.innerText = "Enter Provider Rate:";
+    inputLabel.style.display = "block";
+    inputLabel.style.marginTop = "15px";
+    inputLabel.style.fontWeight = "bold";
+    inputLabel.style.fontSize = "18px"
+
+    const input = document.createElement("input");
+    input.type = "number";
+    input.style.width = "100%";
+    input.style.marginTop = "10px";
+    input.style.marginBottom = "15px";
+
+    const result = document.createElement("div");
+    result.style.marginTop = "10px";
+    result.style.fontWeight = "bold";
+    result.style.whiteSpace = "pre-line";
+
+    const targetLabel = document.createElement("div");
+    targetLabel.style.marginTop = "10px";
+    targetLabel.style.fontWeight = "bold";
+
+    const calculateMargin = () => {
+        const rateType = document.querySelector('input[name="rateType"]:checked').value;
+        const inputValue = parseFloat(input.value);
+        if (isNaN(inputValue) || inputValue <= 0) {
+            result.innerText = "Please enter a valid amount.";
+            result.style.color = "black";
+            return;
+        }
+
+        const rows = document.querySelectorAll('div[row-index]');
+        let totalBilled = 0;
+        let quantity = 0;
+
+        rows.forEach(row => {
+            const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+            const totalCell = row.querySelector('[col-id="gtt_total"]');
+            const qtyCell = row.querySelector('[col-id="gtt_quantity"]');
+
+            if (productCell && totalCell) {
+                const product = productCell.innerText.trim();
+                const totalText = totalCell.innerText.trim().replace(/[^0-9.-]+/g, '');
+                const totalValue = parseFloat(totalText);
+
+                const matchProduct = [
+                    "Transport Ambulatory",
+                    "Transport Wheelchair",
+                    "Transport Stretcher, ALS & BLS",
+                    "Miscellaneous Dead Miles",
+                    "Load Fee"
+                ];
+
+                if (matchProduct.includes(product) && !isNaN(totalValue)) {
+                    totalBilled += totalValue;
+                }
+
+                if (
+                    rateType === "mile" &&
+                    quantity === 0 &&
+                    ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(product) &&
+                    qtyCell
+                ) {
+                    const qty = parseFloat(qtyCell.innerText.trim().replace(/[^0-9.-]+/g, ''));
+                    if (!isNaN(qty)) {
+                        quantity = qty;
+                    }
+                }
+            }
+        });
+
+        if (totalBilled === 0) {
+            result.innerText = "Could not find any billed total.";
+            result.style.color = "black";
+            return;
+        }
+
+        let paidAmount = inputValue;
+        if (rateType === "mile") {
+            if (quantity === 0) {
+                result.innerText = "Could not find transport quantity.";
+                result.style.color = "black";
+                return;
+            }
+            paidAmount = inputValue * quantity;
+        }
+
+        const margin = 100 - ((paidAmount / totalBilled) * 100);
+
+        // Set color based on margin
+        let marginColor = "black";
+        if (margin <= 24.99) {
+            marginColor = "red";
+        } else if (margin < 35) {
+            marginColor = "goldenrod"; // yellow-ish
+        } else {
+            marginColor = "green";
+        }
+
+        const marginHTML = `<span style="color: ${marginColor}; font-weight: bold; font-size: 16px;">Margin: ${margin.toFixed(2)}%</span>`;
+        const billedLine = `<span style="font-size: 14px;">Total Billed: $${totalBilled.toFixed(2)}</span>`;
+        const paidLine = rateType === "mile" ? `<span style="font-size: 14px;">Miles: ${quantity}, Total Paid: $${paidAmount.toFixed(2)}</span>`: "";
+
+        // Set HTML instead of innerText
+        result.innerHTML = [billedLine, paidLine, marginHTML].filter(Boolean).join("<br>");
+
+
+        const target = totalBilled * (1 - 0.35);
+        targetLabel.innerHTML = `<span style="font-size: 14px;">Target to pay this or less: $${target.toFixed(2)}</span>`;
+    };
+
+    input.addEventListener("input", calculateMargin);
+    flatRadio.addEventListener("change", () => {
+        input.value = '';
+        calculateMargin();
+    });
+    mileRadio.addEventListener("change", () => {
+        input.value = '';
+        calculateMargin();
+    });
+
+    box.appendChild(closeButton);
+    box.appendChild(modeLabel);
+    box.appendChild(flatRadio);
+    box.appendChild(flatLabel);
+    box.appendChild(mileRadio);
+    box.appendChild(mileLabel);
+    box.appendChild(inputLabel);
+    box.appendChild(input);
+    box.appendChild(result);
+    box.appendChild(targetLabel);
+
+    document.body.appendChild(box);
+}
+
+    // Add event listener for the calculator button
+    const calculatorButton = document.querySelector('#yourCalculatorButtonSelector'); // Replace with actual button selector
+    if (calculatorButton) {
+        calculatorButton.addEventListener('click', showCalculatorBox);
     }
 
     // Function to copy claimant name
@@ -233,7 +446,7 @@ function finalizeCopy(claimant, claim, referralDate, selectedOption) {
 }
 
 // Wait for SavePrimary button to appear
-function waitForSavePrimary(retries = 10, delay = 500) {
+function waitForSavePrimary(retries = 10, delay = 1500) {
     return new Promise((resolve, reject) => {
         function tryFind() {
             var btn = document.querySelector('[id*="SavePrimary"]');
@@ -485,41 +698,46 @@ function waitForElement(selector) {
     });
 }
 
-    // Function to extract the title part, prepend *, and copy it to the clipboard
-    function extractAndCopyTitle() {
-        const titleElement = document.querySelector('[id^="formHeaderTitle"]');
-        if (titleElement) {
-            const title = titleElement.textContent.trim();
-            console.log('Title Found:', title);
+// Function to extract the title part, prepend *, and copy it to the clipboard
+function extractAndCopyTitle() {
+    const titleElement = document.querySelector('[id^="formHeaderTitle"]');
+    if (titleElement) {
+        const title = titleElement.textContent.trim();
+        console.log('Title Found:', title);
 
-            const hyphenIndexes = [...title].reduce((acc, char, idx) => {
-                if (char === '-') acc.push(idx);
-                return acc;
-            }, []);
-
-            if (hyphenIndexes.length >= 2) {
-                const start = hyphenIndexes[0] + 1;
-                const end = hyphenIndexes[1];
-                let extractedText = title.slice(start, end).trim();
-                extractedText = `*${extractedText}`;
-                GM_setClipboard(extractedText);
-                showMessage(`Copied: "${extractedText}" successfully.`);
-                console.log('Extracted and copied to clipboard:', extractedText);
-            } else {
-                showMessage('Title does not contain two hyphens.', false);
-                console.error('Title does not contain two hyphens.');
-            }
-        } else {
-            showMessage('Claimant ID not found yet.', false);
-            console.error('Claimant ID not found.');
+        // Check if title contains '212-' and show a different alert
+        if (title.includes("212-")) {
+            alert("Homelink must be atleast 50% margin");
         }
-    }
 
-// Function to create and style the buttons
+        const hyphenIndexes = [...title].reduce((acc, char, idx) => {
+            if (char === '-') acc.push(idx);
+            return acc;
+        }, []);
+
+        if (hyphenIndexes.length >= 2) {
+            const start = hyphenIndexes[0] + 1;
+            const end = hyphenIndexes[1];
+            let extractedText = title.slice(start, end).trim();
+            extractedText = `*${extractedText}`;
+            GM_setClipboard(extractedText);
+            showMessage(`Copied: "${extractedText}" successfully.`);
+            console.log('Extracted and copied to clipboard:', extractedText);
+        } else {
+            showMessage('Title does not contain two hyphens.', false);
+            console.error('Title does not contain two hyphens.');
+        }
+    } else {
+        showMessage('Claimant ID not found yet.', false);
+        console.error('Claimant ID not found.');
+    }
+}
+
+
 function createButtons() {
     const searchBox = document.querySelector('#searchBoxLiveRegion');
     if (searchBox) {
-        // Payer Emails Both button
+        // Create and style buttons
         var button1 = document.createElement('button');
         button1.textContent = 'Payer Emails';
         button1.style.backgroundColor = '#007BFF';
@@ -530,48 +748,56 @@ function createButtons() {
         button1.style.padding = '5px 10px';
         button1.style.marginLeft = '10px';
         button1.addEventListener('click', copyBoth);
-        searchBox.parentNode.insertBefore(button1, searchBox.nextSibling);
-
-        // Add tooltip to the Payer Emails button
         addTooltip(button1, "Clicking Payer emails then cancel on date input will still copy name and claim");
 
-        // Copy Name button
         var button2 = document.createElement('button');
         button2.textContent = 'Copy Name/SP Tab';
         button2.style.backgroundColor = '#007BFF';
         button2.style.color = '#fff';
         button2.style.fontWeight = 'bold';
-        button2.style.letterSpacing = "1.2px"
+        button2.style.letterSpacing = "1.2px";
         button2.style.borderRadius = '15px';
         button2.style.padding = '5px 10px';
         button2.style.marginLeft = '10px';
         button2.addEventListener('click', copyClaimantName);
-        searchBox.parentNode.insertBefore(button2, searchBox.nextSibling);
-
-        // Add tooltip to the Payer Emails button
         addTooltip(button2, "This will copy name and take you to Service Provider Tab");
 
-        // Claimant ID button
         var button3 = document.createElement('button');
         button3.textContent = 'ClaimantID';
         button3.style.backgroundColor = '#007BFF';
         button3.style.color = '#fff';
         button3.style.fontWeight = 'bold';
-        button3.style.letterSpacing = "1.2px"
+        button3.style.letterSpacing = "1.2px";
         button3.style.borderRadius = '15px';
         button3.style.padding = '5px 10px';
         button3.style.marginLeft = '10px';
         button3.addEventListener('click', extractAndCopyTitle);
-        searchBox.parentNode.insertBefore(button3, searchBox.nextSibling);
-
-        // Add tooltip to the Payer Emails button
         addTooltip(button3, "This will copy the claimant ID used for prev vendor search");
 
-        console.log('Buttons created and inserted next to #searchBoxLiveRegion.');
+        var button4 = document.createElement('button');
+        button4.textContent = 'Margin';
+        button4.style.backgroundColor = '#007BFF';
+        button4.style.color = '#fff';
+        button4.style.fontWeight = 'bold';
+        button4.style.letterSpacing = "1.2px";
+        button4.style.borderRadius = '15px';
+        button4.style.padding = '5px 10px';
+        button4.style.marginLeft = '10px';
+        button4.addEventListener('click', showCalculatorBox);
+        addTooltip(button4, "Calculate Margins");
+
+        // Append buttons in order
+        searchBox.parentNode.insertBefore(button3, searchBox.nextSibling);
+        searchBox.parentNode.insertBefore(button2, button3.nextSibling);
+        searchBox.parentNode.insertBefore(button1, button2.nextSibling);
+        searchBox.parentNode.insertBefore(button4, button1.nextSibling);
+
+        console.log('Buttons created and inserted in order next to #searchBoxLiveRegion.');
     } else {
         console.log('Search box not found, retrying...');
     }
 }
+
 
 // Function to add a custom tooltip to the button
 function addTooltip(button, message) {
@@ -602,6 +828,10 @@ function addTooltip(button, message) {
         tooltip.style.opacity = "0";
     });
 }
+
+// Call the createButtons function to initialize the buttons
+createButtons();
+
 
     // Function to continuously observe the DOM for the search box to appear
     function waitForSearchBox() {
