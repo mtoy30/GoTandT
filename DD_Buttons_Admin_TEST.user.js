@@ -170,7 +170,8 @@ function showCalculatorUI() {
                     "Transport Wheelchair",
                     "Transport Stretcher, ALS & BLS",
                     "Miscellaneous Dead Miles",
-                    "Load Fee"
+                    "Load Fee",
+                    "One Way Surcharge"
                 ];
 
                 if (matchProduct.includes(product) && !isNaN(totalValue)) {
