@@ -82,8 +82,8 @@ function showCalculatorUI() {
     closeButton.style.border = "none";
     closeButton.style.background = "transparent";
     closeButton.style.color = "#000";
-    closeButton.style.fontSize = "16px";
     closeButton.style.fontSize = "20px";
+    closeButton.style.fontWeight = "bold";
     closeButton.style.cursor = "pointer";
     closeButton.onclick = () => box.remove();
 
