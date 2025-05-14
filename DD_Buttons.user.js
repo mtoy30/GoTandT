@@ -39,14 +39,6 @@
 
 // Function to show calculator UI
 function showCalculatorBox() {
-    const titleElement = document.querySelector('[data-id="form-header-title"]'); // Adjust if needed
-    const titleText = titleElement?.textContent || "";
-
-    if (!titleText.includes("Referral:")) {
-        showMessage("Must be in a Referral", false);
-        return;
-    }
-
     const tab8 = document.querySelector('[id^="tab8_"]');
     if (tab8) {
         tab8.click();
