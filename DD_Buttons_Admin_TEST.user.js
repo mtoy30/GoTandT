@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.3.3
+// @version      3.4
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -84,7 +84,8 @@ function showCalculatorUI() {
     modeLabel.innerText = "Select Rate Type:";
     modeLabel.style.marginTop = "5px";
     modeLabel.style.marginBottom = "5px";
-    modeLabel.style.fontWeight = "bold";  // Make bold
+    modeLabel.style.fontWeight = "bold";
+    modeLabel.style.fontSize = "22px"
 
     const flatRadio = document.createElement("input");
     flatRadio.type = "radio";
@@ -92,11 +93,13 @@ function showCalculatorUI() {
     flatRadio.value = "flat";
     flatRadio.id = "rateFlat";
     flatRadio.checked = true;
+    flatRadio.style.fontSize = "18px"
 
     const flatLabel = document.createElement("label");
     flatLabel.htmlFor = "rateFlat";
     flatLabel.innerText = "Flat Rate";
     flatLabel.style.marginRight = "20px";
+    flatLabel.style.fontSize = "18px"
 
     const mileRadio = document.createElement("input");
     mileRadio.type = "radio";
@@ -107,12 +110,14 @@ function showCalculatorUI() {
     const mileLabel = document.createElement("label");
     mileLabel.htmlFor = "rateMile";
     mileLabel.innerText = "Per Mile";
+    mileLabel.style.fontSize = "18px"
 
     const inputLabel = document.createElement("label");
     inputLabel.innerText = "Enter Provider Rate:";
     inputLabel.style.display = "block";
     inputLabel.style.marginTop = "15px";
-    inputLabel.style.fontWeight = "bold";  // Make bold
+    inputLabel.style.fontWeight = "bold";
+    inputLabel.style.fontSize = "18px"
 
     const input = document.createElement("input");
     input.type = "number";
@@ -134,6 +139,7 @@ function showCalculatorUI() {
         const inputValue = parseFloat(input.value);
         if (isNaN(inputValue) || inputValue <= 0) {
             result.innerText = "Please enter a valid amount.";
+            result.style.color = "black";
             return;
         }
 
@@ -179,6 +185,7 @@ function showCalculatorUI() {
 
         if (totalBilled === 0) {
             result.innerText = "Could not find any billed total.";
+            result.style.color = "black";
             return;
         }
 
@@ -186,28 +193,43 @@ function showCalculatorUI() {
         if (rateType === "mile") {
             if (quantity === 0) {
                 result.innerText = "Could not find transport quantity.";
+                result.style.color = "black";
                 return;
             }
             paidAmount = inputValue * quantity;
         }
 
         const margin = 100 - ((paidAmount / totalBilled) * 100);
-        result.innerText = `Total Billed: $${totalBilled.toFixed(2)}\n` +
-            (rateType === "mile" ? `Miles: ${quantity}, Total Paid: $${paidAmount.toFixed(2)}\n` : "") +
-            `Margin: ${margin.toFixed(2)}%`;
 
-        // Calculate Target based on 35% margin
+        // Set color based on margin
+        let marginColor = "black";
+        if (margin <= 24.99) {
+            marginColor = "red";
+        } else if (margin < 35) {
+            marginColor = "goldenrod"; // yellow-ish
+        } else {
+            marginColor = "green";
+        }
+
+        const marginHTML = `<span style="color: ${marginColor}; font-weight: bold; font-size: 16px;">Margin: ${margin.toFixed(2)}%</span>`;
+        const billedLine = `<span style="font-size: 14px;">Total Billed: $${totalBilled.toFixed(2)}</span>`;
+        const paidLine = rateType === "mile" ? `<span style="font-size: 14px;">Miles: ${quantity}, Total Paid: $${paidAmount.toFixed(2)}</span>`: "";
+
+        // Set HTML instead of innerText
+        result.innerHTML = [billedLine, paidLine, marginHTML].filter(Boolean).join("<br>");
+
+
         const target = totalBilled * (1 - 0.35);
-        targetLabel.innerText = `Target to pay this or less: $${target.toFixed(2)}`;
+        targetLabel.innerHTML = `<span style="font-size: 14px;">Target to pay this or less: $${target.toFixed(2)}</span>`;
     };
 
     input.addEventListener("input", calculateMargin);
     flatRadio.addEventListener("change", () => {
-        input.value = '';  // Clear input when rate type changes
+        input.value = '';
         calculateMargin();
     });
     mileRadio.addEventListener("change", () => {
-        input.value = '';  // Clear input when rate type changes
+        input.value = '';
         calculateMargin();
     });
 
@@ -224,7 +246,6 @@ function showCalculatorUI() {
 
     document.body.appendChild(box);
 }
-
 
     // Add event listener for the calculator button
     const calculatorButton = document.querySelector('#yourCalculatorButtonSelector'); // Replace with actual button selector
