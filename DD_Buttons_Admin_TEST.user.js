@@ -211,13 +211,17 @@ function showCalculatorUI() {
             marginColor = "green";
         }
 
-        const marginHTML = `<span style="color: ${marginColor}; font-weight: bold; font-size: 16px;">Margin: ${margin.toFixed(2)}%</span>`;
+        let approvalNote = "";
+        if (margin <= 24.99) {
+            approvalNote = `<br><span style="color: red; font-weight: bold; font-size: 16px;">Seek Management Approval</span>`;
+        }
+
+        const marginHTML = `<span style="color: ${marginColor}; font-weight: bold; font-size: 16px;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}`;
         const billedLine = `<span style="font-size: 14px;">Total Billed: $${totalBilled.toFixed(2)}</span>`;
         const paidLine = rateType === "mile" ? `<span style="font-size: 14px;">Miles: ${quantity}, Total Paid: $${paidAmount.toFixed(2)}</span>`: "";
 
         // Set HTML instead of innerText
         result.innerHTML = [billedLine, paidLine, marginHTML].filter(Boolean).join("<br>");
-
 
         const target = totalBilled * (1 - 0.35);
         targetLabel.innerHTML = `<span style="font-size: 14px;">Target to pay this or less: $${target.toFixed(2)}</span>`;
