@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.4.2
+// @version      3.4.3
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -39,14 +39,20 @@
 
 // Function to show calculator UI
 function showCalculatorBox() {
+    // Check if the page title contains 'Referral: Information:'
+    if (!document.title.includes("Referral: Information:")) {
+        showMessage("Must be in a referral", false);
+        return;
+    }
+
     const tab8 = document.querySelector('[id^="tab8_"]');
     if (tab8) {
         tab8.click();
         console.log("Clicked tab8_ before showing calculator.");
-        setTimeout(showCalculatorUI, 1000); // Wait for content to load
+        setTimeout(showCalculatorUI, 1000);
     } else {
         console.warn("tab8_ not found.");
-        showCalculatorUI(); // Proceed anyway if not found
+        showCalculatorUI(); // fallback
     }
 }
 
