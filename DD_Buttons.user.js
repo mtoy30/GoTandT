@@ -327,8 +327,14 @@ foundProducts.forEach(product => {
     };
 
     input.addEventListener("input", calculateMargin);
-    flatRadio.addEventListener("change", calculateMargin);
-    mileRadio.addEventListener("change", calculateMargin);
+    flatRadio.addEventListener("change", () => {
+        input.value = "";
+        calculateMargin();
+    });
+    mileRadio.addEventListener("change", () => {
+        input.value = "";
+        calculateMargin();
+    });
 
     box.appendChild(closeButton);
     box.appendChild(modeLabel);
