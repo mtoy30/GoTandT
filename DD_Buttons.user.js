@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.4.5
+// @version      3.4.6
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -64,15 +64,16 @@ function showCalculatorUI() {
     const box = document.createElement("div");
     box.id = "calcBox";
     box.style.position = "fixed";
-    box.style.top = "30%";
-    box.style.left = "50%";
-    box.style.transform = "translate(-50%, -50%)";
+    box.style.top = "5%";
+    box.style.left = "80%";
+    box.style.transform = "translateX(-50%)";
     box.style.background = "#fff";
     box.style.padding = "20px";
     box.style.border = "2px solid #000";
     box.style.borderRadius = "10px";
     box.style.zIndex = "10000";
-    box.style.minWidth = "320px";
+    box.style.minWidth = "350px";
+    box.style.maxWidth = "500px";
 
     const closeButton = document.createElement("button");
     closeButton.innerText = "X";
@@ -92,7 +93,7 @@ function showCalculatorUI() {
     modeLabel.style.marginTop = "5px";
     modeLabel.style.marginBottom = "5px";
     modeLabel.style.fontWeight = "bold";
-    modeLabel.style.fontSize = "22px"
+    modeLabel.style.fontSize = "22px";
 
     const flatRadio = document.createElement("input");
     flatRadio.type = "radio";
@@ -100,13 +101,11 @@ function showCalculatorUI() {
     flatRadio.value = "flat";
     flatRadio.id = "rateFlat";
     flatRadio.checked = true;
-    flatRadio.style.fontSize = "18px"
 
     const flatLabel = document.createElement("label");
     flatLabel.htmlFor = "rateFlat";
     flatLabel.innerText = "Flat Rate";
     flatLabel.style.marginRight = "20px";
-    flatLabel.style.fontSize = "18px"
 
     const mileRadio = document.createElement("input");
     mileRadio.type = "radio";
@@ -117,14 +116,12 @@ function showCalculatorUI() {
     const mileLabel = document.createElement("label");
     mileLabel.htmlFor = "rateMile";
     mileLabel.innerText = "Per Mile";
-    mileLabel.style.fontSize = "18px"
 
     const inputLabel = document.createElement("label");
     inputLabel.innerText = "Enter Provider Rate:";
     inputLabel.style.display = "block";
     inputLabel.style.marginTop = "15px";
     inputLabel.style.fontWeight = "bold";
-    inputLabel.style.fontSize = "18px"
 
     const input = document.createElement("input");
     input.type = "number";
@@ -141,59 +138,120 @@ function showCalculatorUI() {
     targetLabel.style.marginTop = "10px";
     targetLabel.style.fontWeight = "bold";
 
+    const higherHeader = document.createElement("div");
+    higherHeader.innerText = "Higher Rates Calculator";
+    higherHeader.style.marginTop = "25px";
+    higherHeader.style.fontWeight = "bold";
+    higherHeader.style.fontSize = "20px";
+
+    const higherInputsWrapper = document.createElement("div");
+    higherInputsWrapper.style.marginTop = "10px";
+
+    const higherResult = document.createElement("div");
+    higherResult.style.marginTop = "10px";
+    higherResult.style.fontWeight = "bold";
+    higherResult.style.whiteSpace = "pre-line";
+
+    const productInputs = {};
+    const productsToTrack = [
+        "Transport Ambulatory",
+        "Transport Wheelchair",
+        "Transport Stretcher, ALS & BLS",
+        "Miscellaneous Dead Miles",
+        "Load Fee"
+    ];
+
     const calculateMargin = () => {
         const rateType = document.querySelector('input[name="rateType"]:checked').value;
         const inputValue = parseFloat(input.value);
         if (isNaN(inputValue) || inputValue <= 0) {
             result.innerText = "Please enter a valid amount.";
             result.style.color = "black";
+            higherResult.innerText = "";
             return;
         }
 
         const rows = document.querySelectorAll('div[row-index]');
         let totalBilled = 0;
         let quantity = 0;
+        let quantities = {};
+        let foundProducts = new Set();
 
         rows.forEach(row => {
             const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
             const totalCell = row.querySelector('[col-id="gtt_total"]');
             const qtyCell = row.querySelector('[col-id="gtt_quantity"]');
 
-            if (productCell && totalCell) {
+            if (productCell) {
                 const product = productCell.innerText.trim();
-                const totalText = totalCell.innerText.trim().replace(/[^0-9.-]+/g, '');
+                const totalText = totalCell?.innerText.trim().replace(/[^0-9.-]+/g, '') || "0";
                 const totalValue = parseFloat(totalText);
 
-                const matchProduct = [
-                    "Transport Ambulatory",
-                    "Transport Wheelchair",
-                    "Transport Stretcher, ALS & BLS",
-                    "Miscellaneous Dead Miles",
-                    "Load Fee",
-                    "One Way Surcharge"
-                ];
-
-                if (matchProduct.includes(product) && !isNaN(totalValue)) {
-                    totalBilled += totalValue;
+                if (productsToTrack.includes(product)) {
+                    if (!isNaN(totalValue)) totalBilled += totalValue;
                 }
 
-                if (
-                    rateType === "mile" &&
-                    quantity === 0 &&
-                    ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(product) &&
-                    qtyCell
-                ) {
-                    const qty = parseFloat(qtyCell.innerText.trim().replace(/[^0-9.-]+/g, ''));
-                    if (!isNaN(qty)) {
-                        quantity = qty;
+                if (qtyCell) {
+                    const qtyVal = parseFloat(qtyCell.innerText.trim().replace(/[^0-9.-]+/g, ''));
+                    if (!isNaN(qtyVal)) {
+                        if (!quantities[product]) quantities[product] = 0;
+                        quantities[product] += qtyVal;
                     }
+                }
+
+                if (productsToTrack.includes(product)) {
+                    foundProducts.add(product);
+                }
+
+                if (rateType === "mile" && quantity === 0 && qtyCell && ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(product)) {
+                    const q = parseFloat(qtyCell.innerText.trim().replace(/[^0-9.-]+/g, ''));
+                    if (!isNaN(q)) quantity = q;
                 }
             }
         });
 
+        ["Miscellaneous Dead Miles", "Tolls", "Other"].forEach(p => foundProducts.add(p));
+
+const preferredOrder = [
+  "Transport Ambulatory",
+  "Transport Wheelchair",
+  "Transport Stretcher, ALS & BLS",
+  "Miscellaneous Dead Miles",
+  "Load Fee",
+  "Tolls",
+  "Other"
+];
+
+preferredOrder.forEach(product => {
+    if (foundProducts.has(product) && !productInputs[product]) {
+        const wrapper = document.createElement("div");
+        wrapper.style.marginTop = "10px";
+
+        const label = document.createElement("label");
+        label.innerText = product + " Rate:";
+        label.style.marginRight = "10px";
+        label.style.fontWeight = "bold";
+
+        const inputField = document.createElement("input");
+        inputField.type = "number";
+        inputField.style.width = "100%";
+
+        inputField.addEventListener("input", calculateMargin);
+        wrapper.appendChild(label);
+        wrapper.appendChild(inputField);
+        higherInputsWrapper.appendChild(wrapper);
+
+        productInputs[product] = inputField;
+
+        if (!quantities[product]) quantities[product] = 0;
+    }
+});
+
+
         if (totalBilled === 0) {
             result.innerText = "Could not find any billed total.";
             result.style.color = "black";
+            higherResult.innerText = "";
             return;
         }
 
@@ -202,48 +260,75 @@ function showCalculatorUI() {
             if (quantity === 0) {
                 result.innerText = "Could not find transport quantity.";
                 result.style.color = "black";
+                higherResult.innerText = "";
                 return;
             }
             paidAmount = inputValue * quantity;
         }
 
         const margin = 100 - ((paidAmount / totalBilled) * 100);
-
-        // Set color based on margin
         let marginColor = "black";
-        if (margin <= 24.99) {
-            marginColor = "red";
-        } else if (margin < 35) {
-            marginColor = "goldenrod"; // yellow-ish
-        } else {
-            marginColor = "green";
-        }
+        if (margin <= 24.99) marginColor = "red";
+        else if (margin < 35) marginColor = "goldenrod";
+        else marginColor = "green";
 
-        let approvalNote = "";
-        if (margin <= 24.99) {
-            approvalNote = `<br><span style="color: red; font-weight: bold; font-size: 16px;">Seek Management Approval</span>`;
-        }
+        let approvalNote = margin <= 24.99 ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>` : "";
 
-        const marginHTML = `<span style="color: ${marginColor}; font-weight: bold; font-size: 16px;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}`;
-        const billedLine = `<span style="font-size: 14px;">Total Billed: $${totalBilled.toFixed(2)}</span>`;
-        const paidLine = rateType === "mile" ? `<span style="font-size: 14px;">Miles: ${quantity}, Total Paid: $${paidAmount.toFixed(2)}</span>`: "";
-
-        // Set HTML instead of innerText
-        result.innerHTML = [billedLine, paidLine, marginHTML].filter(Boolean).join("<br>");
+        result.innerHTML = `
+            <span>Total Billed: $${totalBilled.toFixed(2)}</span><br>
+            ${rateType === "mile" ? `<span>Miles: ${quantity}, Total Paid: $${paidAmount.toFixed(2)}</span><br>` : ""}
+            <span style="color: ${marginColor}; font-weight: bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
+        `.trim();
 
         const target = totalBilled * (1 - 0.35);
-        targetLabel.innerHTML = `<span style="font-size: 14px;">Target to pay this or less: $${target.toFixed(2)}</span>`;
+        targetLabel.innerHTML = `<span>Target to pay this or less: $${target.toFixed(2)}</span>`;
+
+        const transportProducts = ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"];
+        let activeTransportRate = 0;
+        for (const tp of transportProducts) {
+            const inputElem = productInputs[tp];
+            if (inputElem && inputElem.value.trim() !== "") {
+                activeTransportRate = parseFloat(inputElem.value);
+                if (isNaN(activeTransportRate)) activeTransportRate = 0;
+                break;
+            }
+        }
+
+        let higherTotal = 0;
+foundProducts.forEach(product => {
+    const enteredValue = parseFloat(productInputs[product]?.value);
+    const qty = quantities[product] || 0;
+
+    if (!isNaN(enteredValue)) {
+        if (product === "Miscellaneous Dead Miles") {
+            higherTotal += enteredValue * (activeTransportRate / 2);
+        } else if (product === "Tolls" || product === "Other") {
+            higherTotal += enteredValue;
+        } else {
+            higherTotal += enteredValue * qty;
+        }
+    }
+});
+
+
+
+        const higherMargin = 100 - ((paidAmount / higherTotal) * 100);
+        let higherMarginColor = "black";
+        if (higherMargin <= 24.99) higherMarginColor = "red";
+        else if (higherMargin < 35) higherMarginColor = "goldenrod";
+        else higherMarginColor = "green";
+
+        let higherApprovalNote = higherMargin <= 24.99 ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>` : "";
+
+        higherResult.innerHTML = `
+            <span>Total Using Higher Rates: $${higherTotal.toFixed(2)}</span><br>
+            <span style="color: ${higherMarginColor}; font-weight: bold;">Margin: ${higherMargin.toFixed(2)}%</span>${higherApprovalNote}
+        `.trim();
     };
 
     input.addEventListener("input", calculateMargin);
-    flatRadio.addEventListener("change", () => {
-        input.value = '';
-        calculateMargin();
-    });
-    mileRadio.addEventListener("change", () => {
-        input.value = '';
-        calculateMargin();
-    });
+    flatRadio.addEventListener("change", calculateMargin);
+    mileRadio.addEventListener("change", calculateMargin);
 
     box.appendChild(closeButton);
     box.appendChild(modeLabel);
@@ -255,6 +340,9 @@ function showCalculatorUI() {
     box.appendChild(input);
     box.appendChild(result);
     box.appendChild(targetLabel);
+    box.appendChild(higherHeader);
+    box.appendChild(higherInputsWrapper);
+    box.appendChild(higherResult);
 
     document.body.appendChild(box);
 }
