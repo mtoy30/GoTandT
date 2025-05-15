@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.4.6
+// @version      3.4.7
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -72,8 +72,14 @@ function showCalculatorUI() {
     box.style.border = "2px solid #000";
     box.style.borderRadius = "10px";
     box.style.zIndex = "10000";
-    box.style.minWidth = "350px";
+    box.style.minWidth = "500px";
     box.style.maxWidth = "500px";
+
+    // Add fixed height and vertical scrollbar
+    box.style.height = "800px"; // fixed height you want
+    box.style.overflowY = "auto"; // vertical scroll if content overflows
+
+    // Rest of your existing code remains unchanged...
 
     const closeButton = document.createElement("button");
     closeButton.innerText = "X";
@@ -145,7 +151,10 @@ function showCalculatorUI() {
     higherHeader.style.fontSize = "20px";
 
     const higherInputsWrapper = document.createElement("div");
-    higherInputsWrapper.style.marginTop = "10px";
+    higherInputsWrapper.style.display = "flex";
+    higherInputsWrapper.style.flexWrap = "wrap";
+    higherInputsWrapper.style.columnGap = "10px";
+
 
     const higherResult = document.createElement("div");
     higherResult.style.marginTop = "10px";
@@ -160,6 +169,30 @@ function showCalculatorUI() {
         "Miscellaneous Dead Miles",
         "Load Fee"
     ];
+
+    const resetButton = document.createElement("button");
+    resetButton.innerText = "Reset";
+    resetButton.style.marginTop = "20px";
+    resetButton.style.padding = "8px 16px";
+    resetButton.style.background = "#e74c3c";
+    resetButton.style.color = "#fff";
+    resetButton.style.border = "none";
+    resetButton.style.borderRadius = "5px";
+    resetButton.style.cursor = "pointer";
+    resetButton.style.fontWeight = "bold";
+
+    resetButton.onclick = () => {
+        input.value = "";
+        flatRadio.checked = true;
+        mileRadio.checked = false;
+        result.innerHTML = "";
+        targetLabel.innerHTML = "";
+        higherResult.innerHTML = "";
+
+        Object.values(productInputs).forEach(field => {
+            field.value = "";
+        });
+    };
 
     const calculateMargin = () => {
         const rateType = document.querySelector('input[name="rateType"]:checked').value;
@@ -210,7 +243,7 @@ function showCalculatorUI() {
             }
         });
 
-        ["Miscellaneous Dead Miles", "Tolls", "Other"].forEach(p => foundProducts.add(p));
+        ["Miscellaneous Dead Miles", "Tolls", "Other", "Wait Time", "Passenger Fee", "Rush Fee", "After Hours Fee", "Weekend Fee", "No Show"].forEach(p => foundProducts.add(p));
 
 const preferredOrder = [
   "Transport Ambulatory",
@@ -219,27 +252,58 @@ const preferredOrder = [
   "Miscellaneous Dead Miles",
   "Load Fee",
   "Tolls",
-  "Other"
+  "Other",
+  "Wait Time",
+  "Passenger Fee",
+  "Rush Fee",
+  "After Hours Fee",
+  "Weekend Fee",
+  "No Show"
 ];
 
 preferredOrder.forEach(product => {
     if (foundProducts.has(product) && !productInputs[product]) {
         const wrapper = document.createElement("div");
         wrapper.style.marginTop = "10px";
+        wrapper.style.flex = "1 1 48%"; // two columns with spacing
 
-        const label = document.createElement("label");
-        label.innerText = product + " Rate:";
-        label.style.marginRight = "10px";
-        label.style.fontWeight = "bold";
+        const labelRow = document.createElement("div");
+labelRow.style.display = "flex";
+labelRow.style.alignItems = "center";
+labelRow.style.justifyContent = "space-between";
+labelRow.style.marginBottom = "5px";
 
-        const inputField = document.createElement("input");
-        inputField.type = "number";
-        inputField.style.width = "100%";
+const label = document.createElement("label");
+label.innerText = product + " Rate:";
+label.style.fontWeight = "bold";
 
-        inputField.addEventListener("input", calculateMargin);
-        wrapper.appendChild(label);
-        wrapper.appendChild(inputField);
-        higherInputsWrapper.appendChild(wrapper);
+labelRow.appendChild(label);
+
+// Add Contract Rates button only for Wait Time and No Show
+if (["Wait Time", "No Show"].includes(product)) {
+    const contractBtn = document.createElement("button");
+    contractBtn.innerText = "Contract Rates";
+    contractBtn.style.marginLeft = "10px";
+    contractBtn.style.padding = "2px 6px";
+    contractBtn.style.fontSize = "12px";
+    contractBtn.style.cursor = "pointer";
+    contractBtn.onclick = () => {
+        inputField.value = "Contract Rates";
+        calculateMargin();
+    };
+    labelRow.appendChild(contractBtn);
+}
+
+const inputField = document.createElement("input");
+inputField.type = "text";
+inputField.style.width = "100%";
+
+inputField.addEventListener("input", calculateMargin);
+
+wrapper.appendChild(labelRow);
+wrapper.appendChild(inputField);
+higherInputsWrapper.appendChild(wrapper);
+
 
         productInputs[product] = inputField;
 
@@ -296,6 +360,8 @@ preferredOrder.forEach(product => {
 
         let higherTotal = 0;
 foundProducts.forEach(product => {
+    if (product === "Wait Time") return; // Exclude Wait Time from higherTotal
+
     const enteredValue = parseFloat(productInputs[product]?.value);
     const qty = quantities[product] || 0;
 
@@ -309,8 +375,6 @@ foundProducts.forEach(product => {
         }
     }
 });
-
-
 
         const higherMargin = 100 - ((paidAmount / higherTotal) * 100);
         let higherMarginColor = "black";
@@ -349,6 +413,8 @@ foundProducts.forEach(product => {
     box.appendChild(higherHeader);
     box.appendChild(higherInputsWrapper);
     box.appendChild(higherResult);
+    box.appendChild(resetButton);
+
 
     document.body.appendChild(box);
 }
