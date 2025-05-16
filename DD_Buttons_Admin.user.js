@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.4.5
+// @version      3.4.9
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -64,15 +64,23 @@ function showCalculatorUI() {
     const box = document.createElement("div");
     box.id = "calcBox";
     box.style.position = "fixed";
-    box.style.top = "30%";
-    box.style.left = "50%";
-    box.style.transform = "translate(-50%, -50%)";
+    box.style.top = "5%";
+    box.style.left = "80%";
+    box.style.transform = "translateX(-50%)";
     box.style.background = "#fff";
     box.style.padding = "20px";
     box.style.border = "2px solid #000";
     box.style.borderRadius = "10px";
     box.style.zIndex = "10000";
-    box.style.minWidth = "320px";
+    box.style.minWidth = "500px";
+    box.style.maxWidth = "500px";
+    box.style.color = "black";
+
+    // Add fixed height and vertical scrollbar
+    box.style.height = "800px"; // fixed height you want
+    box.style.overflowY = "auto"; // vertical scroll if content overflows
+
+    // Rest of your existing code remains unchanged...
 
     const closeButton = document.createElement("button");
     closeButton.innerText = "X";
@@ -92,7 +100,7 @@ function showCalculatorUI() {
     modeLabel.style.marginTop = "5px";
     modeLabel.style.marginBottom = "5px";
     modeLabel.style.fontWeight = "bold";
-    modeLabel.style.fontSize = "22px"
+    modeLabel.style.fontSize = "22px";
 
     const flatRadio = document.createElement("input");
     flatRadio.type = "radio";
@@ -100,13 +108,11 @@ function showCalculatorUI() {
     flatRadio.value = "flat";
     flatRadio.id = "rateFlat";
     flatRadio.checked = true;
-    flatRadio.style.fontSize = "18px"
 
     const flatLabel = document.createElement("label");
     flatLabel.htmlFor = "rateFlat";
     flatLabel.innerText = "Flat Rate";
     flatLabel.style.marginRight = "20px";
-    flatLabel.style.fontSize = "18px"
 
     const mileRadio = document.createElement("input");
     mileRadio.type = "radio";
@@ -117,14 +123,12 @@ function showCalculatorUI() {
     const mileLabel = document.createElement("label");
     mileLabel.htmlFor = "rateMile";
     mileLabel.innerText = "Per Mile";
-    mileLabel.style.fontSize = "18px"
 
     const inputLabel = document.createElement("label");
     inputLabel.innerText = "Enter Provider Rate:";
     inputLabel.style.display = "block";
     inputLabel.style.marginTop = "15px";
     inputLabel.style.fontWeight = "bold";
-    inputLabel.style.fontSize = "18px"
 
     const input = document.createElement("input");
     input.type = "number";
@@ -141,59 +145,408 @@ function showCalculatorUI() {
     targetLabel.style.marginTop = "10px";
     targetLabel.style.fontWeight = "bold";
 
+    const higherHeader = document.createElement("div");
+    higherHeader.innerText = "Higher Rates Calculator";
+    higherHeader.style.marginTop = "25px";
+    higherHeader.style.fontWeight = "bold";
+    higherHeader.style.fontSize = "20px";
+
+    const higherInputsWrapper = document.createElement("div");
+    higherInputsWrapper.style.display = "flex";
+    higherInputsWrapper.style.flexWrap = "wrap";
+    higherInputsWrapper.style.columnGap = "10px";
+
+
+    const higherResult = document.createElement("div");
+    higherResult.style.marginTop = "10px";
+    higherResult.style.fontWeight = "bold";
+    higherResult.style.whiteSpace = "pre-line";
+
+    const productInputs = {};
+    const productsToTrack = [
+        "Transport Ambulatory",
+        "Transport Wheelchair",
+        "Transport Stretcher, ALS & BLS",
+        "Miscellaneous Dead Miles",
+        "Load Fee",
+        "One Way Surcharge"
+    ];
+
+    const resetButton = document.createElement("button");
+    resetButton.innerText = "Reset";
+    resetButton.style.marginTop = "20px";
+    resetButton.style.marginLeft = "10px";
+    resetButton.style.padding = "8px 16px";
+    resetButton.style.background = "#e74c3c";
+    resetButton.style.color = "#fff";
+    resetButton.style.border = "none";
+    resetButton.style.borderRadius = "5px";
+    resetButton.style.cursor = "pointer";
+    resetButton.style.fontWeight = "bold";
+
+    resetButton.onclick = () => {
+        input.value = "";
+        flatRadio.checked = true;
+        mileRadio.checked = false;
+        result.innerHTML = "";
+        targetLabel.innerHTML = "";
+        higherResult.innerHTML = "";
+
+        Object.values(productInputs).forEach(field => {
+            field.value = "";
+        });
+    };
+
+    const lowMarginButton = document.createElement("button");
+    lowMarginButton.innerText = "Low Margin OK";
+    lowMarginButton.style.marginTop = "20px";
+    lowMarginButton.style.marginLeft = "10px";
+    lowMarginButton.style.padding = "8px 16px";
+    lowMarginButton.style.background = "#3498db";
+    lowMarginButton.style.color = "#fff";
+    lowMarginButton.style.border = "none";
+    lowMarginButton.style.borderRadius = "5px";
+    lowMarginButton.style.cursor = "pointer";
+    lowMarginButton.style.fontWeight = "bold";
+
+    lowMarginButton.onclick = () => {
+    const textToCopy = "Management aware of Transportation low margin. Ok to staff";
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        const copiedMsg = document.createElement("div");
+        copiedMsg.innerText = `"${textToCopy}" copied!`;
+        copiedMsg.style.position = "fixed";
+        copiedMsg.style.top = "50%";
+        copiedMsg.style.left = "50%";
+        copiedMsg.style.transform = "translate(-50%, -50%)";
+        copiedMsg.style.background = "rgba(0,0,0,0.8)";
+        copiedMsg.style.color = "#fff";
+        copiedMsg.style.padding = "15px 25px";
+        copiedMsg.style.borderRadius = "8px";
+        copiedMsg.style.zIndex = "10001";
+        copiedMsg.style.fontSize = "18px";
+        copiedMsg.style.fontWeight = "bold";
+        copiedMsg.style.textAlign = "center";
+        copiedMsg.style.maxWidth = "80%";
+        copiedMsg.style.wordWrap = "break-word";
+        document.body.appendChild(copiedMsg);
+
+        setTimeout(() => {
+            copiedMsg.remove();
+        }, 1000);
+    });
+};
+
+    const waittimeButton = document.createElement("button");
+    waittimeButton.innerText = "Wait Time";
+    waittimeButton.style.marginTop = "20px";
+    waittimeButton.style.marginLeft = "10px";
+    waittimeButton.style.padding = "8px 16px";
+    waittimeButton.style.background = "#3498db";
+    waittimeButton.style.color = "#fff";
+    waittimeButton.style.border = "none";
+    waittimeButton.style.borderRadius = "5px";
+    waittimeButton.style.cursor = "pointer";
+    waittimeButton.style.fontWeight = "bold";
+
+    waittimeButton.onclick = () => {
+    const textToCopy = "Ok to request wait time";
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        const copiedMsg = document.createElement("div");
+        copiedMsg.innerText = `"${textToCopy}" copied!`;
+        copiedMsg.style.position = "fixed";
+        copiedMsg.style.top = "50%";
+        copiedMsg.style.left = "50%";
+        copiedMsg.style.transform = "translate(-50%, -50%)";
+        copiedMsg.style.background = "rgba(0,0,0,0.8)";
+        copiedMsg.style.color = "#fff";
+        copiedMsg.style.padding = "15px 25px";
+        copiedMsg.style.borderRadius = "8px";
+        copiedMsg.style.zIndex = "10001";
+        copiedMsg.style.fontSize = "18px";
+        copiedMsg.style.fontWeight = "bold";
+        copiedMsg.style.textAlign = "center";
+        copiedMsg.style.maxWidth = "80%";
+        copiedMsg.style.wordWrap = "break-word";
+        document.body.appendChild(copiedMsg);
+
+        setTimeout(() => {
+            copiedMsg.remove();
+        }, 1000);
+    });
+};
+
+const boomerangButton = document.createElement("button");
+    boomerangButton.innerText = "Boomerang";
+    boomerangButton.style.marginTop = "20px";
+    boomerangButton.style.marginLeft = "10px";
+    boomerangButton.style.padding = "8px 16px";
+    boomerangButton.style.background = "#3498db";
+    boomerangButton.style.color = "#fff";
+    boomerangButton.style.border = "none";
+    boomerangButton.style.borderRadius = "5px";
+    boomerangButton.style.cursor = "pointer";
+    boomerangButton.style.fontWeight = "bold";
+
+    boomerangButton.onclick = () => {
+    const textToCopy = "Secure with Boomerang and leave in provider stage until rates approved";
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        const copiedMsg = document.createElement("div");
+        copiedMsg.innerText = `"${textToCopy}" copied!`;
+        copiedMsg.style.position = "fixed";
+        copiedMsg.style.top = "50%";
+        copiedMsg.style.left = "50%";
+        copiedMsg.style.transform = "translate(-50%, -50%)";
+        copiedMsg.style.background = "rgba(0,0,0,0.8)";
+        copiedMsg.style.color = "#fff";
+        copiedMsg.style.padding = "15px 25px";
+        copiedMsg.style.borderRadius = "8px";
+        copiedMsg.style.zIndex = "10001";
+        copiedMsg.style.fontSize = "18px";
+        copiedMsg.style.fontWeight = "bold";
+        copiedMsg.style.textAlign = "center";
+        copiedMsg.style.maxWidth = "80%";
+        copiedMsg.style.wordWrap = "break-word";
+        document.body.appendChild(copiedMsg);
+
+        setTimeout(() => {
+            copiedMsg.remove();
+        }, 1000);
+    });
+};
+
+// Create the "Request Rates" button
+const requestRatesButton = document.createElement("button");
+requestRatesButton.innerText = "Request Rates";
+requestRatesButton.style.marginTop = "20px";
+requestRatesButton.style.marginLeft = "10px";
+requestRatesButton.style.padding = "8px 16px";
+requestRatesButton.style.background = "#2ecc71";
+requestRatesButton.style.color = "#fff";
+requestRatesButton.style.border = "none";
+requestRatesButton.style.borderRadius = "5px";
+requestRatesButton.style.cursor = "pointer";
+requestRatesButton.style.fontWeight = "bold";
+
+// Add the button to the page
+document.body.appendChild(requestRatesButton);
+
+// Variables to hold quantities
+let miles = 0;
+let loadFeeQuantity = 0;
+
+// Loop through rows to extract quantities
+const rows = document.querySelectorAll('[role="row"]');
+rows.forEach(row => {
+  const accountProductCell = row.querySelector('[col-id="gtt_accountproduct"]');
+  const quantityCell = row.querySelector('[col-id="gtt_quantity"]');
+
+  if (accountProductCell && quantityCell) {
+    const accountProductText = accountProductCell.innerText.trim();
+    const quantityText = quantityCell.innerText.trim();
+    const quantity = parseFloat(quantityText);
+
+    if (accountProductText.includes("Transport") && !isNaN(quantity)) {
+      miles = quantity;
+      console.log("Matched Transport with quantity:", miles);
+    }
+
+    if (accountProductText.includes("Load Fee") && !isNaN(quantity)) {
+      loadFeeQuantity = quantity;
+      console.log("Matched Load Fee with quantity:", loadFeeQuantity);
+    }
+  }
+});
+
+// Button click behavior
+requestRatesButton.onclick = () => {
+  let parts = [];
+
+  Object.entries(productInputs).forEach(([label, input]) => {
+    const value = input.value.trim();
+    if (value !== "") {
+      let normalizedLabel = label === "Miscellaneous Dead Miles" ? "Dead Miles" : label;
+
+      if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
+        if (!isNaN(parseFloat(value))) {
+          parts.push(`$${parseFloat(value).toFixed(2)}/mile x ${miles} miles`);
+        } else {
+          parts.push(`${value} ${normalizedLabel}`);
+        }
+      } else if (label === "Load Fee") {
+        if (!isNaN(parseFloat(value))) {
+          const fee = `$${parseFloat(value).toFixed(2)} Load Fee`;
+          const withQty = loadFeeQuantity ? `${fee} x ${loadFeeQuantity}` : fee;
+          parts.push(withQty);
+        } else {
+          parts.push(`${value} Load Fee`);
+        }
+      } else if (normalizedLabel === "Dead Miles") {
+        if (!isNaN(parseFloat(value))) {
+          parts.push(`${parseFloat(value)} ${normalizedLabel}`);
+        } else {
+          parts.push(`${value} ${normalizedLabel}`);
+        }
+      } else {
+        if (value.toLowerCase() === "contract" || value.toLowerCase().includes("contract")) {
+          parts.push(`contract ${normalizedLabel}`);
+        } else if (!isNaN(parseFloat(value))) {
+          parts.push(`$${parseFloat(value).toFixed(2)} ${normalizedLabel}`);
+        } else {
+          parts.push(`${value} ${normalizedLabel}`);
+        }
+      }
+    }
+  });
+
+  const finalText = "Request rates " + parts.join(", ");
+  navigator.clipboard.writeText(finalText).then(() => {
+    const copiedMsg = document.createElement("div");
+    copiedMsg.innerText = `"${finalText}" copied!`;
+    copiedMsg.style.position = "fixed";
+    copiedMsg.style.top = "50%";
+    copiedMsg.style.left = "50%";
+    copiedMsg.style.transform = "translate(-50%, -50%)";
+    copiedMsg.style.background = "rgba(0,0,0,0.8)";
+    copiedMsg.style.color = "#fff";
+    copiedMsg.style.padding = "15px 25px";
+    copiedMsg.style.borderRadius = "8px";
+    copiedMsg.style.zIndex = "10001";
+    copiedMsg.style.fontSize = "18px";
+    copiedMsg.style.fontWeight = "bold";
+    copiedMsg.style.textAlign = "center";
+    copiedMsg.style.maxWidth = "80%";
+    copiedMsg.style.wordWrap = "break-word";
+    document.body.appendChild(copiedMsg);
+
+    setTimeout(() => {
+      copiedMsg.remove();
+    }, 1500);
+  });
+};
+
+
     const calculateMargin = () => {
         const rateType = document.querySelector('input[name="rateType"]:checked').value;
         const inputValue = parseFloat(input.value);
         if (isNaN(inputValue) || inputValue <= 0) {
             result.innerText = "Please enter a valid amount.";
             result.style.color = "black";
+            higherResult.innerText = "";
             return;
         }
 
         const rows = document.querySelectorAll('div[row-index]');
         let totalBilled = 0;
         let quantity = 0;
+        let quantities = {};
+        let foundProducts = new Set();
 
         rows.forEach(row => {
             const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
             const totalCell = row.querySelector('[col-id="gtt_total"]');
             const qtyCell = row.querySelector('[col-id="gtt_quantity"]');
 
-            if (productCell && totalCell) {
+            if (productCell) {
                 const product = productCell.innerText.trim();
-                const totalText = totalCell.innerText.trim().replace(/[^0-9.-]+/g, '');
+                const totalText = totalCell?.innerText.trim().replace(/[^0-9.-]+/g, '') || "0";
                 const totalValue = parseFloat(totalText);
 
-                const matchProduct = [
-                    "Transport Ambulatory",
-                    "Transport Wheelchair",
-                    "Transport Stretcher, ALS & BLS",
-                    "Miscellaneous Dead Miles",
-                    "Load Fee",
-                    "One Way Surcharge"
-                ];
-
-                if (matchProduct.includes(product) && !isNaN(totalValue)) {
-                    totalBilled += totalValue;
+                if (productsToTrack.includes(product)) {
+                    if (!isNaN(totalValue)) totalBilled += totalValue;
                 }
 
-                if (
-                    rateType === "mile" &&
-                    quantity === 0 &&
-                    ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(product) &&
-                    qtyCell
-                ) {
-                    const qty = parseFloat(qtyCell.innerText.trim().replace(/[^0-9.-]+/g, ''));
-                    if (!isNaN(qty)) {
-                        quantity = qty;
+                if (qtyCell) {
+                    const qtyVal = parseFloat(qtyCell.innerText.trim().replace(/[^0-9.-]+/g, ''));
+                    if (!isNaN(qtyVal)) {
+                        if (!quantities[product]) quantities[product] = 0;
+                        quantities[product] += qtyVal;
                     }
+                }
+
+                if (productsToTrack.includes(product)) {
+                    foundProducts.add(product);
+                }
+
+                if (rateType === "mile" && quantity === 0 && qtyCell && ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(product)) {
+                    const q = parseFloat(qtyCell.innerText.trim().replace(/[^0-9.-]+/g, ''));
+                    if (!isNaN(q)) quantity = q;
                 }
             }
         });
 
+        ["Miscellaneous Dead Miles", "Tolls", "Other", "Wait Time", "Passenger Fee", "Rush Fee", "After Hours Fee", "Weekend Fee", "No Show"].forEach(p => foundProducts.add(p));
+
+const preferredOrder = [
+  "Transport Ambulatory",
+  "Transport Wheelchair",
+  "Transport Stretcher, ALS & BLS",
+  "Miscellaneous Dead Miles",
+  "Load Fee",
+  "Tolls",
+  "Other",
+  "Wait Time",
+  "Passenger Fee",
+  "Rush Fee",
+  "After Hours Fee",
+  "Weekend Fee",
+  "No Show"
+];
+
+preferredOrder.forEach(product => {
+    if (foundProducts.has(product) && !productInputs[product]) {
+        const wrapper = document.createElement("div");
+        wrapper.style.marginTop = "10px";
+        wrapper.style.flex = "1 1 48%"; // two columns with spacing
+
+        const labelRow = document.createElement("div");
+labelRow.style.display = "flex";
+labelRow.style.alignItems = "center";
+labelRow.style.justifyContent = "space-between";
+labelRow.style.marginBottom = "5px";
+
+const label = document.createElement("label");
+label.innerText = product ;
+label.style.fontWeight = "bold";
+
+labelRow.appendChild(label);
+
+// Add Contract Rates button only for Wait Time and No Show
+if (["Wait Time", "No Show"].includes(product)) {
+    const contractBtn = document.createElement("button");
+    contractBtn.innerText = "Contract Rates";
+    contractBtn.style.marginLeft = "10px";
+    contractBtn.style.padding = "2px 6px";
+    contractBtn.style.fontSize = "12px";
+    contractBtn.style.cursor = "pointer";
+    contractBtn.onclick = () => {
+        inputField.value = "Contract Rates";
+        calculateMargin();
+    };
+    labelRow.appendChild(contractBtn);
+}
+
+const inputField = document.createElement("input");
+inputField.type = "text";
+inputField.style.width = "100%";
+
+inputField.addEventListener("input", calculateMargin);
+
+wrapper.appendChild(labelRow);
+wrapper.appendChild(inputField);
+higherInputsWrapper.appendChild(wrapper);
+
+
+        productInputs[product] = inputField;
+
+        if (!quantities[product]) quantities[product] = 0;
+    }
+});
+
+
         if (totalBilled === 0) {
             result.innerText = "Could not find any billed total.";
             result.style.color = "black";
+            higherResult.innerText = "";
             return;
         }
 
@@ -202,46 +555,79 @@ function showCalculatorUI() {
             if (quantity === 0) {
                 result.innerText = "Could not find transport quantity.";
                 result.style.color = "black";
+                higherResult.innerText = "";
                 return;
             }
             paidAmount = inputValue * quantity;
         }
 
         const margin = 100 - ((paidAmount / totalBilled) * 100);
-
-        // Set color based on margin
         let marginColor = "black";
-        if (margin <= 24.99) {
-            marginColor = "red";
-        } else if (margin < 35) {
-            marginColor = "goldenrod"; // yellow-ish
-        } else {
-            marginColor = "green";
-        }
+        if (margin <= 24.99) marginColor = "red";
+        else if (margin < 35) marginColor = "goldenrod";
+        else marginColor = "green";
 
-        let approvalNote = "";
-        if (margin <= 24.99) {
-            approvalNote = `<br><span style="color: red; font-weight: bold; font-size: 16px;">Seek Management Approval</span>`;
-        }
+        let approvalNote = margin <= 24.99 ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>` : "";
 
-        const marginHTML = `<span style="color: ${marginColor}; font-weight: bold; font-size: 16px;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}`;
-        const billedLine = `<span style="font-size: 14px;">Total Billed: $${totalBilled.toFixed(2)}</span>`;
-        const paidLine = rateType === "mile" ? `<span style="font-size: 14px;">Miles: ${quantity}, Total Paid: $${paidAmount.toFixed(2)}</span>`: "";
-
-        // Set HTML instead of innerText
-        result.innerHTML = [billedLine, paidLine, marginHTML].filter(Boolean).join("<br>");
+        result.innerHTML = `
+            <span>Total Billed: $${totalBilled.toFixed(2)}</span><br>
+            ${rateType === "mile" ? `<span>Miles: ${quantity}, Total Paid: $${paidAmount.toFixed(2)}</span><br>` : ""}
+            <span style="color: ${marginColor}; font-weight: bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
+        `.trim();
 
         const target = totalBilled * (1 - 0.35);
-        targetLabel.innerHTML = `<span style="font-size: 14px;">Target to pay this or less: $${target.toFixed(2)}</span>`;
+        targetLabel.innerHTML = `<span>Target to pay this or less: $${target.toFixed(2)}</span>`;
+
+        const transportProducts = ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"];
+        let activeTransportRate = 0;
+        for (const tp of transportProducts) {
+            const inputElem = productInputs[tp];
+            if (inputElem && inputElem.value.trim() !== "") {
+                activeTransportRate = parseFloat(inputElem.value);
+                if (isNaN(activeTransportRate)) activeTransportRate = 0;
+                break;
+            }
+        }
+
+        let higherTotal = 0;
+foundProducts.forEach(product => {
+    if (product === "Wait Time") return; // Exclude Wait Time from higherTotal
+
+    const enteredValue = parseFloat(productInputs[product]?.value);
+    const qty = quantities[product] || 0;
+
+    if (!isNaN(enteredValue)) {
+        if (product === "Miscellaneous Dead Miles") {
+            higherTotal += enteredValue * (activeTransportRate / 2);
+        } else if (product === "Tolls" || product === "Other") {
+            higherTotal += enteredValue;
+        } else {
+            higherTotal += enteredValue * qty;
+        }
+    }
+});
+
+        const higherMargin = 100 - ((paidAmount / higherTotal) * 100);
+        let higherMarginColor = "black";
+        if (higherMargin <= 24.99) higherMarginColor = "red";
+        else if (higherMargin < 35) higherMarginColor = "goldenrod";
+        else higherMarginColor = "green";
+
+        let higherApprovalNote = higherMargin <= 24.99 ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>` : "";
+
+        higherResult.innerHTML = `
+            <span>Total Using Higher Rates: $${higherTotal.toFixed(2)}</span><br>
+            <span style="color: ${higherMarginColor}; font-weight: bold;">Margin: ${higherMargin.toFixed(2)}%</span>${higherApprovalNote}
+        `.trim();
     };
 
     input.addEventListener("input", calculateMargin);
     flatRadio.addEventListener("change", () => {
-        input.value = '';
+        input.value = "";
         calculateMargin();
     });
     mileRadio.addEventListener("change", () => {
-        input.value = '';
+        input.value = "";
         calculateMargin();
     });
 
@@ -255,6 +641,15 @@ function showCalculatorUI() {
     box.appendChild(input);
     box.appendChild(result);
     box.appendChild(targetLabel);
+    box.appendChild(higherHeader);
+    box.appendChild(higherInputsWrapper);
+    box.appendChild(higherResult);
+    box.appendChild(lowMarginButton);
+    box.appendChild(waittimeButton);
+    box.appendChild(boomerangButton);
+    box.appendChild(requestRatesButton);
+    box.appendChild(resetButton);
+
 
     document.body.appendChild(box);
 }
