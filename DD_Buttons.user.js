@@ -67,7 +67,7 @@ function showCalculatorUI() {
     box.style.top = "5%";
     box.style.left = "80%";
     box.style.transform = "translateX(-50%)";
-    box.style.background = "lightblue";
+    box.style.background = "#fff";
     box.style.padding = "20px";
     box.style.border = "2px solid #000";
     box.style.borderRadius = "10px";
