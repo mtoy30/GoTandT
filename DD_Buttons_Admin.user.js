@@ -330,35 +330,34 @@ requestRatesButton.style.fontWeight = "bold";
 // Add the button to the page
 document.body.appendChild(requestRatesButton);
 
-// Variables to hold quantities
-let miles = 0;
-let loadFeeQuantity = 0;
-
-// Loop through rows to extract quantities
-const rows = document.querySelectorAll('[role="row"]');
-rows.forEach(row => {
-  const accountProductCell = row.querySelector('[col-id="gtt_accountproduct"]');
-  const quantityCell = row.querySelector('[col-id="gtt_quantity"]');
-
-  if (accountProductCell && quantityCell) {
-    const accountProductText = accountProductCell.innerText.trim();
-    const quantityText = quantityCell.innerText.trim();
-    const quantity = parseFloat(quantityText);
-
-    if (accountProductText.includes("Transport") && !isNaN(quantity)) {
-      miles = quantity;
-      console.log("Matched Transport with quantity:", miles);
-    }
-
-    if (accountProductText.includes("Load Fee") && !isNaN(quantity)) {
-      loadFeeQuantity = quantity;
-      console.log("Matched Load Fee with quantity:", loadFeeQuantity);
-    }
-  }
-});
-
 // Button click behavior
 requestRatesButton.onclick = () => {
+  let miles = 0;
+  let loadFeeQuantity = 0;
+
+  const rows = document.querySelectorAll('[role="row"]');
+  rows.forEach(row => {
+    const accountProductCell = row.querySelector('[col-id="gtt_accountproduct"]');
+    const quantityCell = row.querySelector('[col-id="gtt_quantity"]');
+
+    if (accountProductCell && quantityCell) {
+      const accountProductText = accountProductCell.innerText.trim();
+      const quantityText = quantityCell.innerText.trim();
+      const quantity = parseFloat(quantityText);
+
+      if (accountProductText.includes("Transport") && !isNaN(quantity)) {
+        miles = quantity;
+        console.log("Matched Transport with quantity:", miles);
+      }
+
+      if (accountProductText.includes("Load Fee") && !isNaN(quantity)) {
+        loadFeeQuantity = quantity;
+        console.log("Matched Load Fee with quantity:", loadFeeQuantity);
+      }
+    }
+  });
+
+  // Now you can use miles and loadFeeQuantity accurately:
   let parts = [];
 
   Object.entries(productInputs).forEach(([label, input]) => {
