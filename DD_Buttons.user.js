@@ -74,6 +74,7 @@ function showCalculatorUI() {
     box.style.zIndex = "10000";
     box.style.minWidth = "500px";
     box.style.maxWidth = "500px";
+    box.style.color = "black";
 
     // Add fixed height and vertical scrollbar
     box.style.height = "800px"; // fixed height you want
