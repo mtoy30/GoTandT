@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.4.4
+// @version      3.4.5
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -67,13 +67,14 @@ function showCalculatorUI() {
     box.style.top = "5%";
     box.style.left = "80%";
     box.style.transform = "translateX(-50%)";
-    box.style.background = "lightblue";
+    box.style.background = "#fff";
     box.style.padding = "20px";
     box.style.border = "2px solid #000";
     box.style.borderRadius = "10px";
     box.style.zIndex = "10000";
     box.style.minWidth = "500px";
     box.style.maxWidth = "500px";
+    box.style.color = "black";
 
     // Add fixed height and vertical scrollbar
     box.style.height = "800px"; // fixed height you want
@@ -173,6 +174,7 @@ function showCalculatorUI() {
     const resetButton = document.createElement("button");
     resetButton.innerText = "Reset";
     resetButton.style.marginTop = "20px";
+    resetButton.style.marginLeft = "10px";
     resetButton.style.padding = "8px 16px";
     resetButton.style.background = "#e74c3c";
     resetButton.style.color = "#fff";
@@ -193,6 +195,126 @@ function showCalculatorUI() {
             field.value = "";
         });
     };
+
+    const lowMarginButton = document.createElement("button");
+    lowMarginButton.innerText = "Low Margin OK";
+    lowMarginButton.style.marginTop = "20px";
+    lowMarginButton.style.marginLeft = "10px";
+    lowMarginButton.style.padding = "8px 16px";
+    lowMarginButton.style.background = "#3498db";
+    lowMarginButton.style.color = "#fff";
+    lowMarginButton.style.border = "none";
+    lowMarginButton.style.borderRadius = "5px";
+    lowMarginButton.style.cursor = "pointer";
+    lowMarginButton.style.fontWeight = "bold";
+
+    lowMarginButton.onclick = () => {
+    const textToCopy = "Management aware of Transportation low margin. Ok to staff";
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        const copiedMsg = document.createElement("div");
+        copiedMsg.innerText = `"${textToCopy}" copied!`;
+        copiedMsg.style.position = "fixed";
+        copiedMsg.style.top = "50%";
+        copiedMsg.style.left = "50%";
+        copiedMsg.style.transform = "translate(-50%, -50%)";
+        copiedMsg.style.background = "rgba(0,0,0,0.8)";
+        copiedMsg.style.color = "#fff";
+        copiedMsg.style.padding = "15px 25px";
+        copiedMsg.style.borderRadius = "8px";
+        copiedMsg.style.zIndex = "10001";
+        copiedMsg.style.fontSize = "18px";
+        copiedMsg.style.fontWeight = "bold";
+        copiedMsg.style.textAlign = "center";
+        copiedMsg.style.maxWidth = "80%";
+        copiedMsg.style.wordWrap = "break-word";
+        document.body.appendChild(copiedMsg);
+
+        setTimeout(() => {
+            copiedMsg.remove();
+        }, 1000);
+    });
+};
+
+    const waittimeButton = document.createElement("button");
+    waittimeButton.innerText = "Wait Time";
+    waittimeButton.style.marginTop = "20px";
+    waittimeButton.style.marginLeft = "10px";
+    waittimeButton.style.padding = "8px 16px";
+    waittimeButton.style.background = "#3498db";
+    waittimeButton.style.color = "#fff";
+    waittimeButton.style.border = "none";
+    waittimeButton.style.borderRadius = "5px";
+    waittimeButton.style.cursor = "pointer";
+    waittimeButton.style.fontWeight = "bold";
+
+    waittimeButton.onclick = () => {
+    const textToCopy = "Ok to request wait time";
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        const copiedMsg = document.createElement("div");
+        copiedMsg.innerText = `"${textToCopy}" copied!`;
+        copiedMsg.style.position = "fixed";
+        copiedMsg.style.top = "50%";
+        copiedMsg.style.left = "50%";
+        copiedMsg.style.transform = "translate(-50%, -50%)";
+        copiedMsg.style.background = "rgba(0,0,0,0.8)";
+        copiedMsg.style.color = "#fff";
+        copiedMsg.style.padding = "15px 25px";
+        copiedMsg.style.borderRadius = "8px";
+        copiedMsg.style.zIndex = "10001";
+        copiedMsg.style.fontSize = "18px";
+        copiedMsg.style.fontWeight = "bold";
+        copiedMsg.style.textAlign = "center";
+        copiedMsg.style.maxWidth = "80%";
+        copiedMsg.style.wordWrap = "break-word";
+        document.body.appendChild(copiedMsg);
+
+        setTimeout(() => {
+            copiedMsg.remove();
+        }, 1000);
+    });
+};
+
+const boomerangButton = document.createElement("button");
+    boomerangButton.innerText = "Boomerang";
+    boomerangButton.style.marginTop = "20px";
+    boomerangButton.style.marginLeft = "10px";
+    boomerangButton.style.padding = "8px 16px";
+    boomerangButton.style.background = "#3498db";
+    boomerangButton.style.color = "#fff";
+    boomerangButton.style.border = "none";
+    boomerangButton.style.borderRadius = "5px";
+    boomerangButton.style.cursor = "pointer";
+    boomerangButton.style.fontWeight = "bold";
+
+    boomerangButton.onclick = () => {
+    const textToCopy = "Secure with Boomerang and leave in provider stage until rates approved";
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        const copiedMsg = document.createElement("div");
+        copiedMsg.innerText = `"${textToCopy}" copied!`;
+        copiedMsg.style.position = "fixed";
+        copiedMsg.style.top = "50%";
+        copiedMsg.style.left = "50%";
+        copiedMsg.style.transform = "translate(-50%, -50%)";
+        copiedMsg.style.background = "rgba(0,0,0,0.8)";
+        copiedMsg.style.color = "#fff";
+        copiedMsg.style.padding = "15px 25px";
+        copiedMsg.style.borderRadius = "8px";
+        copiedMsg.style.zIndex = "10001";
+        copiedMsg.style.fontSize = "18px";
+        copiedMsg.style.fontWeight = "bold";
+        copiedMsg.style.textAlign = "center";
+        copiedMsg.style.maxWidth = "80%";
+        copiedMsg.style.wordWrap = "break-word";
+        document.body.appendChild(copiedMsg);
+
+        setTimeout(() => {
+            copiedMsg.remove();
+        }, 1000);
+    });
+};
+
+
+
 
     const calculateMargin = () => {
         const rateType = document.querySelector('input[name="rateType"]:checked').value;
@@ -274,7 +396,7 @@ labelRow.style.justifyContent = "space-between";
 labelRow.style.marginBottom = "5px";
 
 const label = document.createElement("label");
-label.innerText = product + " Rate:";
+label.innerText = product ;
 label.style.fontWeight = "bold";
 
 labelRow.appendChild(label);
@@ -413,6 +535,9 @@ foundProducts.forEach(product => {
     box.appendChild(higherHeader);
     box.appendChild(higherInputsWrapper);
     box.appendChild(higherResult);
+    box.appendChild(lowMarginButton);
+    box.appendChild(waittimeButton);
+    box.appendChild(boomerangButton);
     box.appendChild(resetButton);
 
 
