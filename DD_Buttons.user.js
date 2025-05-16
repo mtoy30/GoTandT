@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.4.8
+// @version      3.4.9
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -168,7 +168,8 @@ function showCalculatorUI() {
         "Transport Wheelchair",
         "Transport Stretcher, ALS & BLS",
         "Miscellaneous Dead Miles",
-        "Load Fee"
+        "Load Fee",
+        "One Way Surcharge"
     ];
 
     const resetButton = document.createElement("button");
