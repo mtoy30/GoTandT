@@ -601,7 +601,7 @@ foundProducts.forEach(product => {
     if (!isNaN(enteredValue)) {
         if (product === "Miscellaneous Dead Miles") {
             higherTotal += enteredValue * (activeTransportRate / 2);
-        } else if (product === "Tolls" || product === "Other") {
+        } else if (product === "Tolls" || product === "Other" || product === "Rush Fee") {
             higherTotal += enteredValue;
         } else {
             higherTotal += enteredValue * qty;
