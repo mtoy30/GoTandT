@@ -391,6 +391,21 @@ label.style.fontWeight = "bold";
 
 labelRow.appendChild(label);
 
+// Add Contract Rates button only for Wait Time and No Show
+if (["Wait Time", "No Show"].includes(product)) {
+    const contractBtn = document.createElement("button");
+    contractBtn.innerText = "Contract Rates";
+    contractBtn.style.marginLeft = "10px";
+    contractBtn.style.padding = "2px 6px";
+    contractBtn.style.fontSize = "12px";
+    contractBtn.style.cursor = "pointer";
+    contractBtn.onclick = () => {
+        inputField.value = "Contract Rates";
+        calculateMargin();
+    };
+    labelRow.appendChild(contractBtn);
+}
+
 const inputField = document.createElement("input");
 inputField.type = "text";
 inputField.style.width = "100%";
