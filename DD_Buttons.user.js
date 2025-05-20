@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.4.9
+// @version      3.5.1
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -196,6 +196,113 @@ function showCalculatorUI() {
         });
     };
 
+    // Create the "Request Rates" button
+const requestRatesButton = document.createElement("button");
+requestRatesButton.innerText = "Approvals Comments";
+requestRatesButton.style.marginTop = "20px";
+requestRatesButton.style.marginLeft = "10px";
+requestRatesButton.style.padding = "8px 16px";
+requestRatesButton.style.background = "#2ecc71";
+requestRatesButton.style.color = "#fff";
+requestRatesButton.style.border = "none";
+requestRatesButton.style.borderRadius = "5px";
+requestRatesButton.style.cursor = "pointer";
+requestRatesButton.style.fontWeight = "bold";
+
+// Button click behavior
+requestRatesButton.onclick = () => {
+  let miles = 0;
+  let loadFeeQuantity = 0;
+
+  const rows = document.querySelectorAll('[role="row"]');
+  rows.forEach(row => {
+    const accountProductCell = row.querySelector('[col-id="gtt_accountproduct"]');
+    const quantityCell = row.querySelector('[col-id="gtt_quantity"]');
+
+    if (accountProductCell && quantityCell) {
+      const accountProductText = accountProductCell.innerText.trim();
+      const quantityText = quantityCell.innerText.trim();
+      const quantity = parseFloat(quantityText);
+
+      if (accountProductText.includes("Transport") && !isNaN(quantity)) {
+        miles = quantity;
+        console.log("Matched Transport with quantity:", miles);
+      }
+
+      if (accountProductText.includes("Load Fee") && !isNaN(quantity)) {
+        loadFeeQuantity = quantity;
+        console.log("Matched Load Fee with quantity:", loadFeeQuantity);
+      }
+    }
+  });
+
+  // Now you can use miles and loadFeeQuantity accurately:
+  let parts = [];
+
+  Object.entries(productInputs).forEach(([label, input]) => {
+    const value = input.value.trim();
+    if (value !== "") {
+      let normalizedLabel = label === "Miscellaneous Dead Miles" ? "Dead Miles" : label;
+
+      if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
+        if (!isNaN(parseFloat(value))) {
+          parts.push(`$${parseFloat(value).toFixed(2)}/mile x ${miles} miles`);
+        } else {
+          parts.push(`${value} ${normalizedLabel}`);
+        }
+      } else if (label === "Load Fee") {
+        if (!isNaN(parseFloat(value))) {
+          const fee = `$${parseFloat(value).toFixed(2)} Load Fee`;
+          const withQty = loadFeeQuantity ? `${fee} x ${loadFeeQuantity}` : fee;
+          parts.push(withQty);
+        } else {
+          parts.push(`${value} Load Fee`);
+        }
+      } else if (normalizedLabel === "Dead Miles") {
+        if (!isNaN(parseFloat(value))) {
+          parts.push(`${parseFloat(value)} ${normalizedLabel}`);
+        } else {
+          parts.push(`${value} ${normalizedLabel}`);
+        }
+      } else {
+        if (value.toLowerCase() === "contract" || value.toLowerCase().includes("contract")) {
+          parts.push(`contract ${normalizedLabel}`);
+        } else if (!isNaN(parseFloat(value))) {
+          parts.push(`$${parseFloat(value).toFixed(2)} ${normalizedLabel}`);
+        } else {
+          parts.push(`${value} ${normalizedLabel}`);
+        }
+      }
+    }
+  });
+
+  const finalText = "Previously requested rates " + parts.join(", ");
+  navigator.clipboard.writeText(finalText).then(() => {
+    const copiedMsg = document.createElement("div");
+    copiedMsg.innerText = `"${finalText}" copied!`;
+    copiedMsg.style.position = "fixed";
+    copiedMsg.style.top = "50%";
+    copiedMsg.style.left = "50%";
+    copiedMsg.style.transform = "translate(-50%, -50%)";
+    copiedMsg.style.background = "rgba(0,0,0,0.8)";
+    copiedMsg.style.color = "#fff";
+    copiedMsg.style.padding = "15px 25px";
+    copiedMsg.style.borderRadius = "8px";
+    copiedMsg.style.zIndex = "10001";
+    copiedMsg.style.fontSize = "18px";
+    copiedMsg.style.fontWeight = "bold";
+    copiedMsg.style.textAlign = "center";
+    copiedMsg.style.maxWidth = "80%";
+    copiedMsg.style.wordWrap = "break-word";
+    document.body.appendChild(copiedMsg);
+
+    setTimeout(() => {
+      copiedMsg.remove();
+    }, 1500);
+  });
+};
+
+
     const calculateMargin = () => {
         const rateType = document.querySelector('input[name="rateType"]:checked').value;
         const inputValue = parseFloat(input.value);
@@ -303,7 +410,6 @@ higherInputsWrapper.appendChild(wrapper);
             result.innerText = "Could not find any billed total.";
             result.style.color = "black";
             higherResult.innerText = "";
-            return;
         }
 
         let paidAmount = inputValue;
@@ -401,6 +507,7 @@ foundProducts.forEach(product => {
     box.appendChild(higherInputsWrapper);
     box.appendChild(higherResult);
     box.appendChild(resetButton);
+    box.appendChild(requestRatesButton);
 
 
     document.body.appendChild(box);
