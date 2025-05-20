@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.4.9
+// @version      3.5.0
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -361,41 +361,44 @@ requestRatesButton.onclick = () => {
   let parts = [];
 
   Object.entries(productInputs).forEach(([label, input]) => {
-    const value = input.value.trim();
-    if (value !== "") {
-      let normalizedLabel = label === "Miscellaneous Dead Miles" ? "Dead Miles" : label;
+  const value = input.value.trim();
+  if (value !== "") {
+    // Normalize labels
+    let normalizedLabel = label === "Miscellaneous Dead Miles" ? "Dead Miles" :
+                          label === "No Show" ? "No Show/Late Cancel" :
+                          label;
 
-      if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
-        if (!isNaN(parseFloat(value))) {
-          parts.push(`$${parseFloat(value).toFixed(2)}/mile x ${miles} miles`);
-        } else {
-          parts.push(`${value} ${normalizedLabel}`);
-        }
-      } else if (label === "Load Fee") {
-        if (!isNaN(parseFloat(value))) {
-          const fee = `$${parseFloat(value).toFixed(2)} Load Fee`;
-          const withQty = loadFeeQuantity ? `${fee} x ${loadFeeQuantity}` : fee;
-          parts.push(withQty);
-        } else {
-          parts.push(`${value} Load Fee`);
-        }
-      } else if (normalizedLabel === "Dead Miles") {
-        if (!isNaN(parseFloat(value))) {
-          parts.push(`${parseFloat(value)} ${normalizedLabel}`);
-        } else {
-          parts.push(`${value} ${normalizedLabel}`);
-        }
+    if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
+      if (!isNaN(parseFloat(value))) {
+        parts.push(`$${parseFloat(value).toFixed(2)}/mile x ${miles} miles`);
       } else {
-        if (value.toLowerCase() === "contract" || value.toLowerCase().includes("contract")) {
-          parts.push(`contract ${normalizedLabel}`);
-        } else if (!isNaN(parseFloat(value))) {
-          parts.push(`$${parseFloat(value).toFixed(2)} ${normalizedLabel}`);
-        } else {
-          parts.push(`${value} ${normalizedLabel}`);
-        }
+        parts.push(`${value} ${normalizedLabel}`);
+      }
+    } else if (label === "Load Fee") {
+      if (!isNaN(parseFloat(value))) {
+        const fee = `$${parseFloat(value).toFixed(2)} Load Fee`;
+        const withQty = loadFeeQuantity ? `${fee} x ${loadFeeQuantity}` : fee;
+        parts.push(withQty);
+      } else {
+        parts.push(`${value} Load Fee`);
+      }
+    } else if (normalizedLabel === "Dead Miles") {
+      if (!isNaN(parseFloat(value))) {
+        parts.push(`${parseFloat(value)} ${normalizedLabel}`);
+      } else {
+        parts.push(`${value} ${normalizedLabel}`);
+      }
+    } else {
+      if (value.toLowerCase() === "contract" || value.toLowerCase().includes("contract")) {
+        parts.push(`contract ${normalizedLabel}`);
+      } else if (!isNaN(parseFloat(value))) {
+        parts.push(`$${parseFloat(value).toFixed(2)} ${normalizedLabel}`);
+      } else {
+        parts.push(`${value} ${normalizedLabel}`);
       }
     }
-  });
+  }
+});
 
   const finalText = "Request rates " + parts.join(", ");
   navigator.clipboard.writeText(finalText).then(() => {
