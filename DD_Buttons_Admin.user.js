@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.5.1
+// @version      3.5.2
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -477,7 +477,7 @@ requestRatesButton.onclick = () => {
             }
         });
 
-        ["Miscellaneous Dead Miles", "Tolls", "Other", "Wait Time", "Passenger Fee", "Rush Fee", "After Hours Fee", "Weekend Fee", "No Show"].forEach(p => foundProducts.add(p));
+        ["Miscellaneous Dead Miles", "Tolls", "Other", "Wait Time", "Passenger Fee", "Rush Fee", "Assistance Fee", "After Hours Fee", "Weekend Fee", "No Show"].forEach(p => foundProducts.add(p));
 
 const preferredOrder = [
   "Transport Ambulatory",
@@ -490,6 +490,7 @@ const preferredOrder = [
   "Wait Time",
   "Passenger Fee",
   "Rush Fee",
+  "Assistance Fee",
   "After Hours Fee",
   "Weekend Fee",
   "No Show"
@@ -604,7 +605,7 @@ foundProducts.forEach(product => {
     if (!isNaN(enteredValue)) {
         if (product === "Miscellaneous Dead Miles") {
             higherTotal += enteredValue * (activeTransportRate / 2);
-        } else if (["Tolls", "Other", "Rush Fee"].includes(product)) {
+        } else if (["Tolls", "Other", "Rush Fee", "Assistance Fee", "Passenger Fee"].includes(product)) {
             higherTotal += enteredValue;
         } else {
             higherTotal += enteredValue * qty;
@@ -658,7 +659,6 @@ foundProducts.forEach(product => {
 
     document.body.appendChild(box);
 }
-
     // Add event listener for the calculator button
     const calculatorButton = document.querySelector('#yourCalculatorButtonSelector'); // Replace with actual button selector
     if (calculatorButton) {
