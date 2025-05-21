@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.5.6
+// @version      3.5.7
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1208,7 +1208,7 @@ function createButtons() {
 
         var button4 = document.createElement('button');
         button4.textContent = 'Margin';
-        button4.style.backgroundColor = '#007BFF';
+        button4.style.backgroundColor = 'green';
         button4.style.color = '#fff';
         button4.style.fontWeight = 'bold';
         button4.style.letterSpacing = "1.2px";
