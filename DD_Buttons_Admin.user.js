@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.5.8
+// @version      3.5.9
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -611,7 +611,7 @@ foundProducts.forEach(product => {
     if (!isNaN(enteredValue)) {
         if (product === "Miscellaneous Dead Miles") {
             higherTotal += enteredValue * (activeTransportRate / 2);
-        } else if (["Tolls", "Other", "Rush Fee", "Assistance Fee", "Passenger Fee"].includes(product)) {
+        } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee"].includes(product)) {
             higherTotal += enteredValue;
         } else {
             higherTotal += enteredValue * qty;
