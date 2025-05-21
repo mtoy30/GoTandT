@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.5.3
+// @version      3.5.5
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -164,13 +164,19 @@ function showCalculatorUI() {
 
     const productInputs = {};
     const productsToTrack = [
-        "Transport Ambulatory",
-        "Transport Wheelchair",
-        "Transport Stretcher, ALS & BLS",
-        "Miscellaneous Dead Miles",
-        "Load Fee",
-        "One Way Surcharge"
-    ];
+    "Transport Ambulatory",
+    "Transport Wheelchair",
+    "Transport Stretcher, ALS & BLS",
+    "Miscellaneous Dead Miles",
+    "Load Fee",
+    "One Way Surcharge",
+    "Weekend Holiday",
+    "After Hours Fee",
+    "Additional Passenger",
+    "Wait Time",
+    "Rush Fee",
+    "Wheelchair Rental"
+];
 
     const resetButton = document.createElement("button");
     resetButton.innerText = "Reset";
@@ -355,7 +361,7 @@ requestRatesButton.onclick = () => {
             }
         });
 
-        ["Miscellaneous Dead Miles", "Tolls", "Other", "Wait Time", "Passenger Fee", "Rush Fee", "Assistance Fee", "After Hours Fee", "Weekend Fee", "No Show"].forEach(p => foundProducts.add(p));
+        ["Miscellaneous Dead Miles", "Tolls", "Other", "No Show"].forEach(p => foundProducts.add(p));
 
 const preferredOrder = [
   "Transport Ambulatory",
@@ -366,11 +372,12 @@ const preferredOrder = [
   "Tolls",
   "Other",
   "Wait Time",
-  "Passenger Fee",
+  "Additional Passenger",
   "Rush Fee",
   "Assistance Fee",
   "After Hours Fee",
-  "Weekend Fee",
+  "Weekend Holiday",
+  "Wheelchair Rental",
   "No Show"
 ];
 
