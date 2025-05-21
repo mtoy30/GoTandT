@@ -173,7 +173,6 @@ function showCalculatorUI() {
     "Weekend Holiday",
     "After Hours Fee",
     "Additional Passenger",
-    "Wait Time",
     "Rush Fee",
     "Wheelchair Rental"
 ];
@@ -483,7 +482,7 @@ requestRatesButton.onclick = () => {
             }
         });
 
-        ["Miscellaneous Dead Miles", "Tolls", "Other", "No Show"].forEach(p => foundProducts.add(p));
+        ["Miscellaneous Dead Miles", "Tolls", "Other", "No Show", "Wait Time"].forEach(p => foundProducts.add(p));
 
 const preferredOrder = [
   "Transport Ambulatory",
