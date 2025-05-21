@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.5.5
+// @version      3.5.6
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -173,7 +173,6 @@ function showCalculatorUI() {
     "Weekend Holiday",
     "After Hours Fee",
     "Additional Passenger",
-    "Wait Time",
     "Rush Fee",
     "Wheelchair Rental"
 ];
@@ -483,7 +482,7 @@ requestRatesButton.onclick = () => {
             }
         });
 
-        ["Miscellaneous Dead Miles", "Tolls", "Other", "No Show"].forEach(p => foundProducts.add(p));
+        ["Miscellaneous Dead Miles", "Tolls", "Other", "No Show", "Wait Time"].forEach(p => foundProducts.add(p));
 
 const preferredOrder = [
   "Transport Ambulatory",
