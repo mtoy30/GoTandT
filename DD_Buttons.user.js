@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.5.2
+// @version      3.5.3
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -355,7 +355,7 @@ requestRatesButton.onclick = () => {
             }
         });
 
-        ["Miscellaneous Dead Miles", "Tolls", "Other", "Wait Time", "Passenger Fee", "Rush Fee", "After Hours Fee", "Weekend Fee", "No Show"].forEach(p => foundProducts.add(p));
+        ["Miscellaneous Dead Miles", "Tolls", "Other", "Wait Time", "Passenger Fee", "Rush Fee", "Assistance Fee", "After Hours Fee", "Weekend Fee", "No Show"].forEach(p => foundProducts.add(p));
 
 const preferredOrder = [
   "Transport Ambulatory",
@@ -368,6 +368,7 @@ const preferredOrder = [
   "Wait Time",
   "Passenger Fee",
   "Rush Fee",
+  "Assistance Fee",
   "After Hours Fee",
   "Weekend Fee",
   "No Show"
@@ -471,15 +472,18 @@ higherInputsWrapper.appendChild(wrapper);
 
         let higherTotal = 0;
 foundProducts.forEach(product => {
-    if (product === "Wait Time") return; // Exclude Wait Time from higherTotal
+    if (product === "Wait Time") return;
 
-    const enteredValue = parseFloat(productInputs[product]?.value);
+    const enteredValueRaw = productInputs[product]?.value;
+    const enteredValue = parseFloat(enteredValueRaw);
     const qty = quantities[product] || 0;
+
+    console.log(`Product: ${product}, Entered: ${enteredValueRaw}, Parsed: ${enteredValue}, Qty: ${qty}`);
 
     if (!isNaN(enteredValue)) {
         if (product === "Miscellaneous Dead Miles") {
             higherTotal += enteredValue * (activeTransportRate / 2);
-        } else if (product === "Tolls" || product === "Other") {
+        } else if (["Tolls", "Other", "Rush Fee", "Assistance Fee", "Passenger Fee"].includes(product)) {
             higherTotal += enteredValue;
         } else {
             higherTotal += enteredValue * qty;
