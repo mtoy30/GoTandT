@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.4.5
+// @version      3.5.5
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -164,12 +164,19 @@ function showCalculatorUI() {
 
     const productInputs = {};
     const productsToTrack = [
-        "Transport Ambulatory",
-        "Transport Wheelchair",
-        "Transport Stretcher, ALS & BLS",
-        "Miscellaneous Dead Miles",
-        "Load Fee"
-    ];
+    "Transport Ambulatory",
+    "Transport Wheelchair",
+    "Transport Stretcher, ALS & BLS",
+    "Miscellaneous Dead Miles",
+    "Load Fee",
+    "One Way Surcharge",
+    "Weekend Holiday",
+    "After Hours Fee",
+    "Additional Passenger",
+    "Wait Time",
+    "Rush Fee",
+    "Wheelchair Rental"
+];
 
     const resetButton = document.createElement("button");
     resetButton.innerText = "Reset";
@@ -313,7 +320,118 @@ const boomerangButton = document.createElement("button");
     });
 };
 
+// Create the "Request Rates" button
+const requestRatesButton = document.createElement("button");
+requestRatesButton.innerText = "Request Rates";
+requestRatesButton.style.marginTop = "20px";
+requestRatesButton.style.marginLeft = "10px";
+requestRatesButton.style.padding = "8px 16px";
+requestRatesButton.style.background = "#2ecc71";
+requestRatesButton.style.color = "#fff";
+requestRatesButton.style.border = "none";
+requestRatesButton.style.borderRadius = "5px";
+requestRatesButton.style.cursor = "pointer";
+requestRatesButton.style.fontWeight = "bold";
 
+// Add the button to the page
+document.body.appendChild(requestRatesButton);
+
+// Button click behavior
+requestRatesButton.onclick = () => {
+  let miles = 0;
+  let loadFeeQuantity = 0;
+
+  const rows = document.querySelectorAll('[role="row"]');
+  rows.forEach(row => {
+    const accountProductCell = row.querySelector('[col-id="gtt_accountproduct"]');
+    const quantityCell = row.querySelector('[col-id="gtt_quantity"]');
+
+    if (accountProductCell && quantityCell) {
+      const accountProductText = accountProductCell.innerText.trim();
+      const quantityText = quantityCell.innerText.trim();
+      const quantity = parseFloat(quantityText);
+
+      if (accountProductText.includes("Transport") && !isNaN(quantity)) {
+        miles = quantity;
+        console.log("Matched Transport with quantity:", miles);
+      }
+
+      if (accountProductText.includes("Load Fee") && !isNaN(quantity)) {
+        loadFeeQuantity = quantity;
+        console.log("Matched Load Fee with quantity:", loadFeeQuantity);
+      }
+    }
+  });
+
+  // Now you can use miles and loadFeeQuantity accurately:
+  let parts = [];
+
+  Object.entries(productInputs).forEach(([label, input]) => {
+  const value = input.value.trim();
+  if (value !== "") {
+    // Normalize labels
+    let normalizedLabel = label === "Miscellaneous Dead Miles" ? "Dead Miles" :
+                          label === "No Show" ? "No Show/Late Cancel" :
+                          label;
+
+    if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
+      if (!isNaN(parseFloat(value))) {
+        parts.push(`$${parseFloat(value).toFixed(2)}/mile x ${miles} miles`);
+      } else {
+        parts.push(`${value} ${normalizedLabel}`);
+      }
+    } else if (label === "Load Fee") {
+      if (!isNaN(parseFloat(value))) {
+        const fee = `$${parseFloat(value).toFixed(2)} Load Fee`;
+        const withQty = loadFeeQuantity ? `${fee} x ${loadFeeQuantity}` : fee;
+        parts.push(withQty);
+      } else {
+        parts.push(`${value} Load Fee`);
+      }
+    } else if (normalizedLabel === "Dead Miles") {
+      if (!isNaN(parseFloat(value))) {
+        parts.push(`${parseFloat(value)} ${normalizedLabel}`);
+      } else {
+        parts.push(`${value} ${normalizedLabel}`);
+      }
+    } else {
+      if (value.toLowerCase() === "contract" || value.toLowerCase().includes("contract")) {
+        parts.push(`contract ${normalizedLabel}`);
+      } else if (!isNaN(parseFloat(value))) {
+        parts.push(`$${parseFloat(value).toFixed(2)} ${normalizedLabel}`);
+      } else {
+        parts.push(`${value} ${normalizedLabel}`);
+      }
+    }
+  }
+});
+
+
+  const finalText = "Request rates " + parts.join(", ");
+  navigator.clipboard.writeText(finalText).then(() => {
+    const copiedMsg = document.createElement("div");
+    copiedMsg.innerText = `"${finalText}" copied!`;
+    copiedMsg.style.position = "fixed";
+    copiedMsg.style.top = "50%";
+    copiedMsg.style.left = "50%";
+    copiedMsg.style.transform = "translate(-50%, -50%)";
+    copiedMsg.style.background = "rgba(0,0,0,0.8)";
+    copiedMsg.style.color = "#fff";
+    copiedMsg.style.padding = "15px 25px";
+    copiedMsg.style.borderRadius = "8px";
+    copiedMsg.style.zIndex = "10001";
+    copiedMsg.style.fontSize = "18px";
+    copiedMsg.style.fontWeight = "bold";
+    copiedMsg.style.textAlign = "center";
+    copiedMsg.style.maxWidth = "80%";
+    copiedMsg.style.wordWrap = "break-word";
+    document.body.appendChild(copiedMsg);
+
+    setTimeout(() => {
+      copiedMsg.remove();
+    }, 1500);
+  });
+};
 
 
     const calculateMargin = () => {
@@ -365,7 +483,7 @@ const boomerangButton = document.createElement("button");
             }
         });
 
-        ["Miscellaneous Dead Miles", "Tolls", "Other", "Wait Time", "Passenger Fee", "Rush Fee", "After Hours Fee", "Weekend Fee", "No Show"].forEach(p => foundProducts.add(p));
+        ["Miscellaneous Dead Miles", "Tolls", "Other", "No Show"].forEach(p => foundProducts.add(p));
 
 const preferredOrder = [
   "Transport Ambulatory",
@@ -376,10 +494,12 @@ const preferredOrder = [
   "Tolls",
   "Other",
   "Wait Time",
-  "Passenger Fee",
+  "Additional Passenger",
   "Rush Fee",
+  "Assistance Fee",
   "After Hours Fee",
-  "Weekend Fee",
+  "Weekend Holiday",
+  "Wheelchair Rental",
   "No Show"
 ];
 
@@ -438,7 +558,6 @@ higherInputsWrapper.appendChild(wrapper);
             result.innerText = "Could not find any billed total.";
             result.style.color = "black";
             higherResult.innerText = "";
-            return;
         }
 
         let paidAmount = inputValue;
@@ -482,15 +601,18 @@ higherInputsWrapper.appendChild(wrapper);
 
         let higherTotal = 0;
 foundProducts.forEach(product => {
-    if (product === "Wait Time") return; // Exclude Wait Time from higherTotal
+    if (product === "Wait Time") return;
 
-    const enteredValue = parseFloat(productInputs[product]?.value);
+    const enteredValueRaw = productInputs[product]?.value;
+    const enteredValue = parseFloat(enteredValueRaw);
     const qty = quantities[product] || 0;
+
+    console.log(`Product: ${product}, Entered: ${enteredValueRaw}, Parsed: ${enteredValue}, Qty: ${qty}`);
 
     if (!isNaN(enteredValue)) {
         if (product === "Miscellaneous Dead Miles") {
             higherTotal += enteredValue * (activeTransportRate / 2);
-        } else if (product === "Tolls" || product === "Other") {
+        } else if (["Tolls", "Other", "Rush Fee", "Assistance Fee", "Passenger Fee"].includes(product)) {
             higherTotal += enteredValue;
         } else {
             higherTotal += enteredValue * qty;
@@ -538,6 +660,7 @@ foundProducts.forEach(product => {
     box.appendChild(lowMarginButton);
     box.appendChild(waittimeButton);
     box.appendChild(boomerangButton);
+    box.appendChild(requestRatesButton);
     box.appendChild(resetButton);
 
 
