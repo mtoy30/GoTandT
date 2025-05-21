@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.5.7
+// @version      3.5.8
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -939,8 +939,26 @@ function showProcessingMessage() {
         "Crunching the numbers, hang tight!",
         "Just a moment, magic is happening...",
         "Working on it... almost there!",
-        "Let me process that real quick...",
-        "Hold on, good things take time..."
+        "Hold on, good things take time...",
+        "Just like Windows Update... this might take a while.",
+        "Loading... don't worry, it's not a blue screen!",
+        "Consulting Clippy for advice...",
+        "Rebooting in spirit only.",
+        "Optimizing like it's Excel on a Friday afternoon...",
+        "Dragging files across the desktop... metaphorically.",
+        "Checking OneDrive... it’s probably syncing. Maybe.",
+        "Running diagnostics... hope it’s not a Microsoft Teams call!",
+        "Searching Bing... because someone has to.",
+        "Applying 1,024 patches... just like Patch Tuesday.",
+        "Installing updates you didn’t ask for...",
+        "Waiting for Outlook to stop being 'Not Responding'...",
+        "Wishing Word would stop autocorrecting me...",
+        "Recompiling with love and Microsoft Paint.",
+        "Consulting the Registry... send snacks.",
+        "PowerPointing my way through the process...",
+        "Unclogging the virtual printer queue...",
+        "Restarting the restart...",
+        "Syncing with the spirit of Windows 95..."
     ];
     const randomMessage = messages[Math.floor(Math.random() * messages.length)];
 
