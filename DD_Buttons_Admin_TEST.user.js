@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.5.9
+// @version      3.6.0
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -460,8 +460,18 @@ requestRatesButton.onclick = () => {
                 const totalValue = parseFloat(totalText);
 
                 if (productsToTrack.includes(product)) {
-                    if (!isNaN(totalValue)) totalBilled += totalValue;
-                }
+    if (!isNaN(totalValue)) {
+        if (product === "Rush Fee") {
+            if (!quantities["_rushFeeAdded"]) {
+                totalBilled += totalValue;
+                quantities["_rushFeeAdded"] = true; // mark it as added
+            }
+        } else {
+            totalBilled += totalValue;
+        }
+    }
+}
+
 
                 if (qtyCell) {
                     const qtyVal = parseFloat(qtyCell.innerText.trim().replace(/[^0-9.-]+/g, ''));
@@ -599,8 +609,16 @@ higherInputsWrapper.appendChild(wrapper);
         }
 
         let higherTotal = 0;
+let alreadyCounted = new Set(); // Track items added once
+
 foundProducts.forEach(product => {
     if (product === "Wait Time") return;
+
+    // Prevent duplicates for Rush Fee, Tolls, etc.
+    if (["Rush Fee", "Tolls", "Other", "Assistance Fee", "Passenger Fee", "Miscellaneous Dead Miles"].includes(product)) {
+        if (alreadyCounted.has(product)) return; // Skip if already counted
+        alreadyCounted.add(product);
+    }
 
     const enteredValueRaw = productInputs[product]?.value;
     const enteredValue = parseFloat(enteredValueRaw);
@@ -611,13 +629,14 @@ foundProducts.forEach(product => {
     if (!isNaN(enteredValue)) {
         if (product === "Miscellaneous Dead Miles") {
             higherTotal += enteredValue * (activeTransportRate / 2);
-        } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee"].includes(product)) {
+        } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
             higherTotal += enteredValue;
         } else {
             higherTotal += enteredValue * qty;
         }
     }
 });
+
 
         const higherMargin = 100 - ((paidAmount / higherTotal) * 100);
         let higherMarginColor = "black";
