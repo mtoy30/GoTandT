@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.6.0
+// @version      3.6.1
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -242,7 +242,7 @@ function showCalculatorUI() {
 };
 
     const waittimeButton = document.createElement("button");
-    waittimeButton.innerText = "Wait Time";
+    waittimeButton.innerText = "Wait Time Request";
     waittimeButton.style.marginTop = "20px";
     waittimeButton.style.marginLeft = "10px";
     waittimeButton.style.padding = "8px 16px";
@@ -294,6 +294,45 @@ const boomerangButton = document.createElement("button");
 
     boomerangButton.onclick = () => {
     const textToCopy = "Secure with Boomerang and leave in provider stage until rates approved";
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        const copiedMsg = document.createElement("div");
+        copiedMsg.innerText = `"${textToCopy}" copied!`;
+        copiedMsg.style.position = "fixed";
+        copiedMsg.style.top = "50%";
+        copiedMsg.style.left = "50%";
+        copiedMsg.style.transform = "translate(-50%, -50%)";
+        copiedMsg.style.background = "rgba(0,0,0,0.8)";
+        copiedMsg.style.color = "#fff";
+        copiedMsg.style.padding = "15px 25px";
+        copiedMsg.style.borderRadius = "8px";
+        copiedMsg.style.zIndex = "10001";
+        copiedMsg.style.fontSize = "18px";
+        copiedMsg.style.fontWeight = "bold";
+        copiedMsg.style.textAlign = "center";
+        copiedMsg.style.maxWidth = "80%";
+        copiedMsg.style.wordWrap = "break-word";
+        document.body.appendChild(copiedMsg);
+
+        setTimeout(() => {
+            copiedMsg.remove();
+        }, 1000);
+    });
+};
+
+const WaitStaffButton = document.createElement("button");
+    WaitStaffButton.innerText = "Wait Time Staff";
+    WaitStaffButton.style.marginTop = "20px";
+    WaitStaffButton.style.marginLeft = "10px";
+    WaitStaffButton.style.padding = "8px 16px";
+    WaitStaffButton.style.background = "#3498db";
+    WaitStaffButton.style.color = "#fff";
+    WaitStaffButton.style.border = "none";
+    WaitStaffButton.style.borderRadius = "5px";
+    WaitStaffButton.style.cursor = "pointer";
+    WaitStaffButton.style.fontWeight = "bold";
+
+    WaitStaffButton.onclick = () => {
+    const textToCopy = "Ok to apply wait time and include in staffing email due to mileage.";
     navigator.clipboard.writeText(textToCopy).then(() => {
         const copiedMsg = document.createElement("div");
         copiedMsg.innerText = `"${textToCopy}" copied!`;
@@ -677,6 +716,7 @@ foundProducts.forEach(product => {
     box.appendChild(higherResult);
     box.appendChild(lowMarginButton);
     box.appendChild(waittimeButton);
+    box.appendChild(WaitStaffButton);
     box.appendChild(boomerangButton);
     box.appendChild(requestRatesButton);
     box.appendChild(resetButton);
