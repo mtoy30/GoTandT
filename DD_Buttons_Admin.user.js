@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.6.1
+// @version      3.6.2
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -483,53 +483,54 @@ requestRatesButton.onclick = () => {
         }
 
         const rows = document.querySelectorAll('div[row-index]');
-        let totalBilled = 0;
-        let quantity = 0;
-        let quantities = {};
-        let foundProducts = new Set();
+let totalBilled = 0;
+let quantity = 0;
+let quantities = {};
+let foundProducts = new Set();
 
-        rows.forEach(row => {
-            const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
-            const totalCell = row.querySelector('[col-id="gtt_total"]');
-            const qtyCell = row.querySelector('[col-id="gtt_quantity"]');
+rows.forEach(row => {
+    const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+    const totalCell = row.querySelector('[col-id="gtt_total"]');
+    const qtyCell = row.querySelector('[col-id="gtt_quantity"]');
 
-            if (productCell) {
-                const product = productCell.innerText.trim();
-                const totalText = totalCell?.innerText.trim().replace(/[^0-9.-]+/g, '') || "0";
-                const totalValue = parseFloat(totalText);
+    if (productCell) {
+        const product = productCell.innerText.trim();
+        const totalText = totalCell?.innerText.trim().replace(/[^0-9.-]+/g, '') || "0";
+        const totalValue = parseFloat(totalText);
 
-                if (productsToTrack.includes(product)) {
-    if (!isNaN(totalValue)) {
-        if (product === "Rush Fee") {
-            if (!quantities["_rushFeeAdded"]) {
+        // Exclude "Rush Fee" from totalBilled
+        if (productsToTrack.includes(product) && product !== "Rush Fee") {
+            if (!isNaN(totalValue)) {
                 totalBilled += totalValue;
-                quantities["_rushFeeAdded"] = true; // mark it as added
             }
-        } else {
-            totalBilled += totalValue;
+        }
+
+        // Handle quantity per product
+        if (qtyCell) {
+            const qtyVal = parseFloat(qtyCell.innerText.trim().replace(/[^0-9.-]+/g, ''));
+            if (!isNaN(qtyVal)) {
+                if (!quantities[product]) quantities[product] = 0;
+                quantities[product] += qtyVal;
+            }
+        }
+
+        // Track found products
+        if (productsToTrack.includes(product)) {
+            foundProducts.add(product);
+        }
+
+        // Set quantity if rateType is "mile" and applicable product
+        if (
+            rateType === "mile" &&
+            quantity === 0 &&
+            qtyCell &&
+            ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(product)
+        ) {
+            const q = parseFloat(qtyCell.innerText.trim().replace(/[^0-9.-]+/g, ''));
+            if (!isNaN(q)) quantity = q;
         }
     }
-}
-
-
-                if (qtyCell) {
-                    const qtyVal = parseFloat(qtyCell.innerText.trim().replace(/[^0-9.-]+/g, ''));
-                    if (!isNaN(qtyVal)) {
-                        if (!quantities[product]) quantities[product] = 0;
-                        quantities[product] += qtyVal;
-                    }
-                }
-
-                if (productsToTrack.includes(product)) {
-                    foundProducts.add(product);
-                }
-
-                if (rateType === "mile" && quantity === 0 && qtyCell && ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(product)) {
-                    const q = parseFloat(qtyCell.innerText.trim().replace(/[^0-9.-]+/g, ''));
-                    if (!isNaN(q)) quantity = q;
-                }
-            }
-        });
+});
 
         ["Miscellaneous Dead Miles", "Tolls", "Other", "No Show", "Wait Time"].forEach(p => foundProducts.add(p));
 
