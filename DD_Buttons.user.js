@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.6.2
+// @version      3.6.3
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -622,41 +622,36 @@ function copyBoth() {
     if (element1 && element2) {
         var text1 = element1.textContent.trim();
         var text2 = element2.textContent.trim();
+        var headerTitle = titleElement ? titleElement.textContent : "";
 
-        // Check if title contains '4474' and show an alert
-        if (titleElement && titleElement.textContent.includes("4474-")) {
-            alert("Rate increase needs to go to the adjuster and authorized by aswell as AboveContractedRateRequest@sedgwick.com");
+        if (headerTitle.includes("4474-")) {
+            alert("Rate increase needs to go to the adjuster and authorized by as well as AboveContractedRateRequest@sedgwick.com");
         }
 
-        // Check if the claim number starts with "H" followed by numbers
         if (/^H\d+$/.test(text2)) {
             alert(`The claim number "${text2}" appears to be an HES claim. Please verify the payer is CareWorks and send related emails to HES@careworks.com`);
         }
 
-        // Prompt user for referral date(s)
         var referralDate = prompt("Please enter the referral date(s):", "");
-
         if (referralDate === null) {
-            // User clicked "Cancel", perform the default copy action
             var textToCopy = `Claimant: ${text1} - Claim: ${text2} - on DOS:`;
             GM_setClipboard(textToCopy);
             showMessage(`Copied: "${textToCopy}" successfully.`);
-            return; // Stop further execution
+            return;
         }
 
         if (!referralDate) {
-            referralDate = "[No Date Provided]"; // Default text if nothing is entered
+            referralDate = "[No Date Provided]";
         }
 
-        // Create the dropdown UI
-        createDropdownMenu(text1, text2, referralDate);
+        createDropdownMenu(text1, text2, referralDate, headerTitle);
     } else {
         showMessage('Claimant Name & Claim# not found. Please make sure you are in a referral.', false);
     }
 }
 
-// Function to create and show dropdown menu
-function createDropdownMenu(claimant, claim, referralDate) {
+    //Create Options for Email templates
+function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
     var existingDropdown = document.getElementById("customDropdownContainer");
     if (existingDropdown) existingDropdown.remove();
 
@@ -682,18 +677,33 @@ function createDropdownMenu(claimant, claim, referralDate) {
     label.style.fontWeight = "bold";
     dropdownContainer.appendChild(label);
 
-    var options = [
+    var fullOptions = [
         { text: "Staffed Email", color: "black" },
-        { text: "Standard Rate Request", color: "#FFFF99" }, // Light Yellow
+        { text: "Standard Rate Request", color: "#FFFF99" },
         { text: "CareIQ Rate Request", color: "white" },
         { text: "Homelink Rate Request", color: "white" },
+        { text: "CareWorks Rate Request", color: "white" },
         { text: "JBS Staffed at Rates", color: "white" },
         { text: "Wait time request", color: "white" },
         { text: "Request Demographics", color: "white" },
         { text: "Other", color: "black" }
     ];
 
-    options.forEach((option) => {
+    // Filter exclusions based on headerTitle
+    let exclusions = [];
+    if (headerTitle.includes("212-")) {
+        exclusions = ["Standard Rate Request", "CareIQ Rate Request", "JBS Staffed at Rates", "CareWorks Rate Request"];
+    } else if (headerTitle.includes("4474-")) {
+        exclusions = ["Standard Rate Request", "CareIQ Rate Request", "Homelink Rate Request"];
+    } else if (headerTitle.includes("133-")) {
+        exclusions = ["Standard Rate Request", "Homelink Rate Request", "JBS Staffed at Rates", "CareWorks Rate Request"];
+    } else {
+        exclusions = ["CareIQ Rate Request", "JBS Staffed at Rates", "CareWorks Rate Request", "Homelink Rate Request"];
+    }
+
+    const filteredOptions = fullOptions.filter(opt => !exclusions.includes(opt.text));
+
+    filteredOptions.forEach(option => {
         var button = document.createElement("button");
         button.innerText = option.text;
         button.style.display = "block";
@@ -716,9 +726,29 @@ function createDropdownMenu(claimant, claim, referralDate) {
         dropdownContainer.appendChild(button);
     });
 
+    // Add a Close button
+    var closeButton = document.createElement("button");
+    closeButton.innerText = "Close";
+    closeButton.style.display = "block";
+    closeButton.style.width = "100%";
+    closeButton.style.fontWeight = "bold";
+    closeButton.style.padding = "8px";
+    closeButton.style.marginTop = "5px";
+    closeButton.style.background = "#dc3545"; // Bootstrap red
+    closeButton.style.color = "white";
+    closeButton.style.letterSpacing = "1.5px";
+    closeButton.style.border = "none";
+    closeButton.style.borderRadius = "15px";
+    closeButton.style.cursor = "pointer";
+
+    closeButton.onclick = function () {
+        dropdownContainer.remove();
+    };
+
+    dropdownContainer.appendChild(closeButton);
+
     document.body.appendChild(dropdownContainer);
 }
-
 
 // Function to finalize the copy action
 function finalizeCopy(claimant, claim, referralDate, selectedOption) {
