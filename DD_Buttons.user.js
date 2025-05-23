@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.6.3
+// @version      3.6.4
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
