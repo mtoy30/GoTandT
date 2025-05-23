@@ -1134,6 +1134,8 @@ function selectCorrectRadioButton(selectedOption) {
         labelToFind = "JBS Staffed at Higher Rates (Default Rates)";
     } else if (selectedOption === "Wait time request") {
         labelToFind = "Wait Time Request";
+    } else if (selectedOption === "CareWorks Rate Request") {
+        labelToFind = "CareWorks - Request for Higher Rates";
     } else if (selectedOption === "Request Demographics") {
         labelToFind = "Request for Additional Information";
     } else if (selectedOption === "Other") {
