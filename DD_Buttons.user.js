@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.6.4
+// @version      3.6.6
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -45,17 +45,17 @@ function showCalculatorBox() {
         return;
     }
 
-    const tab8 = document.querySelector('[id^="tab8_"]');
-    if (tab8) {
-        tab8.click();
-        console.log("Clicked tab8_ before showing calculator.");
+    // Look for the tab with title "Billing"
+    const billingTab = document.querySelector('li[role="tab"][title="Billing"]');
+    if (billingTab) {
+        billingTab.click();
+        console.log('Clicked "Billing" tab before showing calculator.');
         setTimeout(showCalculatorUI, 1000);
     } else {
-        console.warn("tab8_ not found.");
+        console.warn('"Billing" tab not found.');
         showCalculatorUI(); // fallback
     }
 }
-
 
 function showCalculatorUI() {
     const existing = document.getElementById("calcBox");
@@ -567,27 +567,29 @@ foundProducts.forEach(product => {
         calculatorButton.addEventListener('click', showCalculatorBox);
     }
 
-    // Function to copy claimant name
-    function copyClaimantName() {
-        var elementToCopy = document.querySelector('[id^="headerControlsList_"] > div:nth-child(3) > div[class^="pa-a pa-"].flexbox > a');
-        if (elementToCopy) {
-            var textToCopy = elementToCopy.textContent.trim();
-            GM_setClipboard(textToCopy);
-            showMessage(`Copied: "${textToCopy}" successfully.`);
-            console.log('Copied to clipboard:', textToCopy);
-            var tabs = document.querySelectorAll('[id^="tab6_"]');
-            if (tabs.length) {
-                tabs[0].click();
-                console.log('Clicked on the first tab.');
-                waitForButtonAndClick();
-            } else {
-                console.error('No tab6 elements found.');
-            }
+// Function to copy claimant name
+function copyClaimantName() {
+    var elementToCopy = document.querySelector('[id^="headerControlsList_"] > div:nth-child(3) > div[class^="pa-a pa-"].flexbox > a');
+    if (elementToCopy) {
+        var textToCopy = elementToCopy.textContent.trim();
+        GM_setClipboard(textToCopy);
+        showMessage(`Copied: "${textToCopy}" successfully.`);
+        console.log('Copied to clipboard:', textToCopy);
+
+        // Look for the tab with title "Service Provider"
+        var serviceProviderTab = document.querySelector('li[role="tab"][title="Service Provider"]');
+        if (serviceProviderTab) {
+            serviceProviderTab.click();
+            console.log('Clicked "Service Provider" tab.');
+            waitForButtonAndClick();
         } else {
-            showMessage('Claimant Name not found. Please make sure you are in a referral.', false);
-            console.error('Claimant element not found.');
+            console.error('"Service Provider" tab not found.');
         }
+    } else {
+        showMessage('Claimant Name not found. Please make sure you are in a referral.', false);
+        console.error('Claimant element not found.');
     }
+}
 
     // Function to wait for the button to appear and click it
     function waitForButtonAndClick() {
