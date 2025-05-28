@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.6.6
+// @version      3.6.7
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -733,27 +733,45 @@ foundProducts.forEach(product => {
         calculatorButton.addEventListener('click', showCalculatorBox);
     }
 
-// Function to copy claimant name
-function copyClaimantName() {
-    var elementToCopy = document.querySelector('[id^="headerControlsList_"] > div:nth-child(3) > div[class^="pa-a pa-"].flexbox > a');
-    if (elementToCopy) {
-        var textToCopy = elementToCopy.textContent.trim();
-        GM_setClipboard(textToCopy);
-        showMessage(`Copied: "${textToCopy}" successfully.`);
-        console.log('Copied to clipboard:', textToCopy);
+// Function to copy both claimant name and claim
+function copyBoth() {
+    var element1 = document.querySelector('[id^="headerControlsList_"] > div:nth-child(3) > div[class^="pa-a pa-"].flexbox > a');
+    var element2 = document.querySelector('[id^="headerControlsList_"] > div:nth-child(5) > div[class^="pa-a pa-"].flexbox > a');
+    var titleElement = document.querySelector('[id^="formHeaderTitle"]');
 
-        // Look for the tab with title "Service Provider"
-        var serviceProviderTab = document.querySelector('li[role="tab"][title="Service Provider"]');
-        if (serviceProviderTab) {
-            serviceProviderTab.click();
-            console.log('Clicked "Service Provider" tab.');
-            waitForButtonAndClick();
-        } else {
-            console.error('"Service Provider" tab not found.');
+    // Try to find the input field for "Date of Start Date"
+    var startDateInput = document.querySelector('input[aria-label="Date of Start Date"]');
+    var startDateValue = startDateInput ? startDateInput.value.trim() : "";
+
+    if (element1 && element2) {
+        var text1 = element1.textContent.trim();
+        var text2 = element2.textContent.trim();
+        var headerTitle = titleElement ? titleElement.textContent : "";
+
+        if (headerTitle.includes("4474-")) {
+            alert("Rate increase needs to go to the adjuster and authorized by as well as AboveContractedRateRequest@sedgwick.com");
         }
+
+        if (/^H\d+$/.test(text2)) {
+            alert(`The claim number "${text2}" appears to be an HES claim. Please verify the payer is CareWorks and send related emails to HES@careworks.com`);
+        }
+
+        // Use Start Date as default value in prompt
+        var referralDate = prompt("Please enter the referral date(s):", startDateValue);
+        if (referralDate === null) {
+            var textToCopy = `Claimant: ${text1} - Claim: ${text2} - on DOS:`;
+            GM_setClipboard(textToCopy);
+            showMessage(`Copied: "${textToCopy}" successfully.`);
+            return;
+        }
+
+        if (!referralDate) {
+            referralDate = "[No Date Provided]";
+        }
+
+        createDropdownMenu(text1, text2, referralDate, headerTitle);
     } else {
-        showMessage('Claimant Name not found. Please make sure you are in a referral.', false);
-        console.error('Claimant element not found.');
+        showMessage('Claimant Name & Claim# not found. Please make sure you are in a referral.', false);
     }
 }
 
