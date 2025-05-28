@@ -733,6 +733,55 @@ foundProducts.forEach(product => {
         calculatorButton.addEventListener('click', showCalculatorBox);
     }
 
+    // Function to copy claimant name
+function copyClaimantName() {
+    var elementToCopy = document.querySelector('[id^="headerControlsList_"] > div:nth-child(3) > div[class^="pa-a pa-"].flexbox > a');
+    if (elementToCopy) {
+        var textToCopy = elementToCopy.textContent.trim();
+        GM_setClipboard(textToCopy);
+        showMessage(`Copied: "${textToCopy}" successfully.`);
+        console.log('Copied to clipboard:', textToCopy);
+
+        // Look for the tab with title "Service Provider"
+        var serviceProviderTab = document.querySelector('li[role="tab"][title="Service Provider"]');
+        if (serviceProviderTab) {
+            serviceProviderTab.click();
+            console.log('Clicked "Service Provider" tab.');
+            waitForButtonAndClick();
+        } else {
+            console.error('"Service Provider" tab not found.');
+        }
+    } else {
+        showMessage('Claimant Name not found. Please make sure you are in a referral.', false);
+        console.error('Claimant element not found.');
+    }
+}
+
+
+    // Function to wait for the button to appear and click it
+    function waitForButtonAndClick() {
+        var attempts = 0;
+        const maxAttempts = 10;
+        const interval = 1000;
+
+        var intervalId = setInterval(() => {
+            attempts++;
+            console.log(`Checking for the button (Attempt ${attempts})...`);
+
+            var targetButton = document.querySelector('#publishedCanvas > div > div.screen-animation.animated > div > div > div:nth-child(16) > div > div > div > div > button > div > div');
+            if (targetButton) {
+                targetButton.click();
+                console.log('Clicked on the target button.');
+                clearInterval(intervalId);
+            }
+
+            if (attempts >= maxAttempts) {
+                console.error('Failed to find the button after multiple attempts.');
+                clearInterval(intervalId);
+            }
+        }, interval);
+    }
+
 // Function to copy both claimant name and claim
 function copyBoth() {
     var element1 = document.querySelector('[id^="headerControlsList_"] > div:nth-child(3) > div[class^="pa-a pa-"].flexbox > a');
@@ -775,66 +824,6 @@ function copyBoth() {
     }
 }
 
-    // Function to wait for the button to appear and click it
-    function waitForButtonAndClick() {
-        var attempts = 0;
-        const maxAttempts = 10;
-        const interval = 1000;
-
-        var intervalId = setInterval(() => {
-            attempts++;
-            console.log(`Checking for the button (Attempt ${attempts})...`);
-
-            var targetButton = document.querySelector('#publishedCanvas > div > div.screen-animation.animated > div > div > div:nth-child(16) > div > div > div > div > button > div > div');
-            if (targetButton) {
-                targetButton.click();
-                console.log('Clicked on the target button.');
-                clearInterval(intervalId);
-            }
-
-            if (attempts >= maxAttempts) {
-                console.error('Failed to find the button after multiple attempts.');
-                clearInterval(intervalId);
-            }
-        }, interval);
-    }
-
-// Function to copy both claimant name and claim
-function copyBoth() {
-    var element1 = document.querySelector('[id^="headerControlsList_"] > div:nth-child(3) > div[class^="pa-a pa-"].flexbox > a');
-    var element2 = document.querySelector('[id^="headerControlsList_"] > div:nth-child(5) > div[class^="pa-a pa-"].flexbox > a');
-    var titleElement = document.querySelector('[id^="formHeaderTitle"]');
-
-    if (element1 && element2) {
-        var text1 = element1.textContent.trim();
-        var text2 = element2.textContent.trim();
-        var headerTitle = titleElement ? titleElement.textContent : "";
-
-        if (headerTitle.includes("4474-")) {
-            alert("Rate increase needs to go to the adjuster and authorized by as well as AboveContractedRateRequest@sedgwick.com");
-        }
-
-        if (/^H\d+$/.test(text2)) {
-            alert(`The claim number "${text2}" appears to be an HES claim. Please verify the payer is CareWorks and send related emails to HES@careworks.com`);
-        }
-
-        var referralDate = prompt("Please enter the referral date(s):", "");
-        if (referralDate === null) {
-            var textToCopy = `Claimant: ${text1} - Claim: ${text2} - on DOS:`;
-            GM_setClipboard(textToCopy);
-            showMessage(`Copied: "${textToCopy}" successfully.`);
-            return;
-        }
-
-        if (!referralDate) {
-            referralDate = "[No Date Provided]";
-        }
-
-        createDropdownMenu(text1, text2, referralDate, headerTitle);
-    } else {
-        showMessage('Claimant Name & Claim# not found. Please make sure you are in a referral.', false);
-    }
-}
 
     //Create Options for Email templates
 function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
