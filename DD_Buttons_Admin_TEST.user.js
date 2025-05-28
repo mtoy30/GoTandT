@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.6.6
+// @version      3.6.7
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -788,6 +788,10 @@ function copyBoth() {
     var element2 = document.querySelector('[id^="headerControlsList_"] > div:nth-child(5) > div[class^="pa-a pa-"].flexbox > a');
     var titleElement = document.querySelector('[id^="formHeaderTitle"]');
 
+    // Try to find the input field for "Date of Start Date"
+    var startDateInput = document.querySelector('input[aria-label="Date of Start Date"]');
+    var startDateValue = startDateInput ? startDateInput.value.trim() : "";
+
     if (element1 && element2) {
         var text1 = element1.textContent.trim();
         var text2 = element2.textContent.trim();
@@ -801,7 +805,8 @@ function copyBoth() {
             alert(`The claim number "${text2}" appears to be an HES claim. Please verify the payer is CareWorks and send related emails to HES@careworks.com`);
         }
 
-        var referralDate = prompt("Please enter the referral date(s):", "");
+        // Use Start Date as default value in prompt
+        var referralDate = prompt("Please enter the referral date(s):", startDateValue);
         if (referralDate === null) {
             var textToCopy = `Claimant: ${text1} - Claim: ${text2} - on DOS:`;
             GM_setClipboard(textToCopy);
