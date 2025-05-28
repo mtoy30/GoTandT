@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.6.4
+// @version      3.6.5
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -46,13 +46,14 @@ function showCalculatorBox() {
         return;
     }
 
-    const tab8 = document.querySelector('[id^="tab8_"]');
-    if (tab8) {
-        tab8.click();
-        console.log("Clicked tab8_ before showing calculator.");
+    // Look for the tab with title "Billing"
+    const billingTab = document.querySelector('li[role="tab"][title="Billing"]');
+    if (billingTab) {
+        billingTab.click();
+        console.log('Clicked "Billing" tab before showing calculator.');
         setTimeout(showCalculatorUI, 1000);
     } else {
-        console.warn("tab8_ not found.");
+        console.warn('"Billing" tab not found.');
         showCalculatorUI(); // fallback
     }
 }
