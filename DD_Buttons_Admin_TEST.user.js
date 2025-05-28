@@ -824,6 +824,7 @@ function copyBoth() {
     }
 }
 
+
     //Create Options for Email templates
 function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
     var existingDropdown = document.getElementById("customDropdownContainer");
