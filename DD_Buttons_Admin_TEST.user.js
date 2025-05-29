@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.6.7
+// @version      3.6.8
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -797,7 +797,7 @@ function copyBoth() {
         var text2 = element2.textContent.trim();
         var headerTitle = titleElement ? titleElement.textContent : "";
 
-        if (headerTitle.includes("4474-")) {
+        if (headerTitle.startsWith("4474-")) {
             alert("Rate increase needs to go to the adjuster and authorized by as well as AboveContractedRateRequest@sedgwick.com");
         }
 
@@ -866,11 +866,11 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
 
     // Filter exclusions based on headerTitle
     let exclusions = [];
-    if (headerTitle.includes("212-")) {
+    if (headerTitle.startsWith("212-")) {
         exclusions = ["Standard Rate Request", "CareIQ Rate Request", "JBS Staffed at Rates", "CareWorks Rate Request"];
-    } else if (headerTitle.includes("4474-")) {
+    } else if (headerTitle.startsWith("4474-")) {
         exclusions = ["Standard Rate Request", "CareIQ Rate Request", "Homelink Rate Request"];
-    } else if (headerTitle.includes("133-")) {
+    } else if (headerTitle.startsWith("133-")) {
         exclusions = ["Standard Rate Request", "Homelink Rate Request", "JBS Staffed at Rates", "CareWorks Rate Request"];
     } else {
         exclusions = ["CareIQ Rate Request", "JBS Staffed at Rates", "CareWorks Rate Request", "Homelink Rate Request"];
@@ -1246,7 +1246,7 @@ function extractAndCopyTitle() {
         console.log('Title Found:', title);
 
         // Check if title contains '4473' and show an alert
-        if (title.includes("4473-")) {
+        if (title.startsWith("4473-")) {
             alert("Rates up to $3.75/mile are ok to apply and include in staffing email.\n\n" +
                   "Wait time ok if 25 miles or more each way and not surgery.\n\n" +
                   "If scheduled the day before appointment, ok to proceed with staffing above approved rates if needed and include in staffing email.");
@@ -1254,12 +1254,12 @@ function extractAndCopyTitle() {
 
 
         // Check if title contains '5843-' and show a different alert
-        if (title.includes("5843-")) {
+        if (title.startsWith("5843-")) {
             alert("Rate Increases do not need AUTH - provide rate increase in staffed email");
         }
 
         // Check if title contains '212-' and show a different alert
-        if (title.includes("212-")) {
+        if (title.startsWith("212-")) {
             alert("Homelink must be atleast 50% margin");
         }
 
