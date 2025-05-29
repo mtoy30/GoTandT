@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.6.7
+// @version      3.6.8
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -630,7 +630,7 @@ function copyBoth() {
         var text2 = element2.textContent.trim();
         var headerTitle = titleElement ? titleElement.textContent : "";
 
-        if (headerTitle.includes("4474-")) {
+        if (headerTitle.startsWith("4474-")) {
             alert("Rate increase needs to go to the adjuster and authorized by as well as AboveContractedRateRequest@sedgwick.com");
         }
 
@@ -698,11 +698,11 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
 
     // Filter exclusions based on headerTitle
     let exclusions = [];
-    if (headerTitle.includes("212-")) {
+    if (headerTitle.startsWith("212-")) {
         exclusions = ["Standard Rate Request", "CareIQ Rate Request", "JBS Staffed at Rates", "CareWorks Rate Request"];
-    } else if (headerTitle.includes("4474-")) {
+    } else if (headerTitle.startsWith("4474-")) {
         exclusions = ["Standard Rate Request", "CareIQ Rate Request", "Homelink Rate Request"];
-    } else if (headerTitle.includes("133-")) {
+    } else if (headerTitle.startsWith("133-")) {
         exclusions = ["Standard Rate Request", "Homelink Rate Request", "JBS Staffed at Rates", "CareWorks Rate Request"];
     } else {
         exclusions = ["CareIQ Rate Request", "JBS Staffed at Rates", "CareWorks Rate Request", "Homelink Rate Request"];
