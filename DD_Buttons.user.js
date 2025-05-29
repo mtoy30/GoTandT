@@ -1078,7 +1078,7 @@ function extractAndCopyTitle() {
         console.log('Title Found:', title);
 
         // Check if title contains '212-' and show a different alert
-        if (title.includes("212-")) {
+        if (title.startsWith("212-")) {
             alert("Homelink must be atleast 50% margin");
         }
 
