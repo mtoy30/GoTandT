@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.6.8
+// @version      3.6.9
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -472,7 +472,101 @@ requestRatesButton.onclick = () => {
   });
 };
 
+//Homelink Button
+const homelinkButton = document.createElement("button");
+homelinkButton.innerText = "Homelink";
+homelinkButton.style.marginTop = "20px";
+homelinkButton.style.marginLeft = "10px";
+homelinkButton.style.padding = "8px 16px";
+homelinkButton.style.background = "#2ecc71";
+homelinkButton.style.color = "#fff";
+homelinkButton.style.border = "none";
+homelinkButton.style.borderRadius = "5px";
+homelinkButton.style.cursor = "pointer";
+homelinkButton.style.fontWeight = "bold";
+document.body.appendChild(homelinkButton);
 
+homelinkButton.onclick = () => {
+  let miles = 0;
+  let loadFeeQuantity = 0;
+
+  const rows = document.querySelectorAll('[role="row"]');
+  rows.forEach(row => {
+    const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+    const qtyCell = row.querySelector('[col-id="gtt_quantity"]');
+
+    if (productCell && qtyCell) {
+      const productText = productCell.innerText.trim();
+      const qty = parseFloat(qtyCell.innerText.trim());
+
+      if (productText.includes("Transport") && !isNaN(qty)) miles = qty;
+      if (productText.includes("Load Fee") && !isNaN(qty)) loadFeeQuantity = qty;
+    }
+  });
+
+  let flatRateValue = null;
+  let transportLabel = null;
+  let loadFeeValue = null;
+  let otherParts = [];
+
+  Object.entries(productInputs).forEach(([label, input]) => {
+    const value = input.value.trim();
+    if (value === "") return;
+
+    if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
+      flatRateValue = parseFloat(value);
+      transportLabel = label;
+    } else if (label === "Load Fee") {
+      loadFeeValue = parseFloat(value);
+    } else {
+      if (value.toLowerCase().includes("contract")) {
+        otherParts.push(`contract ${label}`);
+      } else if (!isNaN(parseFloat(value))) {
+        otherParts.push(`$${parseFloat(value).toFixed(2)} ${label}`);
+      } else {
+        otherParts.push(`${value} ${label}`);
+      }
+    }
+  });
+
+  if (!flatRateValue || isNaN(flatRateValue)) {
+    alert("Please enter a valid Transport rate.");
+    return;
+  }
+
+  const flatTotal = (flatRateValue * miles).toFixed(2);
+  const goatString = `**Enter in Goat as $${flatRateValue.toFixed(2)}/mile` +
+                     (loadFeeValue && !isNaN(loadFeeValue) ? ` + $${loadFeeValue.toFixed(2)} Load Fee` : "");
+
+  const homelinkText = `Request Flat Rate of $${flatTotal}` +
+                       (otherParts.length ? ", " + otherParts.join(", ") : "") +
+                       `. ${goatString}`;
+
+  navigator.clipboard.writeText(homelinkText).then(() => {
+    const copiedMsg = document.createElement("div");
+    copiedMsg.innerText = `"${homelinkText}" copied!`;
+    copiedMsg.style.position = "fixed";
+    copiedMsg.style.top = "50%";
+    copiedMsg.style.left = "50%";
+    copiedMsg.style.transform = "translate(-50%, -50%)";
+    copiedMsg.style.background = "rgba(0,0,0,0.8)";
+    copiedMsg.style.color = "#fff";
+    copiedMsg.style.padding = "15px 25px";
+    copiedMsg.style.borderRadius = "8px";
+    copiedMsg.style.zIndex = "10001";
+    copiedMsg.style.fontSize = "18px";
+    copiedMsg.style.fontWeight = "bold";
+    copiedMsg.style.textAlign = "center";
+    copiedMsg.style.maxWidth = "80%";
+    copiedMsg.style.wordWrap = "break-word";
+    document.body.appendChild(copiedMsg);
+
+    setTimeout(() => {
+      copiedMsg.remove();
+    }, 1500);
+  });
+};
+    
     const calculateMargin = () => {
         const rateType = document.querySelector('input[name="rateType"]:checked').value;
         const inputValue = parseFloat(input.value);
