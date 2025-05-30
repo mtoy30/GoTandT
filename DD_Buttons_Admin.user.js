@@ -815,6 +815,7 @@ foundProducts.forEach(product => {
     box.appendChild(WaitStaffButton);
     box.appendChild(boomerangButton);
     box.appendChild(requestRatesButton);
+    box.appendChild(homelinkButton);
     box.appendChild(resetButton);
 
 
