@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.7.0
+// @version      3.7.1
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -281,44 +281,159 @@ function showCalculatorUI() {
     });
 };
 
+// Create the "Boomerang" button
 const boomerangButton = document.createElement("button");
-    boomerangButton.innerText = "Boomerang";
-    boomerangButton.style.marginTop = "20px";
-    boomerangButton.style.marginLeft = "10px";
-    boomerangButton.style.padding = "8px 16px";
-    boomerangButton.style.background = "#3498db";
-    boomerangButton.style.color = "#fff";
-    boomerangButton.style.border = "none";
-    boomerangButton.style.borderRadius = "5px";
-    boomerangButton.style.cursor = "pointer";
-    boomerangButton.style.fontWeight = "bold";
+boomerangButton.innerText = "Boomerang Request & Staff";
+boomerangButton.style.marginTop = "20px";
+boomerangButton.style.marginLeft = "10px";
+boomerangButton.style.padding = "8px 16px";
+boomerangButton.style.background = "#e67e22";
+boomerangButton.style.color = "#fff";
+boomerangButton.style.border = "none";
+boomerangButton.style.borderRadius = "5px";
+boomerangButton.style.cursor = "pointer";
+boomerangButton.style.fontWeight = "bold";
 
-    boomerangButton.onclick = () => {
-    const textToCopy = "Secure with Boomerang and leave in provider stage until rates approved";
-    navigator.clipboard.writeText(textToCopy).then(() => {
-        const copiedMsg = document.createElement("div");
-        copiedMsg.innerText = `"${textToCopy}" copied!`;
-        copiedMsg.style.position = "fixed";
-        copiedMsg.style.top = "50%";
-        copiedMsg.style.left = "50%";
-        copiedMsg.style.transform = "translate(-50%, -50%)";
-        copiedMsg.style.background = "rgba(0,0,0,0.8)";
-        copiedMsg.style.color = "#fff";
-        copiedMsg.style.padding = "15px 25px";
-        copiedMsg.style.borderRadius = "8px";
-        copiedMsg.style.zIndex = "10001";
-        copiedMsg.style.fontSize = "18px";
-        copiedMsg.style.fontWeight = "bold";
-        copiedMsg.style.textAlign = "center";
-        copiedMsg.style.maxWidth = "80%";
-        copiedMsg.style.wordWrap = "break-word";
-        document.body.appendChild(copiedMsg);
+// Add the button to the page
+document.body.appendChild(boomerangButton);
 
-        setTimeout(() => {
-            copiedMsg.remove();
-        }, 1000);
+// Button click behavior
+boomerangButton.onclick = () => {
+  const titleHeader = document.querySelector('[id^="formHeaderTitle"]');
+  const titleText = titleHeader ? titleHeader.innerText.trim() : "";
+  const isHomeLink = titleText.startsWith("212-");
+
+  let miles = 0;
+  let loadFeeQuantity = 0;
+
+  const rows = document.querySelectorAll('[role="row"]');
+  rows.forEach(row => {
+    const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+    const qtyCell = row.querySelector('[col-id="gtt_quantity"]');
+
+    if (productCell && qtyCell) {
+      const productText = productCell.innerText.trim();
+      const qty = parseFloat(qtyCell.innerText.trim());
+
+      if (productText.includes("Transport") && !isNaN(qty)) miles = qty;
+      if (productText.includes("Load Fee") && !isNaN(qty)) loadFeeQuantity = qty;
+    }
+  });
+
+  let boomerangText = "";
+
+  if (isHomeLink) {
+    // Use HomeLink format
+    let flatRateValue = null;
+    let loadFeeValue = null;
+    let otherParts = [];
+
+    Object.entries(productInputs).forEach(([label, input]) => {
+      const value = input.value.trim();
+      if (value === "") return;
+
+      if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
+        flatRateValue = parseFloat(value);
+      } else if (label === "Load Fee") {
+        loadFeeValue = parseFloat(value);
+      } else {
+        if (value.toLowerCase().includes("contract")) {
+          otherParts.push(`contract ${label}`);
+        } else if (!isNaN(parseFloat(value))) {
+          otherParts.push(`$${parseFloat(value).toFixed(2)} ${label}`);
+        } else {
+          otherParts.push(`${value} ${label}`);
+        }
+      }
     });
+
+    if (!flatRateValue || isNaN(flatRateValue)) {
+      alert("Please enter a valid Transport rate.");
+      return;
+    }
+
+    const flatTotal = (flatRateValue * miles).toFixed(2);
+    const goatString = `**Enter in Goat as $${flatRateValue.toFixed(2)}/mile` +
+                       (loadFeeValue && !isNaN(loadFeeValue) ? ` + $${loadFeeValue.toFixed(2)} Load Fee` : "");
+
+    boomerangText = `Request Flat Rate of $${flatTotal}` +
+                    (otherParts.length ? ", " + otherParts.join(", ") : "") +
+                    `. ${goatString}`;
+  } else {
+    // Use Request Rates format
+    let parts = [];
+
+    Object.entries(productInputs).forEach(([label, input]) => {
+      const value = input.value.trim();
+      if (value === "") return;
+
+      let normalizedLabel = label === "Miscellaneous Dead Miles" ? "Dead Miles" :
+                            label === "No Show" ? "No Show/Late Cancel" : label;
+
+      if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
+        if (!isNaN(parseFloat(value))) {
+          parts.push(`$${parseFloat(value).toFixed(2)}/mile x ${miles} miles`);
+        } else {
+          parts.push(`${value} ${normalizedLabel}`);
+        }
+      } else if (label === "Load Fee") {
+        if (!isNaN(parseFloat(value))) {
+          const fee = `$${parseFloat(value).toFixed(2)} Load Fee`;
+          const withQty = loadFeeQuantity ? `${fee} x ${loadFeeQuantity}` : fee;
+          parts.push(withQty);
+        } else {
+          parts.push(`${value} Load Fee`);
+        }
+      } else if (normalizedLabel === "Dead Miles") {
+        if (!isNaN(parseFloat(value))) {
+          parts.push(`${parseFloat(value)} ${normalizedLabel}`);
+        } else {
+          parts.push(`${value} ${normalizedLabel}`);
+        }
+      } else {
+        if (value.toLowerCase().includes("contract")) {
+          parts.push(`contract ${normalizedLabel}`);
+        } else if (!isNaN(parseFloat(value))) {
+          parts.push(`$${parseFloat(value).toFixed(2)} ${normalizedLabel}`);
+        } else {
+          parts.push(`${value} ${normalizedLabel}`);
+        }
+      }
+    });
+
+    boomerangText = "Request rates " + parts.join(", ");
+  }
+
+  // Append secure message
+  boomerangText += " **Secure with Boomerang and leave in provider stage until rates approved";
+
+  // Copy to clipboard and show confirmation
+  navigator.clipboard.writeText(boomerangText).then(() => {
+    const copiedMsg = document.createElement("div");
+    copiedMsg.innerText = `"${boomerangText}" copied!`;
+    copiedMsg.style.position = "fixed";
+    copiedMsg.style.top = "50%";
+    copiedMsg.style.left = "50%";
+    copiedMsg.style.transform = "translate(-50%, -50%)";
+    copiedMsg.style.background = "rgba(0,0,0,0.8)";
+    copiedMsg.style.color = "#fff";
+    copiedMsg.style.padding = "15px 25px";
+    copiedMsg.style.borderRadius = "8px";
+    copiedMsg.style.zIndex = "10001";
+    copiedMsg.style.fontSize = "18px";
+    copiedMsg.style.fontWeight = "bold";
+    copiedMsg.style.textAlign = "center";
+    copiedMsg.style.maxWidth = "80%";
+    copiedMsg.style.wordWrap = "break-word";
+    document.body.appendChild(copiedMsg);
+
+    setTimeout(() => {
+      copiedMsg.remove();
+    }, 1500);
+  });
 };
+
+
 
 const WaitStaffButton = document.createElement("button");
     WaitStaffButton.innerText = "Wait Time Staff";
@@ -474,11 +589,11 @@ requestRatesButton.onclick = () => {
 
 //Homelink Button
 const homelinkButton = document.createElement("button");
-homelinkButton.innerText = "Homelink";
+homelinkButton.innerText = "Request Homelink Rates";
 homelinkButton.style.marginTop = "20px";
 homelinkButton.style.marginLeft = "10px";
 homelinkButton.style.padding = "8px 16px";
-homelinkButton.style.background = "#2ecc71";
+homelinkButton.style.background = "#9b59b6";
 homelinkButton.style.color = "#fff";
 homelinkButton.style.border = "none";
 homelinkButton.style.borderRadius = "5px";
@@ -566,7 +681,7 @@ homelinkButton.onclick = () => {
     }, 1500);
   });
 };
-    
+
     const calculateMargin = () => {
         const rateType = document.querySelector('input[name="rateType"]:checked').value;
         const inputValue = parseFloat(input.value);
@@ -797,6 +912,10 @@ foundProducts.forEach(product => {
         calculateMargin();
     });
 
+// Get the header title element (ID starts with "formHeaderTitle")
+const headerElement = document.querySelector('[id^="formHeaderTitle"]');
+const headerText = headerElement?.textContent?.trim() || "";
+
     box.appendChild(closeButton);
     box.appendChild(modeLabel);
     box.appendChild(flatRadio);
@@ -814,8 +933,14 @@ foundProducts.forEach(product => {
     box.appendChild(waittimeButton);
     box.appendChild(WaitStaffButton);
     box.appendChild(boomerangButton);
-    box.appendChild(requestRatesButton);
+// Conditionally append one of the two buttons
+if (headerText.startsWith("212-")) {
+    // Don't show requestRatesButton
     box.appendChild(homelinkButton);
+} else {
+    // Don't show homelinkButton
+    box.appendChild(requestRatesButton);
+}
     box.appendChild(resetButton);
 
 
