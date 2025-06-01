@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.7.1
+// @version      3.7.2
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -474,6 +474,53 @@ const WaitStaffButton = document.createElement("button");
     });
 };
 
+//Reusable partstring
+function buildPartsString(productInputs, quantities, miles, loadFeeQuantity) {
+  const parts = [];
+
+  Object.entries(productInputs).forEach(([label, input]) => {
+    const value = input.value.trim();
+    if (value !== "") {
+      let normalizedLabel = label === "Miscellaneous Dead Miles" ? "Dead Miles" :
+                            label === "No Show" ? "No Show/Late Cancel" :
+                            label;
+
+      if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
+        const transportMiles = miles > 0 ? miles : (quantities[label] || 0);
+        if (!isNaN(parseFloat(value))) {
+          parts.push(`$${parseFloat(value).toFixed(2)}/mile x ${transportMiles} miles`);
+        } else {
+          parts.push(`${value} ${normalizedLabel}`);
+        }
+      } else if (label === "Load Fee") {
+        if (!isNaN(parseFloat(value))) {
+          const fee = `$${parseFloat(value).toFixed(2)} Load Fee`;
+          const withQty = loadFeeQuantity ? `${fee} x ${loadFeeQuantity}` : fee;
+          parts.push(withQty);
+        } else {
+          parts.push(`${value} Load Fee`);
+        }
+      } else if (normalizedLabel === "Dead Miles") {
+        if (!isNaN(parseFloat(value))) {
+          parts.push(`${parseFloat(value)} ${normalizedLabel}`);
+        } else {
+          parts.push(`${value} ${normalizedLabel}`);
+        }
+      } else {
+        if (value.toLowerCase() === "contract" || value.toLowerCase().includes("contract")) {
+          parts.push(`contract ${normalizedLabel}`);
+        } else if (!isNaN(parseFloat(value))) {
+          parts.push(`$${parseFloat(value).toFixed(2)} ${normalizedLabel}`);
+        } else {
+          parts.push(`${value} ${normalizedLabel}`);
+        }
+      }
+    }
+  });
+
+  return parts.join(", ");
+}
+
 // Create the "Request Rates" button
 const requestRatesButton = document.createElement("button");
 requestRatesButton.innerText = "Request Rates";
@@ -507,61 +554,18 @@ requestRatesButton.onclick = () => {
 
       if (accountProductText.includes("Transport") && !isNaN(quantity)) {
         miles = quantity;
-        console.log("Matched Transport with quantity:", miles);
       }
 
       if (accountProductText.includes("Load Fee") && !isNaN(quantity)) {
         loadFeeQuantity = quantity;
-        console.log("Matched Load Fee with quantity:", loadFeeQuantity);
       }
     }
   });
 
-  // Now you can use miles and loadFeeQuantity accurately:
-  let parts = [];
+  const finalParts = buildPartsString(productInputs, {}, miles, loadFeeQuantity);
 
-  Object.entries(productInputs).forEach(([label, input]) => {
-  const value = input.value.trim();
-  if (value !== "") {
-    // Normalize labels
-    let normalizedLabel = label === "Miscellaneous Dead Miles" ? "Dead Miles" :
-                          label === "No Show" ? "No Show/Late Cancel" :
-                          label;
+  const finalText = "Request rates " + finalParts;
 
-    if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
-      if (!isNaN(parseFloat(value))) {
-        parts.push(`$${parseFloat(value).toFixed(2)}/mile x ${miles} miles`);
-      } else {
-        parts.push(`${value} ${normalizedLabel}`);
-      }
-    } else if (label === "Load Fee") {
-      if (!isNaN(parseFloat(value))) {
-        const fee = `$${parseFloat(value).toFixed(2)} Load Fee`;
-        const withQty = loadFeeQuantity ? `${fee} x ${loadFeeQuantity}` : fee;
-        parts.push(withQty);
-      } else {
-        parts.push(`${value} Load Fee`);
-      }
-    } else if (normalizedLabel === "Dead Miles") {
-      if (!isNaN(parseFloat(value))) {
-        parts.push(`${parseFloat(value)} ${normalizedLabel}`);
-      } else {
-        parts.push(`${value} ${normalizedLabel}`);
-      }
-    } else {
-      if (value.toLowerCase() === "contract" || value.toLowerCase().includes("contract")) {
-        parts.push(`contract ${normalizedLabel}`);
-      } else if (!isNaN(parseFloat(value))) {
-        parts.push(`$${parseFloat(value).toFixed(2)} ${normalizedLabel}`);
-      } else {
-        parts.push(`${value} ${normalizedLabel}`);
-      }
-    }
-  }
-});
-
-
-  const finalText = "Request rates " + parts.join(", ");
   navigator.clipboard.writeText(finalText).then(() => {
     const copiedMsg = document.createElement("div");
     copiedMsg.innerText = `"${finalText}" copied!`;
@@ -602,60 +606,64 @@ homelinkButton.style.fontWeight = "bold";
 document.body.appendChild(homelinkButton);
 
 homelinkButton.onclick = () => {
-  let miles = 0;
-  let loadFeeQuantity = 0;
+  let higherTotal = 0;
+  let alreadyCounted = new Set();
 
+  const quantities = {};
   const rows = document.querySelectorAll('[role="row"]');
   rows.forEach(row => {
     const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
     const qtyCell = row.querySelector('[col-id="gtt_quantity"]');
 
     if (productCell && qtyCell) {
-      const productText = productCell.innerText.trim();
+      const product = productCell.innerText.trim();
       const qty = parseFloat(qtyCell.innerText.trim());
-
-      if (productText.includes("Transport") && !isNaN(qty)) miles = qty;
-      if (productText.includes("Load Fee") && !isNaN(qty)) loadFeeQuantity = qty;
+      if (!isNaN(qty)) quantities[product] = qty;
     }
   });
 
-  let flatRateValue = null;
-  let transportLabel = null;
-  let loadFeeValue = null;
-  let otherParts = [];
+  const foundProducts = Object.keys(productInputs);
 
-  Object.entries(productInputs).forEach(([label, input]) => {
-    const value = input.value.trim();
-    if (value === "") return;
+  const activeTransportRate = parseFloat(
+    productInputs["Transport Ambulatory"]?.value ||
+    productInputs["Transport Wheelchair"]?.value ||
+    productInputs["Transport Stretcher, ALS & BLS"]?.value
+  );
 
-    if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
-      flatRateValue = parseFloat(value);
-      transportLabel = label;
-    } else if (label === "Load Fee") {
-      loadFeeValue = parseFloat(value);
-    } else {
-      if (value.toLowerCase().includes("contract")) {
-        otherParts.push(`contract ${label}`);
-      } else if (!isNaN(parseFloat(value))) {
-        otherParts.push(`$${parseFloat(value).toFixed(2)} ${label}`);
-      } else {
-        otherParts.push(`${value} ${label}`);
-      }
-    }
-  });
-
-  if (!flatRateValue || isNaN(flatRateValue)) {
+  if (!activeTransportRate || isNaN(activeTransportRate)) {
     alert("Please enter a valid Transport rate.");
     return;
   }
 
-  const flatTotal = (flatRateValue * miles).toFixed(2);
-  const goatString = `**Enter in Goat as $${flatRateValue.toFixed(2)}/mile` +
-                     (loadFeeValue && !isNaN(loadFeeValue) ? ` + $${loadFeeValue.toFixed(2)} Load Fee` : "");
+  foundProducts.forEach(product => {
+    if (product === "Wait Time") return;
 
-  const homelinkText = `Request Flat Rate of $${flatTotal}` +
-                       (otherParts.length ? ", " + otherParts.join(", ") : "") +
-                       `. ${goatString}`;
+    if (["Rush Fee", "Tolls", "Other", "Assistance Fee", "Passenger Fee", "Miscellaneous Dead Miles"].includes(product)) {
+      if (alreadyCounted.has(product)) return;
+      alreadyCounted.add(product);
+    }
+
+    const enteredValueRaw = productInputs[product]?.value;
+    const enteredValue = parseFloat(enteredValueRaw);
+    const qty = quantities[product] || 0;
+
+    if (!isNaN(enteredValue)) {
+      if (product === "Miscellaneous Dead Miles") {
+        higherTotal += enteredValue * (activeTransportRate / 2);
+      } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
+        higherTotal += enteredValue;
+      } else {
+        higherTotal += enteredValue * qty;
+      }
+    }
+  });
+
+  // Use the same buildPartsString function, passing quantities, miles=0, loadFeeQuantity=0 (or quantities["Load Fee"]?)
+  const partsString = buildPartsString(productInputs, quantities, 0, quantities["Load Fee"]);
+
+  const goatString = `**Enter in Goat as ${partsString}`;
+
+  const homelinkText = `Request Flat Rate of $${higherTotal.toFixed(2)}. ${goatString}`;
 
   navigator.clipboard.writeText(homelinkText).then(() => {
     const copiedMsg = document.createElement("div");
