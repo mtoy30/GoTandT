@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.7.4
+// @version      3.7.5
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -358,7 +358,7 @@ function buildPartsString(productInputs, quantities, miles, loadFeeQuantity) {
         }
       } else if (label === "One Way Surcharge") {
         if (!isNaN(parseFloat(value))) {
-          parts.push(`${parseFloat(value)} miles One Way Surcharge`);
+          parts.push(`${parseFloat(value)} mile One Way Surcharge`);
         } else {
           parts.push(`${value} One Way Surcharge`);
         }
