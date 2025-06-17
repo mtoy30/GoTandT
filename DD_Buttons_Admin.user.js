@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.7.5
+// @version      3.7.7
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -830,49 +830,54 @@ preferredOrder.forEach(product => {
         wrapper.style.flex = "1 1 48%"; // two columns with spacing
 
         const labelRow = document.createElement("div");
-labelRow.style.display = "flex";
-labelRow.style.alignItems = "center";
-labelRow.style.justifyContent = "space-between";
-labelRow.style.marginBottom = "5px";
+        labelRow.style.display = "flex";
+        labelRow.style.alignItems = "center";
+        labelRow.style.justifyContent = "space-between";
+        labelRow.style.marginBottom = "5px";
 
-const label = document.createElement("label");
-label.innerText = product ;
-label.style.fontWeight = "bold";
+        const label = document.createElement("label");
+        label.innerText = product;
+        label.style.fontWeight = "bold";
 
-labelRow.appendChild(label);
+        labelRow.appendChild(label);
 
-// Add Contract Rates button only for Wait Time and No Show
-if (["Wait Time", "No Show"].includes(product)) {
-    const contractBtn = document.createElement("button");
-    contractBtn.innerText = "Contract Rates";
-    contractBtn.style.marginLeft = "10px";
-    contractBtn.style.padding = "2px 6px";
-    contractBtn.style.fontSize = "12px";
-    contractBtn.style.cursor = "pointer";
-    contractBtn.onclick = () => {
-        inputField.value = "Contract Rates";
-        calculateMargin();
-    };
-    labelRow.appendChild(contractBtn);
-}
+        // Add Contract Rates button only for Wait Time and No Show
+        if (["Wait Time", "No Show"].includes(product)) {
+            const contractBtn = document.createElement("button");
+            contractBtn.innerText = "Contract Rates";
+            contractBtn.style.marginLeft = "10px";
+            contractBtn.style.padding = "2px 6px";
+            contractBtn.style.fontSize = "12px";
+            contractBtn.style.cursor = "pointer";
+            contractBtn.onclick = () => {
+                inputField.value = "Contract Rates";
+                calculateMargin();
+            };
+            labelRow.appendChild(contractBtn);
+        }
 
-const inputField = document.createElement("input");
-inputField.type = "text";
-inputField.style.width = "100%";
+        const inputField = document.createElement("input");
+        inputField.type = "text";
+        inputField.style.width = "100%";
+        inputField.addEventListener("input", calculateMargin);
 
-inputField.addEventListener("input", calculateMargin);
+        // Prefill "One Way Surcharge" input with the quantity found, if available
+        if (product === "One Way Surcharge" && quantities[product] !== undefined) {
+            inputField.value = quantities[product];
+            inputField.readOnly = true; // Make it read-only
+            inputField.style.background = "#eee"; // Optional: visually show it's disabled
+            inputField.style.cursor = "not-allowed";
+        }
 
-wrapper.appendChild(labelRow);
-wrapper.appendChild(inputField);
-higherInputsWrapper.appendChild(wrapper);
-
+        wrapper.appendChild(labelRow);
+        wrapper.appendChild(inputField);
+        higherInputsWrapper.appendChild(wrapper);
 
         productInputs[product] = inputField;
 
         if (!quantities[product]) quantities[product] = 0;
     }
 });
-
 
         if (totalBilled === 0) {
             result.innerText = "Could not find any billed total.";
