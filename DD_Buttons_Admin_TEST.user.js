@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.7.6
+// @version      3.7.7
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -864,6 +864,9 @@ preferredOrder.forEach(product => {
         // Prefill "One Way Surcharge" input with the quantity found, if available
         if (product === "One Way Surcharge" && quantities[product] !== undefined) {
             inputField.value = quantities[product];
+            inputField.readOnly = true; // Make it read-only
+            inputField.style.background = "#eee"; // Optional: visually show it's disabled
+            inputField.style.cursor = "not-allowed";
         }
 
         wrapper.appendChild(labelRow);
