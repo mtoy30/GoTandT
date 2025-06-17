@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.7.3
+// @version      3.7.4
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -80,8 +80,6 @@ function showCalculatorUI() {
     // Add fixed height and vertical scrollbar
     box.style.height = "800px"; // fixed height you want
     box.style.overflowY = "auto"; // vertical scroll if content overflows
-
-    // Rest of your existing code remains unchanged...
 
     const closeButton = document.createElement("button");
     closeButton.innerText = "X";
@@ -322,14 +320,20 @@ const WaitStaffButton = document.createElement("button");
 
 //Reusable partstring
 function buildPartsString(productInputs, quantities, miles, loadFeeQuantity) {
+  // Prefill "One Way Surcharge" input with the quantity found, if available
+  if (productInputs["One Way Surcharge"] && quantities["One Way Surcharge"] !== undefined) {
+    productInputs["One Way Surcharge"].value = quantities["One Way Surcharge"];
+  }
+
   const parts = [];
 
   Object.entries(productInputs).forEach(([label, input]) => {
     const value = input.value.trim();
     if (value !== "") {
-      let normalizedLabel = label === "Miscellaneous Dead Miles" ? "Dead Miles" :
-                            label === "No Show" ? "No Show/Late Cancel" :
-                            label;
+      let normalizedLabel =
+          label === "Miscellaneous Dead Miles" ? "Dead Miles" :
+          label === "No Show" ? "No Show/Late Cancel" :
+          label;
 
       if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
         const transportMiles = miles > 0 ? miles : (quantities[label] || 0);
@@ -346,11 +350,17 @@ function buildPartsString(productInputs, quantities, miles, loadFeeQuantity) {
         } else {
           parts.push(`${value} Load Fee`);
         }
-      } else if (normalizedLabel === "Dead Miles") {
+      } else if (label === "Miscellaneous Dead Miles") {
         if (!isNaN(parseFloat(value))) {
           parts.push(`${parseFloat(value)} ${normalizedLabel}`);
         } else {
           parts.push(`${value} ${normalizedLabel}`);
+        }
+      } else if (label === "One Way Surcharge") {
+        if (!isNaN(parseFloat(value))) {
+          parts.push(`${parseFloat(value)} miles One Way Surcharge`);
+        } else {
+          parts.push(`${value} One Way Surcharge`);
         }
       } else {
         if (value.toLowerCase() === "contract" || value.toLowerCase().includes("contract")) {
@@ -510,7 +520,7 @@ homelinkButton.onclick = () => {
     const qty = quantities[product] || 0;
 
     if (!isNaN(enteredValue)) {
-      if (product === "Miscellaneous Dead Miles") {
+      if (product === "Miscellaneous Dead Miles" || product === "One Way Surcharge") {
         higherTotal += enteredValue * (activeTransportRate / 2);
       } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
         higherTotal += enteredValue;
@@ -783,13 +793,23 @@ rows.forEach(row => {
     }
 });
 
-        ["Miscellaneous Dead Miles", "Tolls", "Other", "No Show", "Wait Time"].forEach(p => foundProducts.add(p));
+        if (foundProducts.has("One Way Surcharge")) {
+            foundProducts.add("One Way Surcharge");
+        } else {
+            foundProducts.add("Miscellaneous Dead Miles");
+        }
+
+        // Always add the remaining extras
+        ["Tolls", "Other", "No Show", "Wait Time"].forEach(p => foundProducts.add(p));
+
+
 
 const preferredOrder = [
   "Transport Ambulatory",
   "Transport Wheelchair",
   "Transport Stretcher, ALS & BLS",
   "Miscellaneous Dead Miles",
+  "One Way Surcharge",
   "Load Fee",
   "Tolls",
   "Other",
@@ -918,7 +938,7 @@ foundProducts.forEach(product => {
     console.log(`Product: ${product}, Entered: ${enteredValueRaw}, Parsed: ${enteredValue}, Qty: ${qty}`);
 
     if (!isNaN(enteredValue)) {
-        if (product === "Miscellaneous Dead Miles") {
+        if (product === "Miscellaneous Dead Miles" || product === "One Way Surcharge") {
             higherTotal += enteredValue * (activeTransportRate / 2);
         } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
             higherTotal += enteredValue;
