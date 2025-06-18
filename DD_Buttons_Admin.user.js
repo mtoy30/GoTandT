@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.8.0
+// @version      3.8.1
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -766,6 +766,7 @@ rows.forEach(row => {
             product !== "Weekend Holiday" &&
             product !== "Wheelchair Rental" &&
             product !== "Airport Pickup Fee" &&
+            product !== "Additonal Passenger" &&
             product !== "After Hours Fee"
            ) {
             if (!isNaN(totalValue)) {
