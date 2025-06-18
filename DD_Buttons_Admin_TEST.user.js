@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.7.9
+// @version      3.8.0
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -173,7 +173,8 @@ function showCalculatorUI() {
     "After Hours Fee",
     "Additional Passenger",
     "Rush Fee",
-    "Wheelchair Rental"
+    "Wheelchair Rental",
+    "Airport Pickup Fee"
 ];
 
     const resetButton = document.createElement("button");
@@ -764,6 +765,7 @@ rows.forEach(row => {
             product !== "Rush Fee" &&
             product !== "Weekend Holiday" &&
             product !== "Wheelchair Rental" &&
+            product !== "Airport Pickup Fee" &&
             product !== "After Hours Fee"
            ) {
             if (!isNaN(totalValue)) {
@@ -825,6 +827,7 @@ const preferredOrder = [
   "After Hours Fee",
   "Weekend Holiday",
   "Wheelchair Rental",
+  "Airport Pickup Fee",
   "No Show"
 ];
 
