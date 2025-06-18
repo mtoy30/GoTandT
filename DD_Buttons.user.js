@@ -343,6 +343,7 @@ rows.forEach(row => {
             product !== "Rush Fee" &&
             product !== "Weekend Holiday" &&
             product !== "Wheelchair Rental" &&
+            product !== "Airport Pickup Fee" &&
             product !== "After Hours Fee"
            ) {
             if (!isNaN(totalValue)) {
