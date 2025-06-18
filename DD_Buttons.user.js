@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.6.8
+// @version      3.7.8
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -338,7 +338,10 @@ rows.forEach(row => {
         const totalValue = parseFloat(totalText);
 
         // Exclude "Rush Fee" from totalBilled
-        if (productsToTrack.includes(product) && product !== "Rush Fee") {
+        if (productsToTrack.includes(product) && 
+            product !== "Rush Fee" &&
+            product !== "After Hours Fee"
+           ) {
             if (!isNaN(totalValue)) {
                 totalBilled += totalValue;
             }
