@@ -135,6 +135,19 @@ function showCalculatorUI() {
     input.style.marginTop = "10px";
     input.style.marginBottom = "15px";
 
+    const waitTimeLabel = document.createElement("label");
+    waitTimeLabel.innerText = "Enter Wait Time:";
+    waitTimeLabel.style.display = "block";
+    waitTimeLabel.style.marginTop = "10px";
+    waitTimeLabel.style.fontWeight = "bold";
+
+    const waitTimeInput = document.createElement("input");
+    waitTimeInput.type = "number";
+    waitTimeInput.style.width = "100%";
+    waitTimeInput.style.marginTop = "10px";
+    waitTimeInput.style.marginBottom = "15px";
+    waitTimeInput.value = "";
+
     const result = document.createElement("div");
     result.style.marginTop = "10px";
     result.style.fontWeight = "bold";
@@ -736,7 +749,8 @@ const extrasText = extras.length > 0 ? `. ${extras.join(", ")}` : "";
 
     const calculateMargin = () => {
         const rateType = document.querySelector('input[name="rateType"]:checked').value;
-        const inputValue = parseFloat(input.value);
+        const inputValue = parseFloat(input.value) || 0;
+        const waitTimeValue = parseFloat(waitTimeInput.value) || 0;
         if (isNaN(inputValue) || inputValue <= 0) {
             result.innerText = "Please enter a valid amount.";
             result.style.color = "black";
@@ -766,7 +780,6 @@ rows.forEach(row => {
             product !== "Weekend Holiday" &&
             product !== "Wheelchair Rental" &&
             product !== "Airport Pickup Fee" &&
-            product !== "Additonal Passenger" &&
             product !== "After Hours Fee"
            ) {
             if (!isNaN(totalValue)) {
@@ -894,7 +907,7 @@ preferredOrder.forEach(product => {
             higherResult.innerText = "";
         }
 
-        let paidAmount = inputValue;
+        let paidAmount = inputValue  + waitTimeValue;
         if (rateType === "mile") {
             if (quantity === 0) {
                 result.innerText = "Could not find transport quantity.";
@@ -902,7 +915,7 @@ preferredOrder.forEach(product => {
                 higherResult.innerText = "";
                 return;
             }
-            paidAmount = inputValue * quantity;
+            paidAmount = (inputValue * quantity) + waitTimeValue;
         }
 
         const margin = 100 - ((paidAmount / totalBilled) * 100);
@@ -978,6 +991,7 @@ foundProducts.forEach(product => {
     };
 
     input.addEventListener("input", calculateMargin);
+    waitTimeInput.addEventListener("input", calculateMargin);
     flatRadio.addEventListener("change", () => {
         input.value = "";
         calculateMargin();
@@ -999,6 +1013,8 @@ const headerText = headerElement?.textContent?.trim() || "";
     box.appendChild(mileLabel);
     box.appendChild(inputLabel);
     box.appendChild(input);
+    box.appendChild(waitTimeLabel);
+    box.appendChild(waitTimeInput);
     box.appendChild(result);
     box.appendChild(targetLabel);
     box.appendChild(higherHeader);
