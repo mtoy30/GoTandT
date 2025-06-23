@@ -123,30 +123,43 @@ function showCalculatorUI() {
     mileLabel.htmlFor = "rateMile";
     mileLabel.innerText = "Per Mile";
 
-    const inputLabel = document.createElement("label");
-    inputLabel.innerText = "Enter Provider Rate:";
-    inputLabel.style.display = "block";
-    inputLabel.style.marginTop = "15px";
-    inputLabel.style.fontWeight = "bold";
+const twoColumnWrapper = document.createElement("div");
+twoColumnWrapper.style.display = "flex";
+twoColumnWrapper.style.gap = "15px";
+twoColumnWrapper.style.marginTop = "15px";
 
-    const input = document.createElement("input");
-    input.type = "number";
-    input.style.width = "100%";
-    input.style.marginTop = "10px";
-    input.style.marginBottom = "15px";
+// Provider Rate column
+const providerWrapper = document.createElement("div");
+providerWrapper.style.flex = "1";
+const inputLabel = document.createElement("label");
+inputLabel.innerText = "Enter Provider Rate:";
+inputLabel.style.fontWeight = "bold";
+providerWrapper.appendChild(inputLabel);
+const input = document.createElement("input");
+input.type = "number";
+input.style.width = "100%";
+input.style.marginTop = "10px";
+input.style.marginBottom = "15px";
+providerWrapper.appendChild(input);
 
-    const waitTimeLabel = document.createElement("label");
-    waitTimeLabel.innerText = "Enter Wait Time:";
-    waitTimeLabel.style.display = "block";
-    waitTimeLabel.style.marginTop = "10px";
-    waitTimeLabel.style.fontWeight = "bold";
+// Wait Time column
+const waitWrapper = document.createElement("div");
+waitWrapper.style.flex = "1";
+const waitTimeLabel = document.createElement("label");
+waitTimeLabel.innerText = "Enter Wait Time:";
+waitTimeLabel.style.fontWeight = "bold";
+waitWrapper.appendChild(waitTimeLabel);
+const waitTimeInput = document.createElement("input");
+waitTimeInput.type = "number";
+waitTimeInput.style.width = "100%";
+waitTimeInput.style.marginTop = "10px";
+waitTimeInput.style.marginBottom = "15px";
+waitTimeInput.value = "";
+waitWrapper.appendChild(waitTimeInput);
 
-    const waitTimeInput = document.createElement("input");
-    waitTimeInput.type = "number";
-    waitTimeInput.style.width = "100%";
-    waitTimeInput.style.marginTop = "10px";
-    waitTimeInput.style.marginBottom = "15px";
-    waitTimeInput.value = "";
+// Add both columns to the row
+twoColumnWrapper.appendChild(providerWrapper);
+twoColumnWrapper.appendChild(waitWrapper);
 
     const result = document.createElement("div");
     result.style.marginTop = "10px";
@@ -1013,10 +1026,7 @@ const headerText = headerElement?.textContent?.trim() || "";
     box.appendChild(flatLabel);
     box.appendChild(mileRadio);
     box.appendChild(mileLabel);
-    box.appendChild(inputLabel);
-    box.appendChild(input);
-    box.appendChild(waitTimeLabel);
-    box.appendChild(waitTimeInput);
+    box.appendChild(twoColumnWrapper);
     box.appendChild(result);
     box.appendChild(targetLabel);
     box.appendChild(higherHeader);
