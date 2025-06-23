@@ -994,10 +994,12 @@ foundProducts.forEach(product => {
     waitTimeInput.addEventListener("input", calculateMargin);
     flatRadio.addEventListener("change", () => {
         input.value = "";
+        waitTimeInput.value = "";
         calculateMargin();
     });
     mileRadio.addEventListener("change", () => {
         input.value = "";
+        waitTimeInput.value = "";
         calculateMargin();
     });
 
