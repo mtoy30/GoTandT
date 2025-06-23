@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.8.1
+// @version      3.8.2
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -123,17 +123,43 @@ function showCalculatorUI() {
     mileLabel.htmlFor = "rateMile";
     mileLabel.innerText = "Per Mile";
 
-    const inputLabel = document.createElement("label");
-    inputLabel.innerText = "Enter Provider Rate:";
-    inputLabel.style.display = "block";
-    inputLabel.style.marginTop = "15px";
-    inputLabel.style.fontWeight = "bold";
+const twoColumnWrapper = document.createElement("div");
+twoColumnWrapper.style.display = "flex";
+twoColumnWrapper.style.gap = "15px";
+twoColumnWrapper.style.marginTop = "15px";
 
-    const input = document.createElement("input");
-    input.type = "number";
-    input.style.width = "100%";
-    input.style.marginTop = "10px";
-    input.style.marginBottom = "15px";
+// Provider Rate column
+const providerWrapper = document.createElement("div");
+providerWrapper.style.flex = "1";
+const inputLabel = document.createElement("label");
+inputLabel.innerText = "Enter Provider Rate:";
+inputLabel.style.fontWeight = "bold";
+providerWrapper.appendChild(inputLabel);
+const input = document.createElement("input");
+input.type = "number";
+input.style.width = "100%";
+input.style.marginTop = "10px";
+input.style.marginBottom = "15px";
+providerWrapper.appendChild(input);
+
+// Wait Time column
+const waitWrapper = document.createElement("div");
+waitWrapper.style.flex = "1";
+const waitTimeLabel = document.createElement("label");
+waitTimeLabel.innerText = "Enter Wait Time:";
+waitTimeLabel.style.fontWeight = "bold";
+waitWrapper.appendChild(waitTimeLabel);
+const waitTimeInput = document.createElement("input");
+waitTimeInput.type = "number";
+waitTimeInput.style.width = "100%";
+waitTimeInput.style.marginTop = "10px";
+waitTimeInput.style.marginBottom = "15px";
+waitTimeInput.value = "";
+waitWrapper.appendChild(waitTimeInput);
+
+// Add both columns to the row
+twoColumnWrapper.appendChild(providerWrapper);
+twoColumnWrapper.appendChild(waitWrapper);
 
     const result = document.createElement("div");
     result.style.marginTop = "10px";
@@ -736,7 +762,8 @@ const extrasText = extras.length > 0 ? `. ${extras.join(", ")}` : "";
 
     const calculateMargin = () => {
         const rateType = document.querySelector('input[name="rateType"]:checked').value;
-        const inputValue = parseFloat(input.value);
+        const inputValue = parseFloat(input.value) || 0;
+        const waitTimeValue = parseFloat(waitTimeInput.value) || 0;
         if (isNaN(inputValue) || inputValue <= 0) {
             result.innerText = "Please enter a valid amount.";
             result.style.color = "black";
@@ -766,7 +793,6 @@ rows.forEach(row => {
             product !== "Weekend Holiday" &&
             product !== "Wheelchair Rental" &&
             product !== "Airport Pickup Fee" &&
-            product !== "Additonal Passenger" &&
             product !== "After Hours Fee"
            ) {
             if (!isNaN(totalValue)) {
@@ -894,7 +920,7 @@ preferredOrder.forEach(product => {
             higherResult.innerText = "";
         }
 
-        let paidAmount = inputValue;
+        let paidAmount = inputValue  + waitTimeValue;
         if (rateType === "mile") {
             if (quantity === 0) {
                 result.innerText = "Could not find transport quantity.";
@@ -902,7 +928,7 @@ preferredOrder.forEach(product => {
                 higherResult.innerText = "";
                 return;
             }
-            paidAmount = inputValue * quantity;
+            paidAmount = (inputValue * quantity) + waitTimeValue;
         }
 
         const margin = 100 - ((paidAmount / totalBilled) * 100);
@@ -914,10 +940,11 @@ preferredOrder.forEach(product => {
         let approvalNote = margin <= 24.99 ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>` : "";
 
         result.innerHTML = `
-            <span>Total Billed: $${totalBilled.toFixed(2)}</span><br>
-            ${rateType === "mile" ? `<span>Miles: ${quantity}, Total Paid: $${paidAmount.toFixed(2)}</span><br>` : ""}
-            <span style="color: ${marginColor}; font-weight: bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
-        `.trim();
+    <span>Total Billed: $${totalBilled.toFixed(2)}</span><br>
+    <span>Total Paid: $${paidAmount.toFixed(2)}</span><br>
+    ${rateType === "mile" ? `<span>Miles: ${quantity}</span><br>` : ""}
+    <span style="color: ${marginColor}; font-weight: bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
+`.trim();
 
         const target = totalBilled * (1 - 0.35);
         targetLabel.innerHTML = `<span>Target to pay this or less: $${target.toFixed(2)}</span>`;
@@ -978,12 +1005,15 @@ foundProducts.forEach(product => {
     };
 
     input.addEventListener("input", calculateMargin);
+    waitTimeInput.addEventListener("input", calculateMargin);
     flatRadio.addEventListener("change", () => {
         input.value = "";
+        waitTimeInput.value = "";
         calculateMargin();
     });
     mileRadio.addEventListener("change", () => {
         input.value = "";
+        waitTimeInput.value = "";
         calculateMargin();
     });
 
@@ -997,8 +1027,7 @@ const headerText = headerElement?.textContent?.trim() || "";
     box.appendChild(flatLabel);
     box.appendChild(mileRadio);
     box.appendChild(mileLabel);
-    box.appendChild(inputLabel);
-    box.appendChild(input);
+    box.appendChild(twoColumnWrapper);
     box.appendChild(result);
     box.appendChild(targetLabel);
     box.appendChild(higherHeader);
