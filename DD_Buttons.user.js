@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.8.1
+// @version      3.8.2
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -135,6 +135,19 @@ function showCalculatorUI() {
     input.style.width = "100%";
     input.style.marginTop = "10px";
     input.style.marginBottom = "15px";
+
+    const waitTimeLabel = document.createElement("label");
+    waitTimeLabel.innerText = "Enter Wait Time:";
+    waitTimeLabel.style.display = "block";
+    waitTimeLabel.style.marginTop = "10px";
+    waitTimeLabel.style.fontWeight = "bold";
+
+    const waitTimeInput = document.createElement("input");
+    waitTimeInput.type = "number";
+    waitTimeInput.style.width = "100%";
+    waitTimeInput.style.marginTop = "10px";
+    waitTimeInput.style.marginBottom = "15px";
+    waitTimeInput.value = "";
 
     const result = document.createElement("div");
     result.style.marginTop = "10px";
@@ -314,7 +327,8 @@ requestRatesButton.onclick = () => {
 
     const calculateMargin = () => {
         const rateType = document.querySelector('input[name="rateType"]:checked').value;
-        const inputValue = parseFloat(input.value);
+        const inputValue = parseFloat(input.value) || 0;
+        const waitTimeValue = parseFloat(waitTimeInput.value) || 0;
         if (isNaN(inputValue) || inputValue <= 0) {
             result.innerText = "Please enter a valid amount.";
             result.style.color = "black";
@@ -344,7 +358,6 @@ rows.forEach(row => {
             product !== "Weekend Holiday" &&
             product !== "Wheelchair Rental" &&
             product !== "Airport Pickup Fee" &&
-            product !== "Additonal Passenger" &&
             product !== "After Hours Fee"
            ) {
             if (!isNaN(totalValue)) {
@@ -457,7 +470,7 @@ higherInputsWrapper.appendChild(wrapper);
             higherResult.innerText = "";
         }
 
-        let paidAmount = inputValue;
+        let paidAmount = inputValue  + waitTimeValue;
         if (rateType === "mile") {
             if (quantity === 0) {
                 result.innerText = "Could not find transport quantity.";
@@ -465,7 +478,7 @@ higherInputsWrapper.appendChild(wrapper);
                 higherResult.innerText = "";
                 return;
             }
-            paidAmount = inputValue * quantity;
+            paidAmount = (inputValue * quantity) + waitTimeValue;
         }
 
         const margin = 100 - ((paidAmount / totalBilled) * 100);
@@ -477,10 +490,11 @@ higherInputsWrapper.appendChild(wrapper);
         let approvalNote = margin <= 24.99 ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>` : "";
 
         result.innerHTML = `
-            <span>Total Billed: $${totalBilled.toFixed(2)}</span><br>
-            ${rateType === "mile" ? `<span>Miles: ${quantity}, Total Paid: $${paidAmount.toFixed(2)}</span><br>` : ""}
-            <span style="color: ${marginColor}; font-weight: bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
-        `.trim();
+    <span>Total Billed: $${totalBilled.toFixed(2)}</span><br>
+    <span>Total Paid: $${paidAmount.toFixed(2)}</span><br>
+    ${rateType === "mile" ? `<span>Miles: ${quantity}</span><br>` : ""}
+    <span style="color: ${marginColor}; font-weight: bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
+`.trim();
 
         const target = totalBilled * (1 - 0.35);
         targetLabel.innerHTML = `<span>Target to pay this or less: $${target.toFixed(2)}</span>`;
@@ -541,12 +555,15 @@ foundProducts.forEach(product => {
     };
 
     input.addEventListener("input", calculateMargin);
+    waitTimeInput.addEventListener("input", calculateMargin);
     flatRadio.addEventListener("change", () => {
         input.value = "";
+        waitTimeInput.value = "";
         calculateMargin();
     });
     mileRadio.addEventListener("change", () => {
         input.value = "";
+        waitTimeInput.value = "";
         calculateMargin();
     });
 
@@ -558,6 +575,8 @@ foundProducts.forEach(product => {
     box.appendChild(mileLabel);
     box.appendChild(inputLabel);
     box.appendChild(input);
+    box.appendChild(waitTimeLabel);
+    box.appendChild(waitTimeInput);
     box.appendChild(result);
     box.appendChild(targetLabel);
     box.appendChild(higherHeader);
