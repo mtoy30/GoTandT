@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.8.1
+// @version      3.8.2
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -940,10 +940,11 @@ preferredOrder.forEach(product => {
         let approvalNote = margin <= 24.99 ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>` : "";
 
         result.innerHTML = `
-            <span>Total Billed: $${totalBilled.toFixed(2)}</span><br>
-            ${rateType === "mile" ? `<span>Miles: ${quantity}, Total Paid: $${paidAmount.toFixed(2)}</span><br>` : ""}
-            <span style="color: ${marginColor}; font-weight: bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
-        `.trim();
+    <span>Total Billed: $${totalBilled.toFixed(2)}</span><br>
+    <span>Total Paid: $${paidAmount.toFixed(2)}</span><br>
+    ${rateType === "mile" ? `<span>Miles: ${quantity}</span><br>` : ""}
+    <span style="color: ${marginColor}; font-weight: bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
+`.trim();
 
         const target = totalBilled * (1 - 0.35);
         targetLabel.innerHTML = `<span>Target to pay this or less: $${target.toFixed(2)}</span>`;
