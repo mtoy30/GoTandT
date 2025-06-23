@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.8.3
+// @version      3.8.4
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -515,31 +515,49 @@ let higherTotal = 0;
 let alreadyCounted = new Set(); // Track items added once
 
 foundProducts.forEach(product => {
-    if (product === "Wait Time") return;
-
+    // We now INCLUDE Wait Time in higherTotal
     // Prevent duplicates for Rush Fee, Tolls, etc.
     if (["Rush Fee", "Tolls", "Other", "Assistance Fee", "Passenger Fee", "Miscellaneous Dead Miles"].includes(product)) {
         if (alreadyCounted.has(product)) return; // Skip if already counted
         alreadyCounted.add(product);
     }
 
-    const enteredValueRaw = productInputs[product]?.value;
-    const enteredValue = parseFloat(enteredValueRaw);
-    const qty = quantities[product] || 0;
+    let enteredValueRaw = productInputs[product]?.value;
+    let enteredValue = parseFloat(enteredValueRaw);
+    let qty = quantities[product] || 0;
 
-    console.log(`Product: ${product}, Entered: ${enteredValueRaw}, Parsed: ${enteredValue}, Qty: ${qty}`);
+    // Special logic for Wait Time: if input says Contract Rates, use value from row (grid)
+    if (product === "Wait Time" && (enteredValueRaw || "").toLowerCase().includes("contract")) {
+        // Try to get the value from the rows/grid for Wait Time
+        const rows = document.querySelectorAll('div[row-index]');
+        for (let row of rows) {
+            const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+            const totalCell = row.querySelector('[col-id="gtt_total"]');
+            if (productCell && totalCell && productCell.innerText.trim() === "Wait Time") {
+                let totalText = totalCell.innerText.trim().replace(/[^0-9.-]+/g, '') || "0";
+                let totalValue = parseFloat(totalText);
+                if (!isNaN(totalValue)) {
+                    enteredValue = totalValue;
+                }
+                break;
+            }
+        }
+        // qty stays the same (typically 1)
+    }
 
     if (!isNaN(enteredValue)) {
-        if (product === "Miscellaneous Dead Miles") {
+        if (product === "Miscellaneous Dead Miles" || product === "One Way Surcharge") {
             higherTotal += enteredValue * (activeTransportRate / 2);
         } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
+            higherTotal += enteredValue;
+        } else if (product === "Wait Time") {
+            // Wait Time is typically a single value, add directly (not multiplied by qty)
             higherTotal += enteredValue;
         } else {
             higherTotal += enteredValue * qty;
         }
     }
 });
-
 
         const higherMargin = 100 - ((paidAmount / higherTotal) * 100);
         let higherMarginColor = "black";
