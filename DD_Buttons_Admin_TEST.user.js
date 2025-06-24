@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.8.4
+// @version      3.8.5
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -941,9 +941,9 @@ preferredOrder.forEach(product => {
         let approvalNote = margin <= 24.99 ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>` : "";
 
         result.innerHTML = `
-    <span>Total Billed: $${totalBilled.toFixed(2)}</span><br>
+    ${rateType === "mile" ? `<span>Miles: ${quantity}</span>` : ""}
     <span>Total Paid: $${paidAmount.toFixed(2)}</span><br>
-    ${rateType === "mile" ? `<span>Miles: ${quantity}</span><br>` : ""}
+    <span>Total Billed: $${totalBilled.toFixed(2)}</span>
     <span style="color: ${marginColor}; font-weight: bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
 `.trim();
 
@@ -1018,7 +1018,7 @@ foundProducts.forEach(product => {
         let higherApprovalNote = higherMargin <= 24.99 ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>` : "";
 
         higherResult.innerHTML = `
-            <span>Total Using Higher Rates: $${higherTotal.toFixed(2)}</span><br>
+            <span>Total Using Higher Rates: $${higherTotal.toFixed(2)}</span>
             <span style="color: ${higherMarginColor}; font-weight: bold;">Margin: ${higherMargin.toFixed(2)}%</span>${higherApprovalNote}
         `.trim();
     };
