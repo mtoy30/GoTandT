@@ -1,13 +1,12 @@
 // ==UserScript==
-// @name         DD_Buttons_Admin_TEST
+// @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
 // @version      3.8.7
-// @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
-// @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
+// @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
+// @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
 // @match        https://gotandt.crm.dynamics.com/*
-// @match        https://gttqap2.crm.dynamics.com/*
-// @author        Michael Toy
+// @author       Michael Toy
 // @grant        GM_setClipboard
 // @grant        GM_registerMenuCommand
 // ==/UserScript==
@@ -80,6 +79,8 @@ function showCalculatorUI() {
     // Add fixed height and vertical scrollbar
     box.style.height = "800px"; // fixed height you want
     box.style.overflowY = "auto"; // vertical scroll if content overflows
+
+    // Rest of your existing code remains unchanged...
 
     const closeButton = document.createElement("button");
     closeButton.innerText = "X";
@@ -206,7 +207,6 @@ twoColumnWrapper.appendChild(waitWrapper);
     const resetButton = document.createElement("button");
     resetButton.innerText = "Reset";
     resetButton.style.marginTop = "20px";
-    resetButton.style.marginLeft = "10px";
     resetButton.style.padding = "8px 16px";
     resetButton.style.background = "#e74c3c";
     resetButton.style.color = "#fff";
@@ -228,201 +228,9 @@ twoColumnWrapper.appendChild(waitWrapper);
         });
     };
 
-    const lowMarginButton = document.createElement("button");
-    lowMarginButton.innerText = "Low Margin OK";
-    lowMarginButton.style.marginTop = "20px";
-    lowMarginButton.style.marginLeft = "10px";
-    lowMarginButton.style.padding = "8px 16px";
-    lowMarginButton.style.background = "#3498db";
-    lowMarginButton.style.color = "#fff";
-    lowMarginButton.style.border = "none";
-    lowMarginButton.style.borderRadius = "5px";
-    lowMarginButton.style.cursor = "pointer";
-    lowMarginButton.style.fontWeight = "bold";
-
-    lowMarginButton.onclick = () => {
-    const textToCopy = "Management aware of Transportation low margin. Ok to staff";
-    navigator.clipboard.writeText(textToCopy).then(() => {
-        const copiedMsg = document.createElement("div");
-        copiedMsg.innerText = `"${textToCopy}" copied!`;
-        copiedMsg.style.position = "fixed";
-        copiedMsg.style.top = "50%";
-        copiedMsg.style.left = "50%";
-        copiedMsg.style.transform = "translate(-50%, -50%)";
-        copiedMsg.style.background = "rgba(0,0,0,0.8)";
-        copiedMsg.style.color = "#fff";
-        copiedMsg.style.padding = "15px 25px";
-        copiedMsg.style.borderRadius = "8px";
-        copiedMsg.style.zIndex = "10001";
-        copiedMsg.style.fontSize = "18px";
-        copiedMsg.style.fontWeight = "bold";
-        copiedMsg.style.textAlign = "center";
-        copiedMsg.style.maxWidth = "80%";
-        copiedMsg.style.wordWrap = "break-word";
-        document.body.appendChild(copiedMsg);
-
-        setTimeout(() => {
-            copiedMsg.remove();
-        }, 1000);
-    });
-};
-
-    const waittimeButton = document.createElement("button");
-    waittimeButton.innerText = "Wait Time Request";
-    waittimeButton.style.marginTop = "20px";
-    waittimeButton.style.marginLeft = "10px";
-    waittimeButton.style.padding = "8px 16px";
-    waittimeButton.style.background = "#3498db";
-    waittimeButton.style.color = "#fff";
-    waittimeButton.style.border = "none";
-    waittimeButton.style.borderRadius = "5px";
-    waittimeButton.style.cursor = "pointer";
-    waittimeButton.style.fontWeight = "bold";
-
-    waittimeButton.onclick = () => {
-    const textToCopy = "Ok to request wait time";
-    navigator.clipboard.writeText(textToCopy).then(() => {
-        const copiedMsg = document.createElement("div");
-        copiedMsg.innerText = `"${textToCopy}" copied!`;
-        copiedMsg.style.position = "fixed";
-        copiedMsg.style.top = "50%";
-        copiedMsg.style.left = "50%";
-        copiedMsg.style.transform = "translate(-50%, -50%)";
-        copiedMsg.style.background = "rgba(0,0,0,0.8)";
-        copiedMsg.style.color = "#fff";
-        copiedMsg.style.padding = "15px 25px";
-        copiedMsg.style.borderRadius = "8px";
-        copiedMsg.style.zIndex = "10001";
-        copiedMsg.style.fontSize = "18px";
-        copiedMsg.style.fontWeight = "bold";
-        copiedMsg.style.textAlign = "center";
-        copiedMsg.style.maxWidth = "80%";
-        copiedMsg.style.wordWrap = "break-word";
-        document.body.appendChild(copiedMsg);
-
-        setTimeout(() => {
-            copiedMsg.remove();
-        }, 1000);
-    });
-};
-
-const WaitStaffButton = document.createElement("button");
-    WaitStaffButton.innerText = "Wait Time Staff";
-    WaitStaffButton.style.marginTop = "20px";
-    WaitStaffButton.style.marginLeft = "10px";
-    WaitStaffButton.style.padding = "8px 16px";
-    WaitStaffButton.style.background = "#3498db";
-    WaitStaffButton.style.color = "#fff";
-    WaitStaffButton.style.border = "none";
-    WaitStaffButton.style.borderRadius = "5px";
-    WaitStaffButton.style.cursor = "pointer";
-    WaitStaffButton.style.fontWeight = "bold";
-
-    WaitStaffButton.onclick = () => {
-    const textToCopy = "Ok to apply wait time and include in staffing email due to mileage.";
-    navigator.clipboard.writeText(textToCopy).then(() => {
-        const copiedMsg = document.createElement("div");
-        copiedMsg.innerText = `"${textToCopy}" copied!`;
-        copiedMsg.style.position = "fixed";
-        copiedMsg.style.top = "50%";
-        copiedMsg.style.left = "50%";
-        copiedMsg.style.transform = "translate(-50%, -50%)";
-        copiedMsg.style.background = "rgba(0,0,0,0.8)";
-        copiedMsg.style.color = "#fff";
-        copiedMsg.style.padding = "15px 25px";
-        copiedMsg.style.borderRadius = "8px";
-        copiedMsg.style.zIndex = "10001";
-        copiedMsg.style.fontSize = "18px";
-        copiedMsg.style.fontWeight = "bold";
-        copiedMsg.style.textAlign = "center";
-        copiedMsg.style.maxWidth = "80%";
-        copiedMsg.style.wordWrap = "break-word";
-        document.body.appendChild(copiedMsg);
-
-        setTimeout(() => {
-            copiedMsg.remove();
-        }, 1000);
-    });
-};
-
-//Reusable partstring
-function buildPartsString(productInputs, quantities, miles, loadFeeQuantity) {
-  // Prefill "One Way Surcharge" input with the quantity found, if available
-  if (productInputs["One Way Surcharge"] && quantities["One Way Surcharge"] !== undefined) {
-    productInputs["One Way Surcharge"].value = quantities["One Way Surcharge"];
-  }
-
-  const parts = [];
-
-  Object.entries(productInputs).forEach(([label, input]) => {
-    const value = input.value.trim();
-    if (value !== "") {
-      let normalizedLabel =
-          label === "Miscellaneous Dead Miles" ? "Dead Miles" :
-          label === "No Show" ? "No Show/Late Cancel" :
-          label;
-
-      if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
-        const transportMiles = miles > 0 ? miles : (quantities[label] || 0);
-        if (!isNaN(parseFloat(value))) {
-          parts.push(`$${parseFloat(value).toFixed(2)}/mile x ${transportMiles} miles`);
-        } else {
-          parts.push(`${value} ${normalizedLabel}`);
-        }
-      } else if (label === "Load Fee") {
-        if (!isNaN(parseFloat(value))) {
-          const fee = `$${parseFloat(value).toFixed(2)} Load Fee`;
-          const withQty = loadFeeQuantity ? `${fee} x ${loadFeeQuantity}` : fee;
-          parts.push(withQty);
-        } else {
-          parts.push(`${value} Load Fee`);
-        }
-      } else if (label === "Miscellaneous Dead Miles") {
-        if (!isNaN(parseFloat(value))) {
-          parts.push(`${parseFloat(value)} ${normalizedLabel}`);
-        } else {
-          parts.push(`${value} ${normalizedLabel}`);
-        }
-      } else if (label === "One Way Surcharge") {
-        if (!isNaN(parseFloat(value))) {
-          parts.push(`${parseFloat(value)} mile One Way Surcharge`);
-        } else {
-          parts.push(`${value} One Way Surcharge`);
-        }
-      } else {
-        if (value.toLowerCase() === "contract" || value.toLowerCase().includes("contract")) {
-          parts.push(`contract ${normalizedLabel}`);
-        } else if (!isNaN(parseFloat(value))) {
-          parts.push(`$${parseFloat(value).toFixed(2)} ${normalizedLabel}`);
-        } else {
-          parts.push(`${value} ${normalizedLabel}`);
-        }
-      }
-    }
-  });
-
-  return parts.join(", ");
-}
-
-// New helper function to extract wait time and no show values separately
-function extractWaitAndNoShow(productInputs) {
-  const waitTimeRaw = productInputs["Wait Time"]?.value.trim() || "";
-  const noShowRaw = productInputs["No Show"]?.value.trim() || "";
-
-  const waitTime = (!isNaN(parseFloat(waitTimeRaw)) && waitTimeRaw !== "")
-                   ? parseFloat(waitTimeRaw).toFixed(2)
-                   : null;
-
-  const noShow = (!isNaN(parseFloat(noShowRaw)) && noShowRaw !== "")
-                 ? parseFloat(noShowRaw).toFixed(2)
-                 : null;
-
-  return { waitTime, noShow };
-}
-
-// Create the "Request Rates" button
+    // Create the "Request Rates" button
 const requestRatesButton = document.createElement("button");
-requestRatesButton.innerText = "Request Rates";
+requestRatesButton.innerText = "Approvals Comments";
 requestRatesButton.style.marginTop = "20px";
 requestRatesButton.style.marginLeft = "10px";
 requestRatesButton.style.padding = "8px 16px";
@@ -432,9 +240,6 @@ requestRatesButton.style.border = "none";
 requestRatesButton.style.borderRadius = "5px";
 requestRatesButton.style.cursor = "pointer";
 requestRatesButton.style.fontWeight = "bold";
-
-// Add the button to the page
-document.body.appendChild(requestRatesButton);
 
 // Button click behavior
 requestRatesButton.onclick = () => {
@@ -453,18 +258,60 @@ requestRatesButton.onclick = () => {
 
       if (accountProductText.includes("Transport") && !isNaN(quantity)) {
         miles = quantity;
+        console.log("Matched Transport with quantity:", miles);
       }
 
       if (accountProductText.includes("Load Fee") && !isNaN(quantity)) {
         loadFeeQuantity = quantity;
+        console.log("Matched Load Fee with quantity:", loadFeeQuantity);
       }
     }
   });
 
-  const finalParts = buildPartsString(productInputs, {}, miles, loadFeeQuantity);
+  // Now you can use miles and loadFeeQuantity accurately:
+  let parts = [];
 
-  const finalText = "Request rates " + finalParts;
+  Object.entries(productInputs).forEach(([label, input]) => {
+  const value = input.value.trim();
+  if (value !== "") {
+    // Normalize labels
+    let normalizedLabel = label === "Miscellaneous Dead Miles" ? "Dead Miles" :
+                          label === "No Show" ? "No Show/Late Cancel" :
+                          label;
 
+    if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
+      if (!isNaN(parseFloat(value))) {
+        parts.push(`$${parseFloat(value).toFixed(2)}/mile x ${miles} miles`);
+      } else {
+        parts.push(`${value} ${normalizedLabel}`);
+      }
+    } else if (label === "Load Fee") {
+      if (!isNaN(parseFloat(value))) {
+        const fee = `$${parseFloat(value).toFixed(2)} Load Fee`;
+        const withQty = loadFeeQuantity ? `${fee} x ${loadFeeQuantity}` : fee;
+        parts.push(withQty);
+      } else {
+        parts.push(`${value} Load Fee`);
+      }
+    } else if (normalizedLabel === "Dead Miles") {
+      if (!isNaN(parseFloat(value))) {
+        parts.push(`${parseFloat(value)} ${normalizedLabel}`);
+      } else {
+        parts.push(`${value} ${normalizedLabel}`);
+      }
+    } else {
+      if (value.toLowerCase() === "contract" || value.toLowerCase().includes("contract")) {
+        parts.push(`contract ${normalizedLabel}`);
+      } else if (!isNaN(parseFloat(value))) {
+        parts.push(`$${parseFloat(value).toFixed(2)} ${normalizedLabel}`);
+      } else {
+        parts.push(`${value} ${normalizedLabel}`);
+      }
+    }
+  }
+});
+
+  const finalText = "Previously requested rates " + parts.join(", ");
   navigator.clipboard.writeText(finalText).then(() => {
     const copiedMsg = document.createElement("div");
     copiedMsg.innerText = `"${finalText}" copied!`;
@@ -490,275 +337,6 @@ requestRatesButton.onclick = () => {
   });
 };
 
-//Homelink Button
-const homelinkButton = document.createElement("button");
-homelinkButton.innerText = "Request Homelink Rates";
-homelinkButton.style.marginTop = "20px";
-homelinkButton.style.marginLeft = "10px";
-homelinkButton.style.padding = "8px 16px";
-homelinkButton.style.background = "#9b59b6";
-homelinkButton.style.color = "#fff";
-homelinkButton.style.border = "none";
-homelinkButton.style.borderRadius = "5px";
-homelinkButton.style.cursor = "pointer";
-homelinkButton.style.fontWeight = "bold";
-document.body.appendChild(homelinkButton);
-
-homelinkButton.onclick = () => {
-  let higherTotal = 0;
-  let alreadyCounted = new Set();
-
-  const quantities = {};
-  const rows = document.querySelectorAll('[role="row"]');
-  rows.forEach(row => {
-    const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
-    const qtyCell = row.querySelector('[col-id="gtt_quantity"]');
-
-    if (productCell && qtyCell) {
-      const product = productCell.innerText.trim();
-      const qty = parseFloat(qtyCell.innerText.trim());
-      if (!isNaN(qty)) quantities[product] = qty;
-    }
-  });
-
-  const foundProducts = Object.keys(productInputs);
-
-  const activeTransportRate = parseFloat(
-    productInputs["Transport Ambulatory"]?.value ||
-    productInputs["Transport Wheelchair"]?.value ||
-    productInputs["Transport Stretcher, ALS & BLS"]?.value
-  );
-
-  if (!activeTransportRate || isNaN(activeTransportRate)) {
-    alert("Please enter a valid Transport rate.");
-    return;
-  }
-
-  foundProducts.forEach(product => {
-    if (product === "Wait Time" || product === "No Show") return;
-
-    if (["Rush Fee", "Tolls", "Other", "Assistance Fee", "Passenger Fee", "Miscellaneous Dead Miles"].includes(product)) {
-      if (alreadyCounted.has(product)) return;
-      alreadyCounted.add(product);
-    }
-
-    const enteredValueRaw = productInputs[product]?.value;
-    const enteredValue = parseFloat(enteredValueRaw);
-    const qty = quantities[product] || 0;
-
-    if (!isNaN(enteredValue)) {
-      if (product === "Miscellaneous Dead Miles" || product === "One Way Surcharge") {
-        higherTotal += enteredValue * (activeTransportRate / 2);
-      } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
-        higherTotal += enteredValue;
-      } else {
-        higherTotal += enteredValue * qty;
-      }
-    }
-  });
-
-  // Extract Wait Time and No Show like Boomerang button
-  let waitTimeText = "";
-  let noShowText = "";
-  if (productInputs["Wait Time"]) {
-    const waitVal = productInputs["Wait Time"].value.trim();
-    waitTimeText = waitVal.toLowerCase() === "contract rates" ? "Contract" : waitVal;
-  }
-  if (productInputs["No Show"]) {
-    const noShowVal = productInputs["No Show"].value.trim();
-    noShowText = noShowVal.toLowerCase() === "contract rates" ? "Contract" : noShowVal;
-  }
-
-  // Use the same buildPartsString function
-  const partsString = buildPartsString(productInputs, quantities, 0, quantities["Load Fee"]);
-  const goatString = `**Enter in Goat as ${partsString}`;
-
-// Build extras text
-let extras = [];
-
-if (waitTimeText) {
-  const waitDisplay = isNaN(waitTimeText) ? waitTimeText : `$${waitTimeText}/hour`;
-  extras.push(`${waitDisplay} wait time in addition to flat rate`);
-}
-
-if (noShowText) {
-  const noShowDisplay = isNaN(noShowText) ? noShowText : `$${noShowText}`;
-  extras.push(`${noShowDisplay} No Show/Late Cancel`);
-}
-
-const extrasText = extras.length > 0 ? `. ${extras.join(", ")}` : "";
-
-const homelinkText = `Request Flat Rate of $${higherTotal.toFixed(2)}${extrasText}. ${goatString}`;
-
-
-  // Copy and notify
-  navigator.clipboard.writeText(homelinkText).then(() => {
-    const copiedMsg = document.createElement("div");
-    copiedMsg.innerText = `"${homelinkText}" copied!`;
-    copiedMsg.style.position = "fixed";
-    copiedMsg.style.top = "50%";
-    copiedMsg.style.left = "50%";
-    copiedMsg.style.transform = "translate(-50%, -50%)";
-    copiedMsg.style.background = "rgba(0,0,0,0.8)";
-    copiedMsg.style.color = "#fff";
-    copiedMsg.style.padding = "15px 25px";
-    copiedMsg.style.borderRadius = "8px";
-    copiedMsg.style.zIndex = "10001";
-    copiedMsg.style.fontSize = "18px";
-    copiedMsg.style.fontWeight = "bold";
-    copiedMsg.style.textAlign = "center";
-    copiedMsg.style.maxWidth = "80%";
-    copiedMsg.style.wordWrap = "break-word";
-    document.body.appendChild(copiedMsg);
-
-    setTimeout(() => {
-      copiedMsg.remove();
-    }, 1500);
-  });
-};
-
-
-// Create the "Boomerang" button
-const boomerangButton = document.createElement("button");
-boomerangButton.innerText = "Boomerang Request & Staff";
-boomerangButton.style.marginTop = "20px";
-boomerangButton.style.marginLeft = "10px";
-boomerangButton.style.padding = "8px 16px";
-boomerangButton.style.background = "#e67e22";
-boomerangButton.style.color = "#fff";
-boomerangButton.style.border = "none";
-boomerangButton.style.borderRadius = "5px";
-boomerangButton.style.cursor = "pointer";
-boomerangButton.style.fontWeight = "bold";
-
-// Add the button to the page
-document.body.appendChild(boomerangButton);
-
-// Button click behavior
-boomerangButton.onclick = () => {
-  const titleHeader = document.querySelector('[id^="formHeaderTitle"]');
-  const titleText = titleHeader ? titleHeader.innerText.trim() : "";
-  const isHomeLink = titleText.startsWith("212-");
-
-  let miles = 0;
-  let loadFeeQuantity = 0;
-  const quantities = {};
-
-  const rows = document.querySelectorAll('[role="row"]');
-  rows.forEach(row => {
-    const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
-    const qtyCell = row.querySelector('[col-id="gtt_quantity"]');
-
-    if (productCell && qtyCell) {
-      const productText = productCell.innerText.trim();
-      const qty = parseFloat(qtyCell.innerText.trim());
-
-      if (productText && !isNaN(qty)) {
-        quantities[productText] = qty;
-        if (productText.includes("Transport")) miles = qty;
-        if (productText.includes("Load Fee")) loadFeeQuantity = qty;
-      }
-    }
-  });
-
-  let flatRateValue = null;
-  let waitTimeText = "";
-  let noShowText = "";
-
-  const partsString = buildPartsString(productInputs, quantities, miles, loadFeeQuantity);
-
-  Object.entries(productInputs).forEach(([label, input]) => {
-    const value = input.value.trim();
-    if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
-      flatRateValue = parseFloat(value);
-    }
-    if (label === "Wait Time" && value !== "") {
-      waitTimeText = value.toLowerCase() === "contract rates" ? "Contract" : value;
-    }
-    if (label === "No Show" && value !== "") {
-      noShowText = value.toLowerCase() === "contract rates" ? "Contract" : value;
-    }
-  });
-
-  if (!flatRateValue || isNaN(flatRateValue)) {
-    alert("Please enter a valid Transport rate.");
-    return;
-  }
-
-  let higherTotal = 0;
-const alreadyCounted = new Set();
-
-Object.keys(productInputs).forEach(product => {
-  if (product === "Wait Time" || product === "No Show") return;
-
-  const enteredValue = parseFloat(productInputs[product]?.value);
-  const qty = quantities[product] || 0;
-
-  if (!isNaN(enteredValue)) {
-    if (product === "Miscellaneous Dead Miles") {
-      higherTotal += enteredValue * (flatRateValue / 2);
-    } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
-      if (!alreadyCounted.has(product)) {
-        alreadyCounted.add(product);
-        higherTotal += enteredValue;
-      }
-    } else {
-      higherTotal += enteredValue * qty;
-    }
-  }
-});
-
-const flatTotal = higherTotal.toFixed(2);
-
-
-  // Build extras text
-let extras = [];
-
-if (waitTimeText) {
-  const waitDisplay = isNaN(waitTimeText) ? waitTimeText : `$${waitTimeText}/hour`;
-  extras.push(`${waitDisplay} wait time in addition to flat rate`);
-}
-
-if (noShowText) {
-  const noShowDisplay = isNaN(noShowText) ? noShowText : `$${noShowText}`;
-  extras.push(`${noShowDisplay} No Show/Late Cancel`);
-}
-
-const extrasText = extras.length > 0 ? `. ${extras.join(", ")}` : "";
-
-  let boomerangText = "";
-
-  if (isHomeLink) {
-    boomerangText = `Request Flat Rate of $${flatTotal}${extrasText}. **Enter in Goat as ${partsString}** Secure with Boomerang and leave in provider stage until rates approved`;
-  } else {
-    boomerangText = `Request Rates ${partsString}. **Secure with Boomerang and leave in provider stage until rates approved`;
-  }
-
-  // Copy to clipboard and show confirmation
-  navigator.clipboard.writeText(boomerangText).then(() => {
-    const copiedMsg = document.createElement("div");
-    copiedMsg.innerText = `"${boomerangText}" copied!`;
-    copiedMsg.style.position = "fixed";
-    copiedMsg.style.top = "50%";
-    copiedMsg.style.left = "50%";
-    copiedMsg.style.transform = "translate(-50%, -50%)";
-    copiedMsg.style.background = "rgba(0,0,0,0.8)";
-    copiedMsg.style.color = "#fff";
-    copiedMsg.style.padding = "15px 25px";
-    copiedMsg.style.borderRadius = "8px";
-    copiedMsg.style.zIndex = "10001";
-    copiedMsg.style.fontSize = "18px";
-    copiedMsg.style.fontWeight = "bold";
-    copiedMsg.style.textAlign = "center";
-    copiedMsg.style.maxWidth = "80%";
-    copiedMsg.style.wordWrap = "break-word";
-    document.body.appendChild(copiedMsg);
-
-    setTimeout(() => {
-      copiedMsg.remove();
-    }, 1500);
-  });
-};
 
     const calculateMargin = () => {
         const rateType = document.querySelector('input[name="rateType"]:checked').value;
@@ -788,7 +366,7 @@ rows.forEach(row => {
         const totalValue = parseFloat(totalText);
 
         // Exclude "Rush Fee" from totalBilled
-        if (productsToTrack.includes(product) &&
+        if (productsToTrack.includes(product) && 
             product !== "Rush Fee" &&
             product !== "Weekend Holiday" &&
             product !== "Wheelchair Rental" &&
@@ -828,23 +406,13 @@ rows.forEach(row => {
     }
 });
 
-        if (foundProducts.has("One Way Surcharge")) {
-            foundProducts.add("One Way Surcharge");
-        } else {
-            foundProducts.add("Miscellaneous Dead Miles");
-        }
-
-        // Always add the remaining extras
-        ["Tolls", "Other", "No Show", "Wait Time"].forEach(p => foundProducts.add(p));
-
-
+        ["Miscellaneous Dead Miles", "Tolls", "Other", "No Show", "Wait Time"].forEach(p => foundProducts.add(p));
 
 const preferredOrder = [
   "Transport Ambulatory",
   "Transport Wheelchair",
   "Transport Stretcher, ALS & BLS",
   "Miscellaneous Dead Miles",
-  "One Way Surcharge",
   "Load Fee",
   "Tolls",
   "Other",
@@ -866,54 +434,49 @@ preferredOrder.forEach(product => {
         wrapper.style.flex = "1 1 48%"; // two columns with spacing
 
         const labelRow = document.createElement("div");
-        labelRow.style.display = "flex";
-        labelRow.style.alignItems = "center";
-        labelRow.style.justifyContent = "space-between";
-        labelRow.style.marginBottom = "5px";
+labelRow.style.display = "flex";
+labelRow.style.alignItems = "center";
+labelRow.style.justifyContent = "space-between";
+labelRow.style.marginBottom = "5px";
 
-        const label = document.createElement("label");
-        label.innerText = product;
-        label.style.fontWeight = "bold";
+const label = document.createElement("label");
+label.innerText = product ;
+label.style.fontWeight = "bold";
 
-        labelRow.appendChild(label);
+labelRow.appendChild(label);
 
-        // Add Contract Rates button only for Wait Time and No Show
-        if (["Wait Time", "No Show"].includes(product)) {
-            const contractBtn = document.createElement("button");
-            contractBtn.innerText = "Contract Rates";
-            contractBtn.style.marginLeft = "10px";
-            contractBtn.style.padding = "2px 6px";
-            contractBtn.style.fontSize = "12px";
-            contractBtn.style.cursor = "pointer";
-            contractBtn.onclick = () => {
-                inputField.value = "Contract Rates";
-                calculateMargin();
-            };
-            labelRow.appendChild(contractBtn);
-        }
+// Add Contract Rates button only for Wait Time and No Show
+if (["Wait Time", "No Show"].includes(product)) {
+    const contractBtn = document.createElement("button");
+    contractBtn.innerText = "Contract Rates";
+    contractBtn.style.marginLeft = "10px";
+    contractBtn.style.padding = "2px 6px";
+    contractBtn.style.fontSize = "12px";
+    contractBtn.style.cursor = "pointer";
+    contractBtn.onclick = () => {
+        inputField.value = "Contract Rates";
+        calculateMargin();
+    };
+    labelRow.appendChild(contractBtn);
+}
 
-        const inputField = document.createElement("input");
-        inputField.type = "text";
-        inputField.style.width = "100%";
-        inputField.addEventListener("input", calculateMargin);
+const inputField = document.createElement("input");
+inputField.type = "text";
+inputField.style.width = "100%";
 
-        // Prefill "One Way Surcharge" input with the quantity found, if available
-        if (product === "One Way Surcharge" && quantities[product] !== undefined) {
-            inputField.value = quantities[product];
-            inputField.readOnly = true; // Make it read-only
-            inputField.style.background = "#eee"; // Optional: visually show it's disabled
-            inputField.style.cursor = "not-allowed";
-        }
+inputField.addEventListener("input", calculateMargin);
 
-        wrapper.appendChild(labelRow);
-        wrapper.appendChild(inputField);
-        higherInputsWrapper.appendChild(wrapper);
+wrapper.appendChild(labelRow);
+wrapper.appendChild(inputField);
+higherInputsWrapper.appendChild(wrapper);
+
 
         productInputs[product] = inputField;
 
         if (!quantities[product]) quantities[product] = 0;
     }
 });
+
 
         if (totalBilled === 0) {
             result.innerText = "Could not find any billed total.";
@@ -956,9 +519,9 @@ let approvalNote = margin <= marginThreshold
     : "";
 
         result.innerHTML = `
-    ${rateType === "mile" ? `<span>Miles: ${quantity}</span>` : ""}
+    <span>Total Billed: $${totalBilled.toFixed(2)}</span><br>
     <span>Total Paid: $${paidAmount.toFixed(2)}</span><br>
-    <span>Total Billed: $${totalBilled.toFixed(2)}</span>
+    ${rateType === "mile" ? `<span>Miles: ${quantity}</span><br>` : ""}
     <span style="color: ${marginColor}; font-weight: bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
 `.trim();
 
@@ -976,7 +539,7 @@ let approvalNote = margin <= marginThreshold
             }
         }
 
-        let higherTotal = 0;
+let higherTotal = 0;
 let alreadyCounted = new Set(); // Track items added once
 
 foundProducts.forEach(product => {
@@ -1045,7 +608,7 @@ let higherApprovalNote = higherMargin <= highermarginThreshold
     : "";
 
         higherResult.innerHTML = `
-            <span>Total Using Higher Rates: $${higherTotal.toFixed(2)}</span>
+            <span>Total Using Higher Rates: $${higherTotal.toFixed(2)}</span><br>
             <span style="color: ${higherMarginColor}; font-weight: bold;">Margin: ${higherMargin.toFixed(2)}%</span>${higherApprovalNote}
         `.trim();
     };
@@ -1063,10 +626,6 @@ let higherApprovalNote = higherMargin <= highermarginThreshold
         calculateMargin();
     });
 
-// Get the header title element (ID starts with "formHeaderTitle")
-const headerElement = document.querySelector('[id^="formHeaderTitle"]');
-const headerText = headerElement?.textContent?.trim() || "";
-
     box.appendChild(closeButton);
     box.appendChild(modeLabel);
     box.appendChild(flatRadio);
@@ -1079,19 +638,8 @@ const headerText = headerElement?.textContent?.trim() || "";
     box.appendChild(higherHeader);
     box.appendChild(higherInputsWrapper);
     box.appendChild(higherResult);
-    box.appendChild(lowMarginButton);
-    box.appendChild(waittimeButton);
-    box.appendChild(WaitStaffButton);
-    box.appendChild(boomerangButton);
-// Conditionally append one of the two buttons
-if (headerText.startsWith("212-")) {
-    // Don't show requestRatesButton
-    box.appendChild(homelinkButton);
-} else {
-    // Don't show homelinkButton
-    box.appendChild(requestRatesButton);
-}
     box.appendChild(resetButton);
+    box.appendChild(requestRatesButton);
 
 
     document.body.appendChild(box);
@@ -1103,7 +651,7 @@ if (headerText.startsWith("212-")) {
         calculatorButton.addEventListener('click', showCalculatorBox);
     }
 
-    // Function to copy claimant name
+// Function to copy claimant name
 function copyClaimantName() {
     var elementToCopy = document.querySelector('[id^="headerControlsList_"] > div:nth-child(3) > div[class^="pa-a pa-"].flexbox > a');
     if (elementToCopy) {
@@ -1126,7 +674,6 @@ function copyClaimantName() {
         console.error('Claimant element not found.');
     }
 }
-
 
     // Function to wait for the button to appear and click it
     function waitForButtonAndClick() {
@@ -1193,7 +740,6 @@ function copyBoth() {
         showMessage('Claimant Name & Claim# not found. Please make sure you are in a referral.', false);
     }
 }
-
 
     //Create Options for Email templates
 function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
@@ -1615,19 +1161,6 @@ function extractAndCopyTitle() {
         const title = titleElement.textContent.trim();
         console.log('Title Found:', title);
 
-        // Check if title contains '4473' and show an alert
-        if (title.startsWith("4473-")) {
-            alert("Rates up to $3.75/mile are ok to apply and include in staffing email.\n\n" +
-                  "Wait time ok if 25 miles or more each way and not surgery.\n\n" +
-                  "If scheduled the day before appointment, ok to proceed with staffing above approved rates if needed and include in staffing email.");
-        }
-
-
-        // Check if title contains '5843-' and show a different alert
-        if (title.startsWith("5843-")) {
-            alert("Rate Increases do not need AUTH - provide rate increase in staffed email");
-        }
-
         // Check if title contains '212-' and show a different alert
         if (title.startsWith("212-")) {
             alert("Homelink must be atleast 50% margin");
@@ -1777,4 +1310,3 @@ createButtons();
         waitForSearchBox();
     });
 })();
-
