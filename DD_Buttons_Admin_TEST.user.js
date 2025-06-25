@@ -921,7 +921,7 @@ preferredOrder.forEach(product => {
             higherResult.innerText = "";
         }
 
-        let paidAmount = inputValue  + waitTimeValue;
+        let paidAmount = inputValue + waitTimeValue;
         if (rateType === "mile") {
             if (quantity === 0) {
                 result.innerText = "Could not find transport quantity.";
@@ -938,7 +938,22 @@ preferredOrder.forEach(product => {
         else if (margin < 35) marginColor = "goldenrod";
         else marginColor = "green";
 
-        let approvalNote = margin <= 24.99 ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>` : "";
+const headerElement = document.querySelector('[id^="formHeaderTitle"]');
+const headerText = headerElement?.textContent?.trim() || "";
+
+// Determine margin threshold
+let marginThreshold = 34.99;
+if (/^(133\-|4474\-|202\-|9616\-)/.test(headerText)) {
+    marginThreshold = 24.99;
+} else if (headerText.startsWith("999-")) {
+    marginThreshold = 29.99;
+} else if (headerText.startsWith("212-")) {
+    marginThreshold = 49.99;
+}
+
+let approvalNote = margin <= marginThreshold
+    ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>`
+    : "";
 
         result.innerHTML = `
     ${rateType === "mile" ? `<span>Miles: ${quantity}</span>` : ""}
