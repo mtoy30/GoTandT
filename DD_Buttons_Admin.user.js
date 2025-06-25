@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.8.5
+// @version      3.8.6
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -921,7 +921,7 @@ preferredOrder.forEach(product => {
             higherResult.innerText = "";
         }
 
-        let paidAmount = inputValue  + waitTimeValue;
+        let paidAmount = inputValue + waitTimeValue;
         if (rateType === "mile") {
             if (quantity === 0) {
                 result.innerText = "Could not find transport quantity.";
@@ -938,7 +938,22 @@ preferredOrder.forEach(product => {
         else if (margin < 35) marginColor = "goldenrod";
         else marginColor = "green";
 
-        let approvalNote = margin <= 24.99 ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>` : "";
+const headerElement = document.querySelector('[id^="formHeaderTitle"]');
+const headerText = headerElement?.textContent?.trim() || "";
+
+// Determine margin threshold
+let marginThreshold = 34.99;
+if (/^(133\-|4474\-|202\-|9616\-)/.test(headerText)) {
+    marginThreshold = 24.99;
+} else if (headerText.startsWith("999-")) {
+    marginThreshold = 29.99;
+} else if (headerText.startsWith("212-")) {
+    marginThreshold = 49.99;
+}
+
+let approvalNote = margin <= marginThreshold
+    ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>`
+    : "";
 
         result.innerHTML = `
     ${rateType === "mile" ? `<span>Miles: ${quantity}</span>` : ""}
@@ -1015,7 +1030,19 @@ foundProducts.forEach(product => {
         else if (higherMargin < 35) higherMarginColor = "goldenrod";
         else higherMarginColor = "green";
 
-        let higherApprovalNote = higherMargin <= 24.99 ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>` : "";
+// Determine margin threshold
+let highermarginThreshold = 34.99;
+if (/^(133\-|4474\-|202\-|9616\-)/.test(headerText)) {
+    highermarginThreshold = 24.99;
+} else if (headerText.startsWith("999-")) {
+    highermarginThreshold = 29.99;
+} else if (headerText.startsWith("212-")) {
+    highermarginThreshold = 49.99;
+}
+
+let higherApprovalNote = higherMargin <= highermarginThreshold
+    ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>`
+    : "";
 
         higherResult.innerHTML = `
             <span>Total Using Higher Rates: $${higherTotal.toFixed(2)}</span>
@@ -1750,3 +1777,4 @@ createButtons();
         waitForSearchBox();
     });
 })();
+
