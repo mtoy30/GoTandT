@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.8.5
+// @version      3.8.6
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1030,7 +1030,19 @@ foundProducts.forEach(product => {
         else if (higherMargin < 35) higherMarginColor = "goldenrod";
         else higherMarginColor = "green";
 
-        let higherApprovalNote = higherMargin <= 24.99 ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>` : "";
+// Determine margin threshold
+let highermarginThreshold = 34.99;
+if (/^(133\-|4474\-|202\-|9616\-)/.test(headerText)) {
+    highermarginThreshold = 24.99;
+} else if (headerText.startsWith("999-")) {
+    highermarginThreshold = 29.99;
+} else if (headerText.startsWith("212-")) {
+    highermarginThreshold = 49.99;
+}
+
+let higherApprovalNote = higherMargin <= highermarginThreshold
+    ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>`
+    : "";
 
         higherResult.innerHTML = `
             <span>Total Using Higher Rates: $${higherTotal.toFixed(2)}</span>
