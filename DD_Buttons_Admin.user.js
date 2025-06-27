@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.8.6
+// @version      3.8.9
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -991,24 +991,23 @@ foundProducts.forEach(product => {
     let enteredValue = parseFloat(enteredValueRaw);
     let qty = quantities[product] || 0;
 
-    // Special logic for Wait Time: if input says Contract Rates, use value from row (grid)
-    if (product === "Wait Time" && (enteredValueRaw || "").toLowerCase().includes("contract")) {
-        // Try to get the value from the rows/grid for Wait Time
-        const rows = document.querySelectorAll('div[row-index]');
-        for (let row of rows) {
-            const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
-            const totalCell = row.querySelector('[col-id="gtt_total"]');
-            if (productCell && totalCell && productCell.innerText.trim() === "Wait Time") {
-                let totalText = totalCell.innerText.trim().replace(/[^0-9.-]+/g, '') || "0";
-                let totalValue = parseFloat(totalText);
-                if (!isNaN(totalValue)) {
-                    enteredValue = totalValue;
-                }
-                break;
+// Special logic for Wait Time: if input says Contract Rates, use value from row (grid)
+if (product === "Wait Time" && (enteredValueRaw || "").toLowerCase().includes("contract")) {
+    const rows = document.querySelectorAll('div[row-index]');
+    for (let row of rows) {
+        const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+        const rateCell = row.querySelector('[col-id="gtt_price"]');
+        if (productCell && rateCell && productCell.innerText.trim() === "Wait Time") {
+            let rateText = rateCell.innerText.trim().replace(/[^0-9.-]+/g, '') || "0";
+            let rateValue = parseFloat(rateText);
+            if (!isNaN(rateValue)) {
+                enteredValue = rateValue;
+                qty = 1; // force quantity to 1 for Contract Rates
             }
+            break;
         }
-        // qty stays the same (typically 1)
     }
+}
 
     if (!isNaN(enteredValue)) {
         if (product === "Miscellaneous Dead Miles" || product === "One Way Surcharge") {
