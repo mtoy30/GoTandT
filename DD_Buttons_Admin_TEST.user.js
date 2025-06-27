@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         DD_Buttons_Admin
+// @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
 // @version      3.8.9
-// @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
-// @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
+// @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
+// @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
 // @match        https://gotandt.crm.dynamics.com/*
 // @match        https://gttqap2.crm.dynamics.com/*
