@@ -1007,7 +1007,8 @@ foundProducts.forEach(product => {
                 break;
             }
         }
-        // qty stays the same (typically 1)
+        // Always set qty to 1 for Wait Time Contract Rates, even if grid shows 0
+        qty = 1;
     }
 
     if (!isNaN(enteredValue)) {
