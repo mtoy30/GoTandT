@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.8.9
+// @version      3.9.1
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1008,6 +1008,42 @@ if (product === "Wait Time" && (enteredValueRaw || "").toLowerCase().includes("c
         }
     }
 }
+
+// Special logic for Load Fee: if input says Contract Rates, use value from row (grid)
+    if (product === "Load Fee" && (enteredValueRaw || "").toLowerCase().includes("contract")) {
+        // Try to get the value from the rows/grid for Load Fee
+        const rows = document.querySelectorAll('div[row-index]');
+        for (let row of rows) {
+            const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+            const totalCell = row.querySelector('[col-id="gtt_price"]');
+            if (productCell && totalCell && productCell.innerText.trim() === "Load Fee") {
+                let totalText = totalCell.innerText.trim().replace(/[^0-9.-]+/g, '') || "0";
+                let totalValue = parseFloat(totalText);
+                if (!isNaN(totalValue)) {
+                    enteredValue = totalValue;
+                }
+                break;
+            }
+        }
+    }
+
+// Special logic for Additional Passenger: if input says Contract Rates, use value from row (grid)
+    if (product === "Additional Passenger" && (enteredValueRaw || "").toLowerCase().includes("contract")) {
+        // Try to get the value from the rows/grid for Load Fee
+        const rows = document.querySelectorAll('div[row-index]');
+        for (let row of rows) {
+            const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+            const totalCell = row.querySelector('[col-id="gtt_total"]');
+            if (productCell && totalCell && productCell.innerText.trim() === "Additional Passenger") {
+                let totalText = totalCell.innerText.trim().replace(/[^0-9.-]+/g, '') || "0";
+                let totalValue = parseFloat(totalText);
+                if (!isNaN(totalValue)) {
+                    enteredValue = totalValue;
+                }
+                break;
+            }
+        }
+    }
 
     if (!isNaN(enteredValue)) {
         if (product === "Miscellaneous Dead Miles" || product === "One Way Surcharge") {
