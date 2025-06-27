@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.9.1
+// @version      3.9.2
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -446,7 +446,7 @@ label.style.fontWeight = "bold";
 labelRow.appendChild(label);
 
 // Add Contract Rates button only for Wait Time and No Show
-if (["Wait Time", "No Show", "Load Fee", "Additional Passenger"].includes(product)) {
+if (["Wait Time", "No Show", "Load Fee", "Additional Passenger", "Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(product)) {
     const contractBtn = document.createElement("button");
     contractBtn.innerText = "Contract Rates";
     contractBtn.style.marginLeft = "10px";
@@ -554,59 +554,32 @@ foundProducts.forEach(product => {
     let enteredValue = parseFloat(enteredValueRaw);
     let qty = quantities[product] || 0;
 
-// Special logic for Wait Time: if input says Contract Rates, use value from row (grid)
-if (product === "Wait Time" && (enteredValueRaw || "").toLowerCase().includes("contract")) {
+//Enter Contract Rates
+const contractProducts = {
+    "Wait Time": { forceQty: true },
+    "Transport Ambulatory": {},
+    "Transport Wheelchair": {},
+    "Transport Stretcher, ALS & BLS": {},
+    "Load Fee": {},
+    "Additional Passenger": {}
+};
+
+if ((enteredValueRaw || "").toLowerCase().includes("contract") && contractProducts[product]) {
     const rows = document.querySelectorAll('div[row-index]');
     for (let row of rows) {
         const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
-        const rateCell = row.querySelector('[col-id="gtt_price"]');
-        if (productCell && rateCell && productCell.innerText.trim() === "Wait Time") {
-            let rateText = rateCell.innerText.trim().replace(/[^0-9.-]+/g, '') || "0";
-            let rateValue = parseFloat(rateText);
-            if (!isNaN(rateValue)) {
-                enteredValue = rateValue;
-                qty = 1; // force quantity to 1 for Contract Rates
+        const priceCell = row.querySelector('[col-id="gtt_price"]');
+        if (productCell && priceCell && productCell.innerText.trim() === product) {
+            let valueText = priceCell.innerText.trim().replace(/[^0-9.-]+/g, '') || "0";
+            let value = parseFloat(valueText);
+            if (!isNaN(value)) {
+                enteredValue = value;
+                if (contractProducts[product].forceQty) qty = 1;
             }
             break;
         }
     }
 }
-
-// Special logic for Load Fee: if input says Contract Rates, use value from row (grid)
-    if (product === "Load Fee" && (enteredValueRaw || "").toLowerCase().includes("contract")) {
-        // Try to get the value from the rows/grid for Load Fee
-        const rows = document.querySelectorAll('div[row-index]');
-        for (let row of rows) {
-            const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
-            const totalCell = row.querySelector('[col-id="gtt_price"]');
-            if (productCell && totalCell && productCell.innerText.trim() === "Load Fee") {
-                let totalText = totalCell.innerText.trim().replace(/[^0-9.-]+/g, '') || "0";
-                let totalValue = parseFloat(totalText);
-                if (!isNaN(totalValue)) {
-                    enteredValue = totalValue;
-                }
-                break;
-            }
-        }
-    }
-
-// Special logic for Additional Passenger: if input says Contract Rates, use value from row (grid)
-    if (product === "Additional Passenger" && (enteredValueRaw || "").toLowerCase().includes("contract")) {
-        // Try to get the value from the rows/grid for Load Fee
-        const rows = document.querySelectorAll('div[row-index]');
-        for (let row of rows) {
-            const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
-            const totalCell = row.querySelector('[col-id="gtt_total"]');
-            if (productCell && totalCell && productCell.innerText.trim() === "Additional Passenger") {
-                let totalText = totalCell.innerText.trim().replace(/[^0-9.-]+/g, '') || "0";
-                let totalValue = parseFloat(totalText);
-                if (!isNaN(totalValue)) {
-                    enteredValue = totalValue;
-                }
-                break;
-            }
-        }
-    }
 
     if (!isNaN(enteredValue)) {
         if (product === "Miscellaneous Dead Miles" || product === "One Way Surcharge") {
