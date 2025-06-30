@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.9.2
+// @version      3.9.3
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1113,7 +1113,10 @@ if (headerText.startsWith("212-")) {
 
     // Function to copy claimant name
 function copyClaimantName() {
-    var elementToCopy = document.querySelector('[id^="headerControlsList_"] > div:nth-child(3) > div[class^="pa-a pa-"].flexbox > a');
+    // Look for any anchor tag with an aria-label that looks like a name and href pointing to a contact record
+    var elementToCopy = Array.from(document.querySelectorAll('a[aria-label][href*="etn=contact"]'))
+        .find(el => el.textContent.trim().length > 0);
+
     if (elementToCopy) {
         var textToCopy = elementToCopy.textContent.trim();
         GM_setClipboard(textToCopy);
@@ -1134,7 +1137,6 @@ function copyClaimantName() {
         console.error('Claimant element not found.');
     }
 }
-
 
     // Function to wait for the button to appear and click it
     function waitForButtonAndClick() {
@@ -1162,8 +1164,14 @@ function copyClaimantName() {
 
 // Function to copy both claimant name and claim
 function copyBoth() {
-    var element1 = document.querySelector('[id^="headerControlsList_"] > div:nth-child(3) > div[class^="pa-a pa-"].flexbox > a');
-    var element2 = document.querySelector('[id^="headerControlsList_"] > div:nth-child(5) > div[class^="pa-a pa-"].flexbox > a');
+    // Claimant: contact link
+    var element1 = Array.from(document.querySelectorAll('a[aria-label][href*="etn=contact"]'))
+        .find(el => el.textContent.trim().length > 0);
+
+    // Claim: gtt_claim link
+    var element2 = Array.from(document.querySelectorAll('a[aria-label][href*="etn=gtt_claim"]'))
+        .find(el => el.textContent.trim().length > 0);
+
     var titleElement = document.querySelector('[id^="formHeaderTitle"]');
 
     // Try to find the input field for "Date of Start Date"
@@ -1171,8 +1179,8 @@ function copyBoth() {
     var startDateValue = startDateInput ? startDateInput.value.trim() : "";
 
     if (element1 && element2) {
-        var text1 = element1.textContent.trim();
-        var text2 = element2.textContent.trim();
+        var text1 = element1.textContent.trim(); // Claimant
+        var text2 = element2.textContent.trim(); // Claim #
         var headerTitle = titleElement ? titleElement.textContent : "";
 
         if (headerTitle.startsWith("4474-")) {
@@ -1199,9 +1207,9 @@ function copyBoth() {
         createDropdownMenu(text1, text2, referralDate, headerTitle);
     } else {
         showMessage('Claimant Name & Claim# not found. Please make sure you are in a referral.', false);
+        console.error('Missing elements:', { element1, element2 });
     }
 }
-
 
     //Create Options for Email templates
 function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
