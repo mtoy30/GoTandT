@@ -366,7 +366,7 @@ function buildPartsString(productInputs, quantities, miles, loadFeeQuantity) {
   const transportMiles = miles > 0 ? miles : (quantities[label] || 0);
 
   if (value.toLowerCase() === "contract rates") {
-    parts.push(`Contract rates per mile x ${transportMiles} miles`);
+    parts.push(`Contract rates/mile x ${transportMiles} miles`);
   } else if (!isNaN(parseFloat(value))) {
     parts.push(`$${parseFloat(value).toFixed(2)}/mile x ${transportMiles} miles`);
   } else {
