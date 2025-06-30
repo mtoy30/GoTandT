@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.9.3
+// @version      3.9.4
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -363,12 +363,15 @@ function buildPartsString(productInputs, quantities, miles, loadFeeQuantity) {
           label;
 
       if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
-        const transportMiles = miles > 0 ? miles : (quantities[label] || 0);
-        if (!isNaN(parseFloat(value))) {
-          parts.push(`$${parseFloat(value).toFixed(2)}/mile x ${transportMiles} miles`);
-        } else {
-          parts.push(`${value} ${normalizedLabel}`);
-        }
+  const transportMiles = miles > 0 ? miles : (quantities[label] || 0);
+
+  if (value.toLowerCase() === "contract rates") {
+    parts.push(`Contract rates per mile x ${transportMiles} miles`);
+  } else if (!isNaN(parseFloat(value))) {
+    parts.push(`$${parseFloat(value).toFixed(2)}/mile x ${transportMiles} miles`);
+  } else {
+    parts.push(`${value} ${normalizedLabel}`);
+  }
       } else if (label === "Load Fee") {
         if (!isNaN(parseFloat(value))) {
           const fee = `$${parseFloat(value).toFixed(2)} Load Fee`;
@@ -667,23 +670,42 @@ boomerangButton.onclick = () => {
 
   const partsString = buildPartsString(productInputs, quantities, miles, loadFeeQuantity);
 
-  Object.entries(productInputs).forEach(([label, input]) => {
-    const value = input.value.trim();
-    if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
-      flatRateValue = parseFloat(value);
-    }
-    if (label === "Wait Time" && value !== "") {
-      waitTimeText = value.toLowerCase() === "contract rates" ? "Contract" : value;
-    }
-    if (label === "No Show" && value !== "") {
-      noShowText = value.toLowerCase() === "contract rates" ? "Contract" : value;
-    }
-  });
+Object.entries(productInputs).forEach(([label, input]) => {
+  let value = input.value.trim();
 
-  if (!flatRateValue || isNaN(flatRateValue)) {
-    alert("Please enter a valid Transport rate.");
-    return;
+  // Normalize Transport inputs for contract case
+  if (
+    ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)
+  ) {
+    value = value.toLowerCase() === "contract rates" ? "Contract rates per mile" : value;
   }
+
+  // Handle Wait Time
+  if (label === "Wait Time" && value !== "") {
+    waitTimeText = value.toLowerCase() === "contract rates" ? "Contract" : value;
+  }
+
+  // Handle No Show
+  if (label === "No Show" && value !== "") {
+    noShowText = value.toLowerCase() === "contract rates" ? "Contract" : value;
+  }
+
+  // Set flatRateValue based on normalized Transport value
+  if (
+    ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)
+  ) {
+    flatRateValue = value === "Contract rates per mile" ? value : parseFloat(value);
+  }
+});
+
+
+  if (
+  (!flatRateValue || isNaN(flatRateValue)) &&
+  flatRateValue !== "Contract rates per mile"
+) {
+  alert("Please enter a valid Transport rate.");
+  return;
+}
 
   let higherTotal = 0;
 const alreadyCounted = new Set();
@@ -1793,4 +1815,3 @@ createButtons();
         waitForSearchBox();
     });
 })();
-
