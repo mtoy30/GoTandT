@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.9.7
+// @version      3.9.8
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -446,7 +446,7 @@ label.style.fontWeight = "bold";
 labelRow.appendChild(label);
 
 // Add Contract Rates button only for Wait Time and No Show
-if (["Wait Time", "No Show", "Load Fee", "Additional Passenger", "Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(product)) {
+if (["Wait Time", "No Show", "Load Fee", "Additional Passenger", "Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS", "After Hours Fee", "Weekend Holiday"].includes(product)) {
     const contractBtn = document.createElement("button");
     contractBtn.innerText = "Contract Rates";
     contractBtn.style.marginLeft = "10px";
@@ -561,6 +561,8 @@ foundProducts.forEach(product => {
     "Transport Wheelchair": {},
     "Transport Stretcher, ALS & BLS": {},
     "Load Fee": {},
+    "After Hours Fee": {},
+    "Weekend Holiday": {},
     "Additional Passenger": {}
 };
 
