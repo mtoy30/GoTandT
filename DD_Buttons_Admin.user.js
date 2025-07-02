@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.9.6
+// @version      3.9.7
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1013,8 +1013,8 @@ foundProducts.forEach(product => {
     let enteredValue = parseFloat(enteredValueRaw);
     let qty = quantities[product] || 0;
 
-//Enter Contract Rates
-const contractProducts = {
+    //Enter Contract Rates
+    const contractProducts = {
     "Wait Time": { forceQty: true },
     "Transport Ambulatory": {},
     "Transport Wheelchair": {},
@@ -1023,6 +1023,35 @@ const contractProducts = {
     "Additional Passenger": {}
 };
 
+let activeTransportRate = 0;
+
+// Check for Contract Rates and set activeTransportRate
+const transportProducts = ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"];
+
+for (let transport of transportProducts) {
+    const transportInputValue = (productInputs[transport]?.value || "").toLowerCase();
+    if (transportInputValue.includes("contract")) {
+        // Find gtt_price value for this transport
+        const rows = document.querySelectorAll('div[row-index]');
+        for (let row of rows) {
+            const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+            const priceCell = row.querySelector('[col-id="gtt_price"]');
+            if (productCell && priceCell && productCell.innerText.trim() === transport) {
+                let priceText = priceCell.innerText.trim().replace(/[^0-9.-]+/g, '') || "0";
+                let priceValue = parseFloat(priceText);
+                if (!isNaN(priceValue)) {
+                    activeTransportRate = priceValue;
+                }
+                break;
+            }
+        }
+        break; // Stop after first matching contract transport
+    }
+}
+
+// If no Contract Rates found, keep activeTransportRate at 0 or some default if needed
+
+// Continue original logic for each product
 if ((enteredValueRaw || "").toLowerCase().includes("contract") && contractProducts[product]) {
     const rows = document.querySelectorAll('div[row-index]');
     for (let row of rows) {
@@ -1038,20 +1067,21 @@ if ((enteredValueRaw || "").toLowerCase().includes("contract") && contractProduc
             break;
         }
     }
+} else if (!isNaN(parseFloat(enteredValueRaw)) && enteredValueRaw.toLowerCase() !== "contract rates") {
+    enteredValue = parseFloat(enteredValueRaw);
 }
 
-    if (!isNaN(enteredValue)) {
-        if (product === "Miscellaneous Dead Miles" || product === "One Way Surcharge") {
-            higherTotal += enteredValue * (activeTransportRate / 2);
-        } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
-            higherTotal += enteredValue;
-        } else if (product === "Wait Time") {
-            // Wait Time is typically a single value, add directly (not multiplied by qty)
-            higherTotal += enteredValue;
-        } else {
-            higherTotal += enteredValue * qty;
-        }
+if (!isNaN(enteredValue)) {
+    if (product === "Miscellaneous Dead Miles" || product === "One Way Surcharge") {
+        higherTotal += enteredValue * (activeTransportRate / 2);
+    } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
+        higherTotal += enteredValue;
+    } else if (product === "Wait Time") {
+        higherTotal += enteredValue;
+    } else {
+        higherTotal += enteredValue * qty;
     }
+}
 });
 
         const higherMargin = 100 - ((paidAmount / higherTotal) * 100);
