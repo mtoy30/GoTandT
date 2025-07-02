@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.9.5
+// @version      3.9.6
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1694,71 +1694,58 @@ function extractAndCopyTitle() {
     }
 }
 
-
 function createButtons() {
     const searchBox = document.querySelector('#searchBoxLiveRegion');
+
     if (searchBox) {
+        // Prevent duplication by checking if container already exists
+        if (document.getElementById('custom-button-container')) {
+            console.log('Buttons already created.');
+            return;
+        }
+
+        // Create container to hold buttons
+        const buttonContainer = document.createElement('div');
+        buttonContainer.id = 'custom-button-container';
+        buttonContainer.style.display = 'inline-flex';
+        buttonContainer.style.alignItems = 'center';
+        buttonContainer.style.marginLeft = '10px';
+
         // Create and style buttons
-        var button1 = document.createElement('button');
-        button1.textContent = 'Payer Emails';
-        button1.style.backgroundColor = '#007BFF';
-        button1.style.color = '#fff';
-        button1.style.fontWeight = 'bold';
-        button1.style.letterSpacing = "1.2px";
-        button1.style.borderRadius = '15px';
-        button1.style.padding = '5px 10px';
-        button1.style.marginLeft = '10px';
-        button1.addEventListener('click', copyBoth);
-        addTooltip(button1, "Clicking Payer emails then cancel on date input will still copy name and claim");
+        const createStyledButton = (text, color, clickHandler, tooltipText) => {
+            const button = document.createElement('button');
+            button.textContent = text;
+            button.style.backgroundColor = color;
+            button.style.color = '#fff';
+            button.style.fontWeight = 'bold';
+            button.style.letterSpacing = '1.2px';
+            button.style.borderRadius = '15px';
+            button.style.padding = '5px 10px';
+            button.style.marginLeft = '10px';
+            button.addEventListener('click', clickHandler);
+            addTooltip(button, tooltipText);
+            return button;
+        };
 
-        var button2 = document.createElement('button');
-        button2.textContent = 'Copy Name/SP Tab';
-        button2.style.backgroundColor = '#007BFF';
-        button2.style.color = '#fff';
-        button2.style.fontWeight = 'bold';
-        button2.style.letterSpacing = "1.2px";
-        button2.style.borderRadius = '15px';
-        button2.style.padding = '5px 10px';
-        button2.style.marginLeft = '10px';
-        button2.addEventListener('click', copyClaimantName);
-        addTooltip(button2, "This will copy name and take you to Service Provider Tab");
+        const button1 = createStyledButton('Payer Emails', '#007BFF', copyBoth, 'Clicking Payer emails then cancel on date input will still copy name and claim');
+        const button2 = createStyledButton('Copy Name/SP Tab', '#007BFF', copyClaimantName, 'This will copy name and take you to Service Provider Tab');
+        const button3 = createStyledButton('ClaimantID', '#007BFF', extractAndCopyTitle, 'This will copy the claimant ID used for prev vendor search');
+        const button4 = createStyledButton('Margin', 'green', showCalculatorBox, 'Calculate Margins');
 
-        var button3 = document.createElement('button');
-        button3.textContent = 'ClaimantID';
-        button3.style.backgroundColor = '#007BFF';
-        button3.style.color = '#fff';
-        button3.style.fontWeight = 'bold';
-        button3.style.letterSpacing = "1.2px";
-        button3.style.borderRadius = '15px';
-        button3.style.padding = '5px 10px';
-        button3.style.marginLeft = '10px';
-        button3.addEventListener('click', extractAndCopyTitle);
-        addTooltip(button3, "This will copy the claimant ID used for prev vendor search");
+        // Append buttons to container
+        buttonContainer.appendChild(button3);
+        buttonContainer.appendChild(button2);
+        buttonContainer.appendChild(button1);
+        buttonContainer.appendChild(button4);
 
-        var button4 = document.createElement('button');
-        button4.textContent = 'Margin';
-        button4.style.backgroundColor = 'green';
-        button4.style.color = '#fff';
-        button4.style.fontWeight = 'bold';
-        button4.style.letterSpacing = "1.2px";
-        button4.style.borderRadius = '15px';
-        button4.style.padding = '5px 10px';
-        button4.style.marginLeft = '10px';
-        button4.addEventListener('click', showCalculatorBox);
-        addTooltip(button4, "Calculate Margins");
+        // Insert button container into DOM
+        searchBox.parentNode.insertBefore(buttonContainer, searchBox.nextSibling);
 
-        // Append buttons in order
-        searchBox.parentNode.insertBefore(button3, searchBox.nextSibling);
-        searchBox.parentNode.insertBefore(button2, button3.nextSibling);
-        searchBox.parentNode.insertBefore(button1, button2.nextSibling);
-        searchBox.parentNode.insertBefore(button4, button1.nextSibling);
-
-        console.log('Buttons created and inserted in order next to #searchBoxLiveRegion.');
+        console.log('Buttons created and inserted next to #searchBoxLiveRegion.');
     } else {
         console.log('Search box not found, retrying...');
     }
 }
-
 
 // Function to add a custom tooltip to the button
 function addTooltip(button, message) {
