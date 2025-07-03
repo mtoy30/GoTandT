@@ -69,7 +69,7 @@
         const intervalId = setInterval(() => {
             row.style.backgroundColor = isHighlighted ? 'white' : color;
             isHighlighted = !isHighlighted;
-        }, 1000);
+        }, 3000);
 
         row.dataset.flashingInterval = intervalId;
     }
@@ -102,23 +102,16 @@
         let shouldCheckTime = false;
         let shouldCheck3Hour = false;
 
-        document.querySelectorAll('span[id*="_text-value"]').forEach(span => {
-            const title = span.textContent?.toLowerCase() || "";
-            if (title.includes("pick up") || title.includes("arrival")) {
-                shouldCheckTime = true;
-            }
-            if (title.includes("3 hour")) {
-                shouldCheck3Hour = true;
-            }
-        });
+        const titleText = document.title.toLowerCase();
 
-        const headerTitle = document.querySelector('[data-lp-id="view-selector-title-text"], h1 span');
-        if (headerTitle) {
-            const headerText = headerTitle.textContent?.toLowerCase() || "";
-            if (headerText.includes("pick up") || headerText.includes("arrival")) {
+        if (titleText.includes("same day confirmations")) {
+            shouldCheckTime = true;
+            shouldCheck3Hour = true;
+        } else {
+            if (titleText.includes("pick up") || titleText.includes("arrival")) {
                 shouldCheckTime = true;
             }
-            if (headerText.includes("3 hour")) {
+            if (titleText.includes("3 hour")) {
                 shouldCheck3Hour = true;
             }
         }
