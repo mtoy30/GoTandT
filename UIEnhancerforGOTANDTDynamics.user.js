@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.1.0
+// @version      1.1.1
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Enhances UI with banner, row highlights, spacing, and styled notifications
@@ -189,7 +189,7 @@
     }
 
     function styleNotificationWrapper() {
-        const notificationElements = document.querySelectorAll('[id*="notification"], [id*="message"]');
+        const notificationElements = document.querySelectorAll('[id*="notificationWrapper"], [id*="message"]');
         notificationElements.forEach(element => {
             element.style.fontWeight = 'bold';
             element.style.fontSize = '18px';
