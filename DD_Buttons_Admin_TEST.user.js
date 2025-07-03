@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      3.9.9
+// @version      4.0.0
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1028,13 +1028,14 @@ foundProducts.forEach(product => {
 
 let activeTransportRate = 0;
 
-// Check for Contract Rates and set activeTransportRate
+// Check transport inputs and set activeTransportRate
 const transportProducts = ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"];
 
 for (let transport of transportProducts) {
     const transportInputValue = (productInputs[transport]?.value || "").toLowerCase();
+
     if (transportInputValue.includes("contract")) {
-        // Find gtt_price value for this transport
+        // Find gtt_price for this transport
         const rows = document.querySelectorAll('div[row-index]');
         for (let row of rows) {
             const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
@@ -1049,12 +1050,17 @@ for (let transport of transportProducts) {
             }
         }
         break; // Stop after first matching contract transport
+    } else if (!isNaN(parseFloat(transportInputValue))) {
+        // Use numeric value from input
+        activeTransportRate = parseFloat(transportInputValue);
+        break;
     }
 }
 
-// If no Contract Rates found, keep activeTransportRate at 0 or some default if needed
+// Default to 0 if no rate found
+if (isNaN(activeTransportRate)) activeTransportRate = 0;
 
-// Continue original logic for each product
+// Process each product
 if ((enteredValueRaw || "").toLowerCase().includes("contract") && contractProducts[product]) {
     const rows = document.querySelectorAll('div[row-index]');
     for (let row of rows) {
