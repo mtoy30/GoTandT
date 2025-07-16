@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.0.1
+// @version      4.0.2
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1165,19 +1165,20 @@ if (headerText.startsWith("212-")) {
 
     document.body.appendChild(box);
 
-    // Make calcBox draggable
+// Make calcBox draggable (but not from inside inputs/buttons)
 let isDragging = false;
 let offsetX, offsetY;
 
 box.addEventListener('mousedown', function (e) {
-    // Allow dragging only from the top 40px (like a title bar)
-    if (e.target === box || box.contains(e.target)) {
-        if (e.offsetY < 40) {
-            isDragging = true;
-            offsetX = e.clientX - box.getBoundingClientRect().left;
-            offsetY = e.clientY - box.getBoundingClientRect().top;
-            box.style.cursor = 'move';
-        }
+    const isInteractive = ['INPUT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName);
+    if (isInteractive) return; // don't drag if inside input/button/textarea
+
+    // Only drag if clicking on top 40px of the box
+    if (e.offsetY < 40) {
+        isDragging = true;
+        offsetX = e.clientX - box.getBoundingClientRect().left;
+        offsetY = e.clientY - box.getBoundingClientRect().top;
+        box.style.cursor = 'move';
     }
 });
 
@@ -1185,7 +1186,7 @@ document.addEventListener('mousemove', function (e) {
     if (isDragging) {
         box.style.left = `${e.clientX - offsetX}px`;
         box.style.top = `${e.clientY - offsetY}px`;
-        box.style.transform = ''; // remove center transform when dragging
+        box.style.transform = ''; // cancel translateX on drag
     }
 });
 
@@ -1193,6 +1194,7 @@ document.addEventListener('mouseup', function () {
     isDragging = false;
     box.style.cursor = 'grab';
 });
+
 
 }
 
