@@ -1191,7 +1191,7 @@ document.addEventListener('mousemove', function (e) {
 
 document.addEventListener('mouseup', function () {
     isDragging = false;
-    box.style.cursor = 'default';
+    box.style.cursor = 'grab';
 });
 
 }
