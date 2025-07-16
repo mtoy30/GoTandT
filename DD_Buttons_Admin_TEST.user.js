@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.0.2
+// @version      4.0.3
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -38,68 +38,93 @@
         }, 3000);
     }
 
-// Function to show calculator UI
-function showCalculatorBox() {
-    // Check if the page title contains 'Referral: Information:'
-    if (!document.title.includes("Referral: Information:")) {
-        showMessage("Must be in a referral", false);
-        return;
+    // Function to show calculator UI
+    function showCalculatorBox() {
+        // Check if the page title contains 'Referral: Information:'
+        if (!document.title.includes("Referral: Information:")) {
+            showMessage("Must be in a referral", false);
+            return;
+        }
+
+        // Look for the tab with title "Billing"
+        const billingTab = document.querySelector('li[role="tab"][title="Billing"]');
+        if (billingTab) {
+            billingTab.click();
+            console.log('Clicked "Billing" tab before showing calculator.');
+            setTimeout(showCalculatorUI, 1000);
+        } else {
+            console.warn('"Billing" tab not found.');
+            showCalculatorUI(); // fallback
+        }
     }
 
-    // Look for the tab with title "Billing"
-    const billingTab = document.querySelector('li[role="tab"][title="Billing"]');
-    if (billingTab) {
-        billingTab.click();
-        console.log('Clicked "Billing" tab before showing calculator.');
-        setTimeout(showCalculatorUI, 1000);
-    } else {
-        console.warn('"Billing" tab not found.');
-        showCalculatorUI(); // fallback
-    }
-}
+    function showCalculatorUI() {
+        const existing = document.getElementById("calcBox");
+        if (existing) existing.remove();
 
-function showCalculatorUI() {
-    const existing = document.getElementById("calcBox");
-    if (existing) existing.remove();
+        const box = document.createElement("div");
+        box.id = "calcBox";
+        box.style.position = "fixed";
+        box.style.top = "5%";
+        box.style.left = "80%";
+        box.style.transform = "translateX(-50%)";
+        box.style.background = "#fff";
+        box.style.padding = "20px";
+        box.style.border = "2px solid #000";
+        box.style.borderRadius = "10px";
+        box.style.zIndex = "10000";
+        box.style.minWidth = "500px";
+        box.style.maxWidth = "500px";
+        box.style.color = "black";
+        box.style.height = "800px"; // fixed height you want
+        box.style.overflowY = "auto"; // vertical scroll if content overflows
 
-    const box = document.createElement("div");
-    box.id = "calcBox";
-    box.style.position = "fixed";
-    box.style.top = "5%";
-    box.style.left = "80%";
-    box.style.transform = "translateX(-50%)";
-    box.style.background = "#fff";
-    box.style.padding = "20px";
-    box.style.border = "2px solid #000";
-    box.style.borderRadius = "10px";
-    box.style.zIndex = "10000";
-    box.style.minWidth = "500px";
-    box.style.maxWidth = "500px";
-    box.style.color = "black";
+        // --- BEGIN: Approval Audit logic ---
+        // List of special referral numbers (as substrings)
+        const auditNumbers = [
+            "202-57263","202-35155","202-36969","202-41729","9616-37377",
+            "202-36354","202-34333","202-59196","202-38733","202-35591",
+            "202-33578","202-39425","202-32948","202-37546","202-38269",
+            "202-37438","202-36229","9616-40860","202-35295"
+        ];
+        const titleStr = document.title;
+        let showAuditMessage = false;
+        for (const auditNum of auditNumbers) {
+            if (titleStr.includes(auditNum)) {
+                showAuditMessage = true;
+                break;
+            }
+        }
+        if (showAuditMessage) {
+            const auditMsg = document.createElement("div");
+            auditMsg.innerText = "Approval Audit see Christina";
+            auditMsg.style.fontWeight = "bold";
+            auditMsg.style.color = "red";
+            auditMsg.style.fontSize = "22px";
+            auditMsg.style.marginBottom = "10px";
+            box.appendChild(auditMsg);
+        }
+        // --- END: Approval Audit logic ---
 
-    // Add fixed height and vertical scrollbar
-    box.style.height = "800px"; // fixed height you want
-    box.style.overflowY = "auto"; // vertical scroll if content overflows
+        const closeButton = document.createElement("button");
+        closeButton.innerText = "X";
+        closeButton.style.position = "absolute";
+        closeButton.style.top = "5px";
+        closeButton.style.right = "10px";
+        closeButton.style.border = "none";
+        closeButton.style.background = "transparent";
+        closeButton.style.color = "#000";
+        closeButton.style.fontSize = "20px";
+        closeButton.style.fontWeight = "bold";
+        closeButton.style.cursor = "pointer";
+        closeButton.onclick = () => box.remove();
 
-    const closeButton = document.createElement("button");
-    closeButton.innerText = "X";
-    closeButton.style.position = "absolute";
-    closeButton.style.top = "5px";
-    closeButton.style.right = "10px";
-    closeButton.style.border = "none";
-    closeButton.style.background = "transparent";
-    closeButton.style.color = "#000";
-    closeButton.style.fontSize = "20px";
-    closeButton.style.fontWeight = "bold";
-    closeButton.style.cursor = "pointer";
-    closeButton.onclick = () => box.remove();
-
-    const modeLabel = document.createElement("div");
-    modeLabel.innerText = "Select Rate Type:";
-    modeLabel.style.marginTop = "5px";
-    modeLabel.style.marginBottom = "5px";
-    modeLabel.style.fontWeight = "bold";
-    modeLabel.style.fontSize = "22px";
+        const modeLabel = document.createElement("div");
+        modeLabel.innerText = "Select Rate Type:";
+        modeLabel.style.marginTop = "5px";
+        modeLabel.style.marginBottom = "5px";
+        modeLabel.style.fontWeight = "bold";
+        modeLabel.style.fontSize = "22px";
 
     const flatRadio = document.createElement("input");
     flatRadio.type = "radio";
