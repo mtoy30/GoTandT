@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.1.1
+// @version      1.1.3
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Enhances UI with banner, row highlights, spacing, and styled notifications
@@ -11,8 +11,6 @@
 // @grant        none
 // ==/UserScript==
 //Moved to GitHub for 1.0.7+
-
-//Testing auto updated
 
 (function () {
     'use strict';
@@ -194,13 +192,36 @@
             element.style.fontWeight = 'bold';
             element.style.fontSize = '18px';
             element.style.backgroundColor = 'lightgreen';
-            console.log('Styles applied to element with ID:', element.id);
         });
     }
 
     function observeNotifications() {
         const observer = new MutationObserver(styleNotificationWrapper);
         observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    function insertJbaBannerIfNeeded() {
+        const titleText = document.title;
+        const providerDiv = Array.from(document.querySelectorAll('div[role="presentation"]'))
+        .find(el => el.textContent.trim() === "Provider Assignment");
+        const header = document.querySelector(headerSelector);
+
+        if (!titleText.includes("7327-") || !providerDiv || document.getElementById("jba-banner")) return;
+
+        const banner = document.createElement("div");
+        banner.id = "jba-banner";
+        banner.textContent = "JBA file please ensure a quote is not needed before staffing";
+        banner.style.backgroundColor = "#f8d7da"; // light red
+        banner.style.color = "#721c24";
+        banner.style.padding = "6px";
+        banner.style.marginTop = "5px";
+        banner.style.fontWeight = "bold";
+        banner.style.textAlign = "center";
+        banner.style.borderRadius = "5px";
+
+        if (header) {
+            header.parentNode.insertBefore(banner, header.nextSibling);
+        }
     }
 
     let timeout;
@@ -213,6 +234,7 @@
             adjustSpacing();
             styleNotificationWrapper();
             observeRateStatusChanges();
+            insertJbaBannerIfNeeded();
         }, 200);
     });
 
@@ -226,6 +248,7 @@
         adjustSpacing();
         styleNotificationWrapper();
         observeRateStatusChanges();
+        insertJbaBannerIfNeeded();
         attempts++;
         if (attempts > 20) clearInterval(tryInit);
     }, 500);
