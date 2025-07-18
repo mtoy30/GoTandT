@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.1.2
+// @version      1.1.3
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics_TEST.user.js
 // @description  Enhances UI with banner, row highlights, spacing, styled notifications, and flashing rows
@@ -62,26 +62,6 @@
         observer.observe(button, { childList: true, subtree: true, characterData: true });
     }
 
-    function startFlashing(row, color) {
-        let isHighlighted = true;
-        if (row.dataset.flashingInterval) return;
-
-        const intervalId = setInterval(() => {
-            row.style.backgroundColor = isHighlighted ? 'white' : color;
-            isHighlighted = !isHighlighted;
-        }, 3000);
-
-        row.dataset.flashingInterval = intervalId;
-    }
-
-    function stopFlashing(row) {
-        if (row.dataset.flashingInterval) {
-            clearInterval(row.dataset.flashingInterval);
-            delete row.dataset.flashingInterval;
-            row.style.backgroundColor = '';
-        }
-    }
-
     function highlightAllRowsGlobal() {
         const vipTerms = [
             "defense medical exam -  always vip !!",
@@ -99,26 +79,8 @@
         const rows = document.querySelectorAll('div[role="row"]');
         const now = new Date();
 
-        let shouldCheckTime = false;
-        let shouldCheck3Hour = false;
-
-        const titleText = document.title.toLowerCase();
-
-        if (titleText.includes("same day confirmations")) {
-            shouldCheckTime = true;
-            shouldCheck3Hour = true;
-        } else {
-            if (titleText.includes("pick up") || titleText.includes("arrival")) {
-                shouldCheckTime = true;
-            }
-            if (titleText.includes("3 hour")) {
-                shouldCheck3Hour = true;
-            }
-        }
-
         rows.forEach(row => {
-            stopFlashing(row);
-            row.dataset.highlightedGlobal = "true";
+            if (row.dataset.highlightedGlobal) return;
 
             const text = row.textContent?.toLowerCase() || '';
 
@@ -134,48 +96,26 @@
                 row.style.backgroundColor = 'lightcoral';
             }
 
-            if (shouldCheckTime && (text.includes("pick up") || text.includes("arrival"))) {
-                const timeCols = ["gtt_localizedpickuptime", "gtt_localizedappttime"];
-                const minutesDelay = 5;
-                const threshold = new Date(now.getTime() - minutesDelay * 60000);
+            const timeCols = ["gtt_localizedpickuptime", "gtt_localizedappttime"];
+            const minutesDelay = 5;
+            const threshold = new Date(now.getTime() - minutesDelay * 60000);
 
-                for (const col of timeCols) {
-                    const timeCell = row.querySelector(`div[col-id="${col}"]`);
-                    if (timeCell) {
-                        const label = timeCell.querySelector('label[aria-label]');
-                        if (label) {
-                            const dateStr = label.getAttribute('aria-label');
-                            const dateVal = new Date(dateStr);
-                            if (!isNaN(dateVal.getTime()) && dateVal < threshold) {
-                                startFlashing(row, '#FFDAB9');
-                                break;
-                            }
+            for (const col of timeCols) {
+                const timeCell = row.querySelector(`div[col-id="${col}"]`);
+                if (timeCell) {
+                    const label = timeCell.querySelector('label[aria-label]');
+                    if (label) {
+                        const dateStr = label.getAttribute('aria-label');
+                        const dateVal = new Date(dateStr);
+                        if (!isNaN(dateVal.getTime()) && dateVal < threshold) {
+                            row.style.backgroundColor = '#FFDAB9';
+                            break;
                         }
                     }
                 }
             }
 
-            if (shouldCheck3Hour) {
-                const timeCols = ["gtt_localizedpickuptime", "gtt_localizedappttime"];
-
-                for (const col of timeCols) {
-                    const timeCell = row.querySelector(`div[col-id="${col}"]`);
-                    if (timeCell) {
-                        const label = timeCell.querySelector('label[aria-label]');
-                        if (label) {
-                            const dateStr = label.getAttribute('aria-label');
-                            const dateVal = new Date(dateStr);
-                            if (!isNaN(dateVal.getTime())) {
-                                const diffMinutes = (dateVal - now) / 60000;
-                                if (diffMinutes > 0 && diffMinutes <= 180) {
-                                    startFlashing(row, '#FFCCCB');
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            row.dataset.highlightedGlobal = "true";
         });
     }
 
@@ -199,10 +139,7 @@
         }
 
         if (type === "-confirm") {
-            html += `
-                <span style="background-color: #FFDAB9; padding: 2px 6px; border-radius: 4px;">Pickup/Appt Time Passed</span>
-                <span style="background-color: #FFCCCB; padding: 2px 6px; border-radius: 4px;">3 Hour Passed</span>
-            `;
+            html += `<span style="background-color: #FFDAB9; padding: 2px 6px; border-radius: 4px;">Pickup/Appt Time Passed</span>`;
         }
 
         legend.innerHTML = html;
@@ -249,18 +186,41 @@
     }
 
     function styleNotificationWrapper() {
-        const notificationElements = document.querySelectorAll('[id*="notification"], [id*="message"]');
+        const notificationElements = document.querySelectorAll('[id*="notificationWrapper"], [id*="message"]');
         notificationElements.forEach(element => {
             element.style.fontWeight = 'bold';
             element.style.fontSize = '18px';
             element.style.backgroundColor = 'lightgreen';
-            console.log('Styles applied to element with ID:', element.id);
         });
     }
 
     function observeNotifications() {
         const observer = new MutationObserver(styleNotificationWrapper);
         observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    function insertJbaBannerIfNeeded() {
+        const titleText = document.title;
+        const providerDiv = Array.from(document.querySelectorAll('div[role="presentation"]'))
+        .find(el => el.textContent.trim() === "Provider Assignment");
+        const header = document.querySelector(headerSelector);
+
+        if (!titleText.includes("7327-") || !providerDiv || document.getElementById("jba-banner")) return;
+
+        const banner = document.createElement("div");
+        banner.id = "jba-banner";
+        banner.textContent = "JBA file please ensure a quote is not needed before staffing";
+        banner.style.backgroundColor = "#f8d7da"; // light red
+        banner.style.color = "#721c24";
+        banner.style.padding = "6px";
+        banner.style.marginTop = "5px";
+        banner.style.fontWeight = "bold";
+        banner.style.textAlign = "center";
+        banner.style.borderRadius = "5px";
+
+        if (header) {
+            header.parentNode.insertBefore(banner, header.nextSibling);
+        }
     }
 
     let timeout;
@@ -273,6 +233,7 @@
             adjustSpacing();
             styleNotificationWrapper();
             observeRateStatusChanges();
+            insertJbaBannerIfNeeded();
         }, 200);
     });
 
@@ -286,6 +247,7 @@
         adjustSpacing();
         styleNotificationWrapper();
         observeRateStatusChanges();
+        insertJbaBannerIfNeeded();
         attempts++;
         if (attempts > 20) clearInterval(tryInit);
     }, 500);
