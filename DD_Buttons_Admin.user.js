@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.0.8
+// @version      4.0.9
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -21,9 +21,9 @@ function createModernButton(text, gradientStart, gradientEnd) {
     const btn = document.createElement("button");
     btn.innerText = text;
     btn.style.cssText = `
-        margin-top: 20px;
+        margin-top: 10px;
         margin-left: 10px;
-        padding: 10px 20px;
+        padding: 10px 10px;
         background: linear-gradient(135deg, ${gradientStart}, ${gradientEnd});
         color: white;
         border: none;
