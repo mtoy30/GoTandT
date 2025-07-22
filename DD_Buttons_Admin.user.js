@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         DD_Buttons_Admin
+// @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.0.7
-// @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
-// @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
+// @version      4.0.8
+// @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
+// @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
 // @match        https://gotandt.crm.dynamics.com/*
 // @match        https://gttqap2.crm.dynamics.com/*
@@ -15,6 +15,35 @@
 
 (function() {
     'use strict';
+
+    // Utility function to create a modern styled button
+function createModernButton(text, gradientStart, gradientEnd) {
+    const btn = document.createElement("button");
+    btn.innerText = text;
+    btn.style.cssText = `
+        margin-top: 20px;
+        margin-left: 10px;
+        padding: 10px 20px;
+        background: linear-gradient(135deg, ${gradientStart}, ${gradientEnd});
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 14px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s ease-in-out;
+    `;
+    btn.addEventListener("mouseenter", () => {
+        btn.style.transform = "scale(1.05)";
+        btn.style.boxShadow = "0 6px 12px rgba(0, 0, 0, 0.15)";
+    });
+    btn.addEventListener("mouseleave", () => {
+        btn.style.transform = "scale(1)";
+        btn.style.boxShadow = "0 4px 6px rgba(0, 0, 0, 0.1)";
+    });
+    return btn;
+}
 
     // Function to show a temporary message
     function showMessage(message, isSuccess = true) {
@@ -231,17 +260,7 @@ twoColumnWrapper.appendChild(waitWrapper);
     "Airport Pickup Fee"
 ];
 
-    const resetButton = document.createElement("button");
-    resetButton.innerText = "Reset";
-    resetButton.style.marginTop = "20px";
-    resetButton.style.marginLeft = "10px";
-    resetButton.style.padding = "8px 16px";
-    resetButton.style.background = "#e74c3c";
-    resetButton.style.color = "#fff";
-    resetButton.style.border = "none";
-    resetButton.style.borderRadius = "5px";
-    resetButton.style.cursor = "pointer";
-    resetButton.style.fontWeight = "bold";
+const resetButton = createModernButton("Reset", "#ef4444", "#f87171");
 
     resetButton.onclick = () => {
         input.value = "";
@@ -257,17 +276,7 @@ twoColumnWrapper.appendChild(waitWrapper);
         });
     };
 
-    const lowMarginButton = document.createElement("button");
-    lowMarginButton.innerText = "Low Margin OK";
-    lowMarginButton.style.marginTop = "20px";
-    lowMarginButton.style.marginLeft = "10px";
-    lowMarginButton.style.padding = "8px 16px";
-    lowMarginButton.style.background = "#3498db";
-    lowMarginButton.style.color = "#fff";
-    lowMarginButton.style.border = "none";
-    lowMarginButton.style.borderRadius = "5px";
-    lowMarginButton.style.cursor = "pointer";
-    lowMarginButton.style.fontWeight = "bold";
+const lowMarginButton = createModernButton("Low Margin OK", "#3b82f6", "#60a5fa");
 
     lowMarginButton.onclick = () => {
     const textToCopy = "Management aware of Transportation low margin. Ok to staff";
@@ -296,17 +305,7 @@ twoColumnWrapper.appendChild(waitWrapper);
     });
 };
 
-    const waittimeButton = document.createElement("button");
-    waittimeButton.innerText = "Wait Time Request";
-    waittimeButton.style.marginTop = "20px";
-    waittimeButton.style.marginLeft = "10px";
-    waittimeButton.style.padding = "8px 16px";
-    waittimeButton.style.background = "#3498db";
-    waittimeButton.style.color = "#fff";
-    waittimeButton.style.border = "none";
-    waittimeButton.style.borderRadius = "5px";
-    waittimeButton.style.cursor = "pointer";
-    waittimeButton.style.fontWeight = "bold";
+const waittimeButton = createModernButton("Wait Time Request", "#3b82f6", "#60a5fa");
 
     waittimeButton.onclick = () => {
     const textToCopy = "Ok to request wait time";
@@ -335,17 +334,7 @@ twoColumnWrapper.appendChild(waitWrapper);
     });
 };
 
-const WaitStaffButton = document.createElement("button");
-    WaitStaffButton.innerText = "Wait Time Staff";
-    WaitStaffButton.style.marginTop = "20px";
-    WaitStaffButton.style.marginLeft = "10px";
-    WaitStaffButton.style.padding = "8px 16px";
-    WaitStaffButton.style.background = "#3498db";
-    WaitStaffButton.style.color = "#fff";
-    WaitStaffButton.style.border = "none";
-    WaitStaffButton.style.borderRadius = "5px";
-    WaitStaffButton.style.cursor = "pointer";
-    WaitStaffButton.style.fontWeight = "bold";
+const WaitStaffButton = createModernButton("Wait Time Staff", "#3b82f6", "#60a5fa");
 
     WaitStaffButton.onclick = () => {
     const textToCopy = "Ok to apply wait time and include in staffing email due to mileage.";
@@ -453,20 +442,7 @@ function extractWaitAndNoShow(productInputs) {
 }
 
 // Create the "Request Rates" button
-const requestRatesButton = document.createElement("button");
-requestRatesButton.innerText = "Request Rates";
-requestRatesButton.style.marginTop = "20px";
-requestRatesButton.style.marginLeft = "10px";
-requestRatesButton.style.padding = "8px 16px";
-requestRatesButton.style.background = "#2ecc71";
-requestRatesButton.style.color = "#fff";
-requestRatesButton.style.border = "none";
-requestRatesButton.style.borderRadius = "5px";
-requestRatesButton.style.cursor = "pointer";
-requestRatesButton.style.fontWeight = "bold";
-
-// Add the button to the page
-document.body.appendChild(requestRatesButton);
+const requestRatesButton = createModernButton("Request Rates", "#22c55e", "#4ade80");
 
 // Button click behavior
 requestRatesButton.onclick = () => {
@@ -523,20 +499,7 @@ requestRatesButton.onclick = () => {
 };
 
 // Create the "Apply Rates" button
-const applyRatesButton = document.createElement("button");
-applyRatesButton.innerText = "Apply & Staff";
-applyRatesButton.style.marginTop = "20px";
-applyRatesButton.style.marginLeft = "10px";
-applyRatesButton.style.padding = "8px 16px";
-applyRatesButton.style.background = "#9b59b6";
-applyRatesButton.style.color = "#fff";
-applyRatesButton.style.border = "none";
-applyRatesButton.style.borderRadius = "5px";
-applyRatesButton.style.cursor = "pointer";
-applyRatesButton.style.fontWeight = "bold";
-
-// Add the button to the page
-document.body.appendChild(applyRatesButton);
+const applyRatesButton = createModernButton("Apply & Staff", "#a855f7", "#c084fc");
 
 // Button click behavior
 applyRatesButton.onclick = () => {
@@ -593,18 +556,7 @@ applyRatesButton.onclick = () => {
 };
 
 //Homelink Button
-const homelinkButton = document.createElement("button");
-homelinkButton.innerText = "Request Homelink Rates";
-homelinkButton.style.marginTop = "20px";
-homelinkButton.style.marginLeft = "10px";
-homelinkButton.style.padding = "8px 16px";
-homelinkButton.style.background = "#9b59b6";
-homelinkButton.style.color = "#fff";
-homelinkButton.style.border = "none";
-homelinkButton.style.borderRadius = "5px";
-homelinkButton.style.cursor = "pointer";
-homelinkButton.style.fontWeight = "bold";
-document.body.appendChild(homelinkButton);
+const homelinkButton = createModernButton("Request Homelink Rates", "#a855f7", "#c084fc");
 
 homelinkButton.onclick = () => {
   let higherTotal = 0;
@@ -721,20 +673,7 @@ const homelinkText = `Request Flat Rate of $${higherTotal.toFixed(2)}${extrasTex
 
 
 // Create the "Boomerang" button
-const boomerangButton = document.createElement("button");
-boomerangButton.innerText = "Boomerang Request & Staff";
-boomerangButton.style.marginTop = "20px";
-boomerangButton.style.marginLeft = "10px";
-boomerangButton.style.padding = "8px 16px";
-boomerangButton.style.background = "#e67e22";
-boomerangButton.style.color = "#fff";
-boomerangButton.style.border = "none";
-boomerangButton.style.borderRadius = "5px";
-boomerangButton.style.cursor = "pointer";
-boomerangButton.style.fontWeight = "bold";
-
-// Add the button to the page
-document.body.appendChild(boomerangButton);
+const boomerangButton = createModernButton("Boomerang Request & Staff", "#f97316", "#fb923c");
 
 // Button click behavior
 boomerangButton.onclick = () => {
