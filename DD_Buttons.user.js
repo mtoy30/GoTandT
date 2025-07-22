@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.0.9
+// @version      4.1.1
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -15,12 +15,12 @@
 (function() {
     'use strict';
 
-    // Utility function
-function createModernButton(text, gradientStart, gradientEnd) {
+    // Utility function to create a modern styled button
+function createModernButton(text, gradientStart, gradientEnd, onClick) {
     const btn = document.createElement("button");
     btn.innerText = text;
     btn.style.cssText = `
-        margin-top: 10px;
+        margin-top: 5px;
         margin-left: 10px;
         padding: 10px 10px;
         background: linear-gradient(135deg, ${gradientStart}, ${gradientEnd});
@@ -41,6 +41,11 @@ function createModernButton(text, gradientStart, gradientEnd) {
         btn.style.transform = "scale(1)";
         btn.style.boxShadow = "0 4px 6px rgba(0, 0, 0, 0.1)";
     });
+
+    if (typeof onClick === "function") {
+        btn.addEventListener("click", onClick);
+    }
+
     return btn;
 }
 
@@ -1319,10 +1324,10 @@ function createButtons() {
             return button;
         };
 
-        const button1 = createStyledButton('Payer Emails', '#007BFF', copyBoth, 'Clicking Payer emails then cancel on date input will still copy name and claim');
-        const button2 = createStyledButton('Copy Name/SP Tab', '#007BFF', copyClaimantName, 'This will copy name and take you to Service Provider Tab');
-        const button3 = createStyledButton('ClaimantID', '#007BFF', extractAndCopyTitle, 'This will copy the claimant ID used for prev vendor search');
-        const button4 = createStyledButton('Margin', 'green', showCalculatorBox, 'Calculate Margins');
+        const button1 = createModernButton('Payer Emails', '#3b82f6', '#60a5fa', copyBoth);
+        const button2 = createModernButton('Copy Name/SP Tab', '#3b82f6', '#60a5fa', copyClaimantName);
+        const button3 = createModernButton('ClaimantID', '#3b82f6', '#60a5fa', extractAndCopyTitle);
+        const button4 = createModernButton('Margin', '#166534', '#86efac', showCalculatorBox);
 
         // Append buttons to container
         buttonContainer.appendChild(button3);
