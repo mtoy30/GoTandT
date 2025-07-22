@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.0.2
+// @version      4.0.8
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -14,6 +14,35 @@
 
 (function() {
     'use strict';
+
+    // Utility function
+function createModernButton(text, gradientStart, gradientEnd) {
+    const btn = document.createElement("button");
+    btn.innerText = text;
+    btn.style.cssText = `
+        margin-top: 20px;
+        margin-left: 10px;
+        padding: 10px 20px;
+        background: linear-gradient(135deg, ${gradientStart}, ${gradientEnd});
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 14px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s ease-in-out;
+    `;
+    btn.addEventListener("mouseenter", () => {
+        btn.style.transform = "scale(1.05)";
+        btn.style.boxShadow = "0 6px 12px rgba(0, 0, 0, 0.15)";
+    });
+    btn.addEventListener("mouseleave", () => {
+        btn.style.transform = "scale(1)";
+        btn.style.boxShadow = "0 4px 6px rgba(0, 0, 0, 0.1)";
+    });
+    return btn;
+}
 
     // Function to show a temporary message
     function showMessage(message, isSuccess = true) {
@@ -204,16 +233,7 @@ twoColumnWrapper.appendChild(waitWrapper);
     "Airport Pickup Fee"
 ];
 
-    const resetButton = document.createElement("button");
-    resetButton.innerText = "Reset";
-    resetButton.style.marginTop = "20px";
-    resetButton.style.padding = "8px 16px";
-    resetButton.style.background = "#e74c3c";
-    resetButton.style.color = "#fff";
-    resetButton.style.border = "none";
-    resetButton.style.borderRadius = "5px";
-    resetButton.style.cursor = "pointer";
-    resetButton.style.fontWeight = "bold";
+const resetButton = createModernButton("Reset", "#ef4444", "#f87171");
 
     resetButton.onclick = () => {
         input.value = "";
@@ -230,17 +250,7 @@ twoColumnWrapper.appendChild(waitWrapper);
     };
 
     // Create the "Request Rates" button
-const requestRatesButton = document.createElement("button");
-requestRatesButton.innerText = "Approvals Comments";
-requestRatesButton.style.marginTop = "20px";
-requestRatesButton.style.marginLeft = "10px";
-requestRatesButton.style.padding = "8px 16px";
-requestRatesButton.style.background = "#2ecc71";
-requestRatesButton.style.color = "#fff";
-requestRatesButton.style.border = "none";
-requestRatesButton.style.borderRadius = "5px";
-requestRatesButton.style.cursor = "pointer";
-requestRatesButton.style.fontWeight = "bold";
+const requestRatesButton = createModernButton("Request Rates", "#22c55e", "#4ade80");
 
 // Button click behavior
 requestRatesButton.onclick = () => {
