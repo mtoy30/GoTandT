@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.0.5
+// @version      4.0.6
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -565,7 +565,7 @@ applyRatesButton.onclick = () => {
 
   const finalParts = buildPartsString(productInputs, {}, miles, loadFeeQuantity);
 
-  const finalText = "Apply rates " + finalParts + " // Advice in Staffing email";
+  const finalText = "Apply rates " + finalParts + " // Advise in Staffing email";
 
   navigator.clipboard.writeText(finalText).then(() => {
     const copiedMsg = document.createElement("div");
