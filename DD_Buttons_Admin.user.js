@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.1
+// @version      4.1.2
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -25,7 +25,7 @@ function createModernButton(text, gradientStart, gradientEnd, onClick) {
         margin-left: 10px;
         padding: 10px 10px;
         background: linear-gradient(135deg, ${gradientStart}, ${gradientEnd});
-        color: white;
+        color: black;
         border: none;
         border-radius: 8px;
         cursor: pointer;
@@ -1844,7 +1844,7 @@ function createButtons() {
         const button1 = createModernButton('Payer Emails', '#3b82f6', '#60a5fa', copyBoth);
         const button2 = createModernButton('Copy Name/SP Tab', '#3b82f6', '#60a5fa', copyClaimantName);
         const button3 = createModernButton('ClaimantID', '#3b82f6', '#60a5fa', extractAndCopyTitle);
-        const button4 = createModernButton('Margin', '#166534', '#86efac', showCalculatorBox);
+        const button4 = createModernButton('Margin', '#22c55e', '#4ade80', showCalculatorBox);
 
         // Append buttons to container
         buttonContainer.appendChild(button3);
