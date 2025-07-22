@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.0.4
+// @version      4.0.5
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -496,6 +496,76 @@ requestRatesButton.onclick = () => {
   const finalParts = buildPartsString(productInputs, {}, miles, loadFeeQuantity);
 
   const finalText = "Request rates " + finalParts;
+
+  navigator.clipboard.writeText(finalText).then(() => {
+    const copiedMsg = document.createElement("div");
+    copiedMsg.innerText = `"${finalText}" copied!`;
+    copiedMsg.style.position = "fixed";
+    copiedMsg.style.top = "50%";
+    copiedMsg.style.left = "50%";
+    copiedMsg.style.transform = "translate(-50%, -50%)";
+    copiedMsg.style.background = "rgba(0,0,0,0.8)";
+    copiedMsg.style.color = "#fff";
+    copiedMsg.style.padding = "15px 25px";
+    copiedMsg.style.borderRadius = "8px";
+    copiedMsg.style.zIndex = "10001";
+    copiedMsg.style.fontSize = "18px";
+    copiedMsg.style.fontWeight = "bold";
+    copiedMsg.style.textAlign = "center";
+    copiedMsg.style.maxWidth = "80%";
+    copiedMsg.style.wordWrap = "break-word";
+    document.body.appendChild(copiedMsg);
+
+    setTimeout(() => {
+      copiedMsg.remove();
+    }, 1500);
+  });
+};
+
+// Create the "Apply Rates" button
+const applyRatesButton = document.createElement("button");
+applyRatesButton.innerText = "Apply & Staff";
+applyRatesButton.style.marginTop = "20px";
+applyRatesButton.style.marginLeft = "10px";
+applyRatesButton.style.padding = "8px 16px";
+applyRatesButton.style.background = "#9b59b6";
+applyRatesButton.style.color = "#fff";
+applyRatesButton.style.border = "none";
+applyRatesButton.style.borderRadius = "5px";
+applyRatesButton.style.cursor = "pointer";
+applyRatesButton.style.fontWeight = "bold";
+
+// Add the button to the page
+document.body.appendChild(applyRatesButton);
+
+// Button click behavior
+applyRatesButton.onclick = () => {
+  let miles = 0;
+  let loadFeeQuantity = 0;
+
+  const rows = document.querySelectorAll('[role="row"]');
+  rows.forEach(row => {
+    const accountProductCell = row.querySelector('[col-id="gtt_accountproduct"]');
+    const quantityCell = row.querySelector('[col-id="gtt_quantity"]');
+
+    if (accountProductCell && quantityCell) {
+      const accountProductText = accountProductCell.innerText.trim();
+      const quantityText = quantityCell.innerText.trim();
+      const quantity = parseFloat(quantityText);
+
+      if (accountProductText.includes("Transport") && !isNaN(quantity)) {
+        miles = quantity;
+      }
+
+      if (accountProductText.includes("Load Fee") && !isNaN(quantity)) {
+        loadFeeQuantity = quantity;
+      }
+    }
+  });
+
+  const finalParts = buildPartsString(productInputs, {}, miles, loadFeeQuantity);
+
+  const finalText = "Apply rates " + finalParts + " // Advice in Staffing email";
 
   navigator.clipboard.writeText(finalText).then(() => {
     const copiedMsg = document.createElement("div");
@@ -1180,6 +1250,7 @@ const headerText = headerElement?.textContent?.trim() || "";
     box.appendChild(waittimeButton);
     box.appendChild(WaitStaffButton);
     box.appendChild(boomerangButton);
+    box.appendChild(applyRatesButton);
 // Conditionally append one of the two buttons
 if (headerText.startsWith("212-")) {
     // Don't show requestRatesButton
