@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.0.6
+// @version      4.0.7
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1250,7 +1250,6 @@ const headerText = headerElement?.textContent?.trim() || "";
     box.appendChild(waittimeButton);
     box.appendChild(WaitStaffButton);
     box.appendChild(boomerangButton);
-    box.appendChild(applyRatesButton);
 // Conditionally append one of the two buttons
 if (headerText.startsWith("212-")) {
     // Don't show requestRatesButton
@@ -1258,6 +1257,7 @@ if (headerText.startsWith("212-")) {
 } else {
     // Don't show homelinkButton
     box.appendChild(requestRatesButton);
+    box.appendChild(applyRatesButton);
 }
     box.appendChild(resetButton);
 
