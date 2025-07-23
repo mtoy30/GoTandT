@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.3
+// @version      4.1.4
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1360,11 +1360,14 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
     dropdownContainer.style.left = "50%";
     dropdownContainer.style.transform = "translate(-50%, -50%)";
     dropdownContainer.style.background = "#FFF";
-    dropdownContainer.style.padding = "15px";
+    dropdownContainer.style.padding = "15px 15px";
     dropdownContainer.style.border = "1px solid #ccc";
     dropdownContainer.style.borderRadius = "8px";
     dropdownContainer.style.boxShadow = "0px 4px 6px rgba(0, 0, 0, 0.1)";
     dropdownContainer.style.zIndex = "10000";
+    dropdownContainer.style.display = "flex";
+    dropdownContainer.style.flexDirection = "column";
+    dropdownContainer.style.alignItems = "stretch";
 
     var label = document.createElement("label");
     label.innerText = "Select which template you would like to apply:";
@@ -1375,16 +1378,16 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
     label.style.fontWeight = "bold";
     dropdownContainer.appendChild(label);
 
-    var fullOptions = [
-        { text: "Staffed Email", color: "black" },
-        { text: "Standard Rate Request", color: "#FFFF99" },
-        { text: "CareIQ Rate Request", color: "white" },
-        { text: "Homelink Rate Request", color: "white" },
-        { text: "CareWorks Rate Request", color: "white" },
-        { text: "JBS Staffed at Rates", color: "white" },
-        { text: "Wait time request", color: "white" },
-        { text: "Request Demographics", color: "white" },
-        { text: "Other", color: "black" }
+    const fullOptions = [
+        "Staffed Email",
+        "Standard Rate Request",
+        "CareIQ Rate Request",
+        "Homelink Rate Request",
+        "CareWorks Rate Request",
+        "JBS Staffed at Rates",
+        "Wait time request",
+        "Request Demographics",
+        "Other"
     ];
 
     // Filter exclusions based on headerTitle
@@ -1426,6 +1429,7 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
 
     document.body.appendChild(dropdownContainer);
 }
+
 
 // Function to finalize the copy action
 function finalizeCopy(claimant, claim, referralDate, selectedOption) {
