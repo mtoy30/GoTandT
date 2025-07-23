@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.2
+// @version      4.1.3
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -22,7 +22,8 @@ function createModernButton(text, gradientStart, gradientEnd, onClick) {
     btn.innerText = text;
     btn.style.cssText = `
         margin-top: 5px;
-        margin-left: 10px;
+        //margin-left: 10px;
+        margin-right: 10px;
         padding: 10px 10px;
         background: linear-gradient(135deg, ${gradientStart}, ${gradientEnd});
         color: black;
@@ -1398,50 +1399,29 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
         exclusions = ["CareIQ Rate Request", "JBS Staffed at Rates", "CareWorks Rate Request", "Homelink Rate Request"];
     }
 
-    const filteredOptions = fullOptions.filter(opt => !exclusions.includes(opt.text));
+    const filteredOptions = fullOptions.filter(opt => !exclusions.includes(opt));
 
-    filteredOptions.forEach(option => {
-        var button = document.createElement("button");
-        button.innerText = option.text;
-        button.style.display = "block";
-        button.style.width = "100%";
-        button.style.fontWeight = "bold";
-        button.style.padding = "8px";
-        button.style.marginBottom = "15px";
-        button.style.background = "#007bff";
-        button.style.color = option.color;
-        button.style.letterSpacing = "1.5px";
-        button.style.border = "none";
-        button.style.borderRadius = "15px";
-        button.style.cursor = "pointer";
-
-        button.onclick = function () {
-            finalizeCopy(claimant, claim, referralDate, option.text);
-            dropdownContainer.remove();
-        };
-
+    filteredOptions.forEach(optionText => {
+        const button = createModernButton(
+            optionText,
+            "#3b82f6", "#60a5fa",
+            () => {
+                finalizeCopy(claimant, claim, referralDate, optionText);
+                dropdownContainer.remove();
+            }
+        );
+        button.style.width = "100%"; // Ensure full width
         dropdownContainer.appendChild(button);
     });
 
-    // Add a Close button
-    var closeButton = document.createElement("button");
-    closeButton.innerText = "Close";
-    closeButton.style.display = "block";
+    // Close button
+    const closeButton = createModernButton(
+        "Close",
+        "#7f1d1d", "#f87171",
+        () => dropdownContainer.remove()
+    );
     closeButton.style.width = "100%";
-    closeButton.style.fontWeight = "bold";
-    closeButton.style.padding = "8px";
-    closeButton.style.marginTop = "5px";
-    closeButton.style.background = "#dc3545"; // Bootstrap red
-    closeButton.style.color = "white";
-    closeButton.style.letterSpacing = "1.5px";
-    closeButton.style.border = "none";
-    closeButton.style.borderRadius = "15px";
-    closeButton.style.cursor = "pointer";
-
-    closeButton.onclick = function () {
-        dropdownContainer.remove();
-    };
-
+    closeButton.style.marginTop = "10px";
     dropdownContainer.appendChild(closeButton);
 
     document.body.appendChild(dropdownContainer);
