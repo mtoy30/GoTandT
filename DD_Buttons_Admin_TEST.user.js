@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.4
+// @version      4.1.5
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1318,10 +1318,14 @@ function copyBoth() {
     if (element1 && element2) {
         var text1 = element1.textContent.trim(); // Claimant
         var text2 = element2.textContent.trim(); // Claim #
-        var headerTitle = titleElement ? titleElement.textContent : "";
+        var headerTitle = titleElement ? titleElement.textContent.trim() : "";
 
         if (headerTitle.startsWith("4474-")) {
             alert("Rate increase needs to go to the adjuster and authorized by as well as AboveContractedRateRequest@sedgwick.com");
+        }
+
+        if (headerTitle.startsWith("4403-54316")) {
+            alert("Please combine staffing and/or auth requests into one email (include multiple dates into one email).");
         }
 
         if (/^H\d+$/.test(text2)) {
