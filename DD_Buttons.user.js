@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.7
+// @version      4.1.9
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -884,7 +884,7 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
         "CareIQ Rate Request",
         "Homelink Rate Request",
         "CareWorks Rate Request",
-        "JBS Staffed at Rates",
+        "JBS Request for Higher Rates",
         "Wait time request",
         "Request Demographics",
         "Other"
@@ -893,13 +893,13 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
     // Filter exclusions based on headerTitle
     let exclusions = [];
     if (headerTitle.startsWith("212-")) {
-        exclusions = ["Standard Rate Request", "CareIQ Rate Request", "JBS Staffed at Rates", "CareWorks Rate Request"];
+        exclusions = ["Standard Rate Request", "CareIQ Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request"];
     } else if (headerTitle.startsWith("4474-")) {
         exclusions = ["Standard Rate Request", "CareIQ Rate Request", "Homelink Rate Request"];
     } else if (headerTitle.startsWith("133-")) {
-        exclusions = ["Standard Rate Request", "Homelink Rate Request", "JBS Staffed at Rates", "CareWorks Rate Request"];
+        exclusions = ["Standard Rate Request", "Homelink Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request"];
     } else {
-        exclusions = ["CareIQ Rate Request", "JBS Staffed at Rates", "CareWorks Rate Request", "Homelink Rate Request"];
+        exclusions = ["CareIQ Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Homelink Rate Request"];
     }
 
     const filteredOptions = fullOptions.filter(opt => !exclusions.includes(opt));
@@ -1145,8 +1145,8 @@ function selectCorrectRadioButton(selectedOption) {
         labelToFind = "CIQ Higher Rate Request";
     } else if (selectedOption === "Homelink Rate Request") {
         labelToFind = "Homelink – Request for Higher Rates";
-    } else if (selectedOption === "JBS Staffed at Rates") {
-        labelToFind = "JBS Staffed at Higher Rates (Default Rates)";
+    } else if (selectedOption === "JBS Request for Higher Rates") {
+        labelToFind = "JBS Request for Higher Rates (Default Rates)";
     } else if (selectedOption === "Wait time request") {
         labelToFind = "Wait Time Request";
     } else if (selectedOption === "CareWorks Rate Request") {
