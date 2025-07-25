@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.1.3
+// @version      1.1.4
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics_TEST.user.js
 // @description  Enhances UI with banner, row highlights, spacing, styled notifications, and flashing rows
@@ -253,5 +253,47 @@
     }, 500);
 
     observeNotifications();
+    // ✅ Monitor <title> and apply Monique message if triggered
+function waitForMoniqueInIframe(retries = 20, delay = 1000) {
+    const iframe = document.querySelector('#WebResource_RecipientSelector');
+    if (!iframe) {
+        if (retries > 0) setTimeout(() => waitForMoniqueInIframe(retries - 1, delay), delay);
+        return;
+    }
 
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    if (!doc || !doc.body) {
+        if (retries > 0) setTimeout(() => waitForMoniqueInIframe(retries - 1, delay), delay);
+        return;
+    }
+
+    const td = [...doc.querySelectorAll("td")].find(td =>
+        td.textContent.trim().includes("Monique Jones")
+    );
+
+    if (td && !td.querySelector(".monique-message")) {
+        td.style.fontSize = "14px";
+        td.style.fontWeight = "bold";
+
+        const note = document.createElement("div");
+        note.className = "monique-message";
+        note.textContent = "Please combine staffing and/or auth requests into one email (include multiple dates into one email).";
+        note.style.marginTop = "5px";
+        note.style.color = "darkred";
+        note.style.fontWeight = "bold";
+        td.appendChild(note);
+    } else if (retries > 0) {
+        // Retry in case content hasn't rendered yet
+        setTimeout(() => waitForMoniqueInIframe(retries - 3, delay), delay);
+    }
+}
+
+// Trigger only if title indicates we're in the email screen
+const titleObserver = new MutationObserver(() => {
+    if (document.title.includes("Email:")) {
+        waitForMoniqueInIframe(); // start monitoring iframe content
+    }
+});
+
+titleObserver.observe(document.querySelector("title"), { childList: true });
 })();
