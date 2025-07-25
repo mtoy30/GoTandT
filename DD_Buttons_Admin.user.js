@@ -1651,7 +1651,7 @@ function selectCorrectRadioButton(selectedOption) {
     } else if (selectedOption === "Homelink Rate Request") {
         labelToFind = "Homelink – Request for Higher Rates";
     } else if (selectedOption === "JBS Request for Higher Rates") {
-        labelToFind = "JBS Staffed at Higher Rates (Default Rates)";
+        labelToFind = "JBS Request for Higher Rates (Default Rates)";
     } else if (selectedOption === "Wait time request") {
         labelToFind = "Wait Time Request";
     } else if (selectedOption === "CareWorks Rate Request") {
