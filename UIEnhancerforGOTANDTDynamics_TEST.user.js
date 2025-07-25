@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.1.4
-// @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics_TEST.user.js
-// @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics_TEST.user.js
-// @description  Enhances UI with banner, row highlights, spacing, styled notifications, and flashing rows
+// @version      1.1.5
+// @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics_TEST.user.js
+// @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics_TEST.user.js
+// @description  Enhances UI with banner, row highlights, spacing, and styled notifications
 // @author       Michael Toy
 // @match        https://gotandt.crm.dynamics.com/*
 // @match        https://gttqap2.crm.dynamics.com/*
@@ -202,7 +202,7 @@
     function insertJbaBannerIfNeeded() {
         const titleText = document.title;
         const providerDiv = Array.from(document.querySelectorAll('div[role="presentation"]'))
-        .find(el => el.textContent.trim() === "Provider Assignment");
+            .find(el => el.textContent.trim() === "Provider Assignment");
         const header = document.querySelector(headerSelector);
 
         if (!titleText.includes("7327-") || !providerDiv || document.getElementById("jba-banner")) return;
@@ -210,7 +210,7 @@
         const banner = document.createElement("div");
         banner.id = "jba-banner";
         banner.textContent = "JBA file please ensure a quote is not needed before staffing";
-        banner.style.backgroundColor = "#f8d7da"; // light red
+        banner.style.backgroundColor = "#f8d7da";
         banner.style.color = "#721c24";
         banner.style.padding = "6px";
         banner.style.marginTop = "5px";
@@ -223,6 +223,37 @@
         }
     }
 
+function insertVipBannerIfNeeded() {
+    const titleText = document.title;
+    const header = document.querySelector(headerSelector);
+
+    const vipIds = [
+        "4474-65549",
+        "4474-48338",
+        "4474-48380",
+        "202-46904",
+        "202-50715"
+    ];
+
+    if (!vipIds.some(id => titleText.includes(id)) || document.getElementById("vip-banner")) return;
+
+    const banner = document.createElement("div");
+    banner.id = "vip-banner";
+    banner.textContent = "VIP file please read all Alerts and staff as early as possible";
+    banner.style.backgroundColor = "#f8d7da";
+    banner.style.color = "#721c24";
+    banner.style.padding = "6px";
+    banner.style.marginTop = "5px";
+    banner.style.fontWeight = "bold";
+    banner.style.textAlign = "center";
+    banner.style.borderRadius = "5px";
+
+    if (header) {
+        header.parentNode.insertBefore(banner, header.nextSibling);
+    }
+}
+
+
     let timeout;
     const globalObserver = new MutationObserver(() => {
         clearTimeout(timeout);
@@ -234,6 +265,7 @@
             styleNotificationWrapper();
             observeRateStatusChanges();
             insertJbaBannerIfNeeded();
+            insertVipBannerIfNeeded();
         }, 200);
     });
 
@@ -248,52 +280,51 @@
         styleNotificationWrapper();
         observeRateStatusChanges();
         insertJbaBannerIfNeeded();
+        insertVipBannerIfNeeded();
         attempts++;
         if (attempts > 20) clearInterval(tryInit);
     }, 500);
 
     observeNotifications();
-    // ✅ Monitor <title> and apply Monique message if triggered
-function waitForMoniqueInIframe(retries = 20, delay = 1000) {
-    const iframe = document.querySelector('#WebResource_RecipientSelector');
-    if (!iframe) {
-        if (retries > 0) setTimeout(() => waitForMoniqueInIframe(retries - 1, delay), delay);
-        return;
+
+    function waitForMoniqueInIframe(retries = 20, delay = 1000) {
+        const iframe = document.querySelector('#WebResource_RecipientSelector');
+        if (!iframe) {
+            if (retries > 0) setTimeout(() => waitForMoniqueInIframe(retries - 1, delay), delay);
+            return;
+        }
+
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        if (!doc || !doc.body) {
+            if (retries > 0) setTimeout(() => waitForMoniqueInIframe(retries - 1, delay), delay);
+            return;
+        }
+
+        const td = [...doc.querySelectorAll("td")].find(td =>
+            td.textContent.trim().includes("Monique Jones")
+        );
+
+        if (td && !td.querySelector(".monique-message")) {
+            td.style.fontSize = "14px";
+            td.style.fontWeight = "bold";
+
+            const note = document.createElement("div");
+            note.className = "monique-message";
+            note.textContent = "Please combine staffing and/or auth requests into one email (include multiple dates into one email).";
+            note.style.marginTop = "5px";
+            note.style.color = "darkred";
+            note.style.fontWeight = "bold";
+            td.appendChild(note);
+        } else if (retries > 0) {
+            setTimeout(() => waitForMoniqueInIframe(retries - 3, delay), delay);
+        }
     }
 
-    const doc = iframe.contentDocument || iframe.contentWindow.document;
-    if (!doc || !doc.body) {
-        if (retries > 0) setTimeout(() => waitForMoniqueInIframe(retries - 1, delay), delay);
-        return;
-    }
+    const titleObserver = new MutationObserver(() => {
+        if (document.title.includes("Email:")) {
+            waitForMoniqueInIframe();
+        }
+    });
 
-    const td = [...doc.querySelectorAll("td")].find(td =>
-        td.textContent.trim().includes("Monique Jones")
-    );
-
-    if (td && !td.querySelector(".monique-message")) {
-        td.style.fontSize = "14px";
-        td.style.fontWeight = "bold";
-
-        const note = document.createElement("div");
-        note.className = "monique-message";
-        note.textContent = "Please combine staffing and/or auth requests into one email (include multiple dates into one email).";
-        note.style.marginTop = "5px";
-        note.style.color = "darkred";
-        note.style.fontWeight = "bold";
-        td.appendChild(note);
-    } else if (retries > 0) {
-        // Retry in case content hasn't rendered yet
-        setTimeout(() => waitForMoniqueInIframe(retries - 3, delay), delay);
-    }
-}
-
-// Trigger only if title indicates we're in the email screen
-const titleObserver = new MutationObserver(() => {
-    if (document.title.includes("Email:")) {
-        waitForMoniqueInIframe(); // start monitoring iframe content
-    }
-});
-
-titleObserver.observe(document.querySelector("title"), { childList: true });
+    titleObserver.observe(document.querySelector("title"), { childList: true });
 })();
