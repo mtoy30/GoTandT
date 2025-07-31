@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.1.6
+// @version      1.1.7
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Enhances UI with banner, row highlights, spacing, and styled notifications
@@ -146,35 +146,51 @@
         return legend;
     }
 
-    function addLegend() {
-        document.querySelectorAll('[data-legend="true"]').forEach(el => el.remove());
+function addLegend() {
+    document.querySelectorAll('[data-legend="true"]').forEach(el => el.remove());
 
-        const targetSpans = document.querySelectorAll('span[id*="_text-value"]');
-        targetSpans.forEach(span => {
-            const label = span.textContent.toLowerCase();
-            if ((label.includes("unassigned transportation") || label.includes("same day confirmations")) && !label.includes("delete")) {
-                const type = (label.includes("-confirm") || label.includes("same day confirmations")) ? "-confirm" : "default";
-                const legend = createLegendElement(type);
-                span.parentElement?.appendChild(legend);
-            }
-        });
+    const targetSpans = document.querySelectorAll('span[id*="_text-value"]');
+    targetSpans.forEach(span => {
+        const label = span.textContent.toLowerCase();
+        if (
+            (label.includes("unassigned transportation") ||
+             label.includes("same day confirmations") ||
+             label.includes("same day (oncall)")) &&
+            !label.includes("delete")
+        ) {
+            const type = (label.includes("-confirm") || label.includes("same day confirmations") || label.includes("same day (oncall)"))
+                ? "-confirm"
+                : "default";
+            const legend = createLegendElement(type);
+            span.parentElement?.appendChild(legend);
+        }
+    });
 
-        const buttons = document.querySelectorAll('button[aria-label*="~Transport"], button[aria-label*="UBER"], button[aria-label*="Prev Vendor Search"], button[aria-label]');
-        buttons.forEach(button => {
-            const ariaLabel = button.getAttribute('aria-label')?.toLowerCase() || "";
-            const labelText = button.querySelector('.ms-Button-label')?.textContent.toLowerCase() || "";
+    const buttons = document.querySelectorAll('button[aria-label*="~Transport"], button[aria-label*="UBER"], button[aria-label*="Prev Vendor Search"], button[aria-label]');
+    buttons.forEach(button => {
+        const ariaLabel = button.getAttribute('aria-label')?.toLowerCase() || "";
+        const labelText = button.querySelector('.ms-Button-label')?.textContent.toLowerCase() || "";
 
-            if (ariaLabel.includes("delete") || labelText.includes("delete")) return;
+        if (ariaLabel.includes("delete") || labelText.includes("delete")) return;
 
-            const isConfirm = labelText.includes("-confirm") || labelText.includes("same day confirmations");
+        const isConfirm = labelText.includes("-confirm") ||
+                          labelText.includes("same day confirmations") ||
+                          labelText.includes("same day (oncall)");
 
-            if (ariaLabel.includes("unassigned transport") || ariaLabel.includes("~transport") || ariaLabel.includes("uber") || ariaLabel.includes("prev vendor search") || isConfirm) {
-                const type = isConfirm ? "-confirm" : "default";
-                const legend = createLegendElement(type);
-                button.parentElement?.insertBefore(legend, button.nextSibling);
-            }
-        });
-    }
+        if (
+            ariaLabel.includes("unassigned transport") ||
+            ariaLabel.includes("~transport") ||
+            ariaLabel.includes("uber") ||
+            ariaLabel.includes("prev vendor search") ||
+            isConfirm
+        ) {
+            const type = isConfirm ? "-confirm" : "default";
+            const legend = createLegendElement(type);
+            button.parentElement?.insertBefore(legend, button.nextSibling);
+        }
+    });
+}
+
 
     function adjustSpacing() {
         const headerTitle = document.querySelector('[data-lp-id="form-header-title"] h1');
