@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.1.8
+// @version      1.1.9
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Enhances UI with banner, row highlights, spacing, and styled notifications
@@ -250,7 +250,8 @@ function insertVipBannerIfNeeded() {
         "202-46904",
         "202-50715",
         "4474-64737",
-        "10837-61025"
+        "10837-61025",
+        "4474-66551"
     ];
 
     if (!vipIds.some(id => titleText.includes(id)) || document.getElementById("vip-banner")) return;
