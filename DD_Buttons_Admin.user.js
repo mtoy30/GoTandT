@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.11
+// @version      4.1.12
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1658,7 +1658,7 @@ function selectCorrectRadioButton(selectedOption) {
         labelToFind = "Staffed";
     } else if (selectedOption === "Staffed UBER Health") {
         labelToFind = "CareWorks Uber Staffed";
-    } else if (selectedOption === "Staffed Revised") {
+    } else if (selectedOption === "Staffed Revised at Approved Rates") {
         labelToFind = "Careworks Revision Staffed";
     } else if (selectedOption === "Standard Rate Request") {
         labelToFind = "Request for Higher Rates";
