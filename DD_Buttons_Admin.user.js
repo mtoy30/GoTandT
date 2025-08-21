@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.12
+// @version      4.1.13
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1395,7 +1395,7 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
     const fullOptions = [
         "Staffed Email",
         "Staffed UBER Health",
-        "Staffed Revised",
+        "Staffed Revised at Approved Rates",
         "Standard Rate Request",
         "CareIQ Rate Request",
         "Homelink Rate Request",
@@ -1409,13 +1409,13 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
     // Filter exclusions based on headerTitle
     let exclusions = [];
     if (headerTitle.startsWith("212-")) {
-        exclusions = ["Standard Rate Request", "CareIQ Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Staffed UBER Health", "Staffed Revised"];
+        exclusions = ["Standard Rate Request", "CareIQ Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Staffed UBER Health", "Staffed Revised at Approved Rates"];
     } else if (headerTitle.startsWith("4474-")) {
         exclusions = ["Standard Rate Request", "CareIQ Rate Request", "Homelink Rate Request"];
     } else if (headerTitle.startsWith("133-")) {
-        exclusions = ["Standard Rate Request", "Homelink Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Staffed UBER Health", "Staffed Revised"];
+        exclusions = ["Standard Rate Request", "Homelink Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Staffed UBER Health", "Staffed Revised at Approved Rates"];
     } else {
-        exclusions = ["CareIQ Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Homelink Rate Request", "Staffed UBER Health", "Staffed Revised"];
+        exclusions = ["CareIQ Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Homelink Rate Request", "Staffed UBER Health", "Staffed Revised at Approved Rates"];
     }
 
     const filteredOptions = fullOptions.filter(opt => !exclusions.includes(opt));
@@ -1707,7 +1707,7 @@ function selectCorrectRadioButton(selectedOption) {
 
                                 if (selectedOption !== "Staffed Email" &&
                                     selectedOption !== "Staffed UBER Health" &&
-                                    selectedOption !== "Staffed Revised") {
+                                    selectedOption !== "Staffed Revised at Approved Rates") {
                                     setTimeout(function () {
                                         var deleteButton = document.querySelector('button[aria-label="Delete Referral Outbox"]');
                                         if (deleteButton) {
