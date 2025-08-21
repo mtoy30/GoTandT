@@ -1705,7 +1705,9 @@ function selectCorrectRadioButton(selectedOption) {
                             if (okButton) {
                                 okButton.click();
 
-                                if (selectedOption !== "Staffed Email") {
+                                if (selectedOption !== "Staffed Email" &&
+                                    selectedOption !== "Staffed UBER Health" &&
+                                    selectedOption !== "Staffed Revised") {
                                     setTimeout(function () {
                                         var deleteButton = document.querySelector('button[aria-label="Delete Referral Outbox"]');
                                         if (deleteButton) {
