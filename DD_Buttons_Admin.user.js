@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.14
+// @version      4.1.15
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -127,13 +127,13 @@ function createModernButton(text, gradientStart, gradientEnd, onClick) {
         // --- BEGIN: Approval Audit logic ---
         // List of special referral numbers (as substrings)
         const auditNumbers = [
-            "202-36229","202-36969","202-35155","202-35295","202-44564",
-            "9616-37377","202-39425","202-35591","202-36155","202-32948",
-            "202-41729","202-40778","9616-35233","202-37438","202-39764",
-            "202-37003","9616-40043","202-34333","202-57263","202-38733",
-            "202-40689","9616-40860","202-33578","202-38542","202-59196",
-            "9616-35645","202-35017","202-45203","202-38269","202-55659",
-            "202-36354","202-37546"
+            "-36229-","-36969-","-35155-","-35295-","-44564-",
+            "-37377-","-39425-","-35591-","-36155-","-32948-",
+            "-41729-","-40778-","-35233-","-37438-","-39764-",
+            "-37003-","-40043-","-34333-","-57263-","-38733-",
+            "-40689-","-40860-","-33578-","-38542-","-59196-",
+            "-35645-","-35017-","-45203-","-38269-","-55659-",
+            "-36354-","-37546-"
         ];
         const titleStr = document.title;
         let showAuditMessage = false;
