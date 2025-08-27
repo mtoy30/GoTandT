@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.13
+// @version      4.1.14
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1480,7 +1480,7 @@ function finalizeCopy(claimant, claim, referralDate, selectedOption) {
                 } else {
                     proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption);
                 }
-            }, 1500);
+            }, 3000);
         });
     } else {
         showMessage('EmailConfirmation button not found.', false);
