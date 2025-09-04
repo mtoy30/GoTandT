@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.15
+// @version      4.1.16
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -15,6 +15,9 @@
 
 (function() {
     'use strict';
+
+    // One-shot timeout so the processing message never hangs
+    let processingTimeoutId = null;
 
     const style = document.createElement('style');
     style.innerHTML = `
@@ -1555,8 +1558,11 @@ function proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption
         });
 }
 
-// Shows the animated processing message
+// Shows the animated processing message with a 5s auto-dismiss fail-safe
 function showProcessingMessage() {
+    // If an existing message is up, reset it (prevents stacking)
+    hideProcessingMessage();
+
     const messages = [
         "Please be patient, I'm thinking...",
         "Crunching the numbers, hang tight!",
@@ -1585,7 +1591,29 @@ function showProcessingMessage() {
     ];
     const randomMessage = messages[Math.floor(Math.random() * messages.length)];
 
-    let msg = document.createElement('div');
+    // Create or reuse spinner CSS (avoid duplicate <style> nodes)
+    if (!document.getElementById('processingMessageStyle')) {
+        const style = document.createElement('style');
+        style.id = 'processingMessageStyle';
+        style.innerHTML = `
+            .loader {
+                border: 4px solid #f3f3f3;
+                border-top: 4px solid #3498db;
+                border-radius: 50%;
+                width: 30px;
+                height: 30px;
+                animation: spin 1s linear infinite;
+                margin-bottom: 10px;
+            }
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    const msg = document.createElement('div');
     msg.id = 'processingMessage';
     msg.innerHTML = `<div class="loader"></div><div>${randomMessage}</div>`;
     Object.assign(msg.style, {
@@ -1603,34 +1631,45 @@ function showProcessingMessage() {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
+        maxWidth: '80%',
+        wordBreak: 'break-word'
     });
 
-    const style = document.createElement('style');
-    style.innerHTML = `
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 10px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    `;
-    document.head.appendChild(style);
+    // Optional: allow manual dismiss with ESC
+    const escHandler = (e) => {
+        if (e.key === 'Escape') hideProcessingMessage();
+    };
+    msg.dataset.escHandler = 'true';
+    document.addEventListener('keydown', escHandler, { once: true });
+
+    // Keep a reference so we can remove that listener even if auto-dismiss fires
+    msg._escHandler = escHandler;
+
     document.body.appendChild(msg);
+
+    // 🔒 Fail-safe: auto-hide after 5 seconds so users can finish manually
+    processingTimeoutId = window.setTimeout(() => {
+        hideProcessingMessage();
+    }, 5000);
 }
 
-// Hides the processing message
+// Hides the processing message and clears the fail-safe timer
 function hideProcessingMessage() {
-    let msg = document.getElementById('processingMessage');
-    if (msg) msg.remove();
-}
+    // Clear the one-shot timeout if it's pending
+    if (processingTimeoutId !== null) {
+        clearTimeout(processingTimeoutId);
+        processingTimeoutId = null;
+    }
 
+    const msg = document.getElementById('processingMessage');
+    if (msg) {
+        // Remove the ESC handler if we attached one
+        if (msg._escHandler) {
+            document.removeEventListener('keydown', msg._escHandler);
+        }
+        msg.remove();
+    }
+}
 
 // Function to detect when the page has fully loaded
 function waitForPageToLoad() {
