@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.11
+// @version      4.1.16
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -15,6 +15,9 @@
 
 (function() {
     'use strict';
+
+    // One-shot timeout so the processing message never hangs
+    let processingTimeoutId = null;
 
     const style = document.createElement('style');
     style.innerHTML = `
@@ -127,13 +130,13 @@ function createModernButton(text, gradientStart, gradientEnd, onClick) {
         // --- BEGIN: Approval Audit logic ---
         // List of special referral numbers (as substrings)
         const auditNumbers = [
-            "202-36229","202-36969","202-35155","202-35295","202-44564",
-            "9616-37377","202-39425","202-35591","202-36155","202-32948",
-            "202-41729","202-40778","9616-35233","202-37438","202-39764",
-            "202-37003","9616-40043","202-34333","202-57263","202-38733",
-            "202-40689","9616-40860","202-33578","202-38542","202-59196",
-            "9616-35645","202-35017","202-45203","202-38269","202-55659",
-            "202-36354","202-37546"
+            "-36229-","-36969-","-35155-","-35295-","-44564-",
+            "-37377-","-39425-","-35591-","-36155-","-32948-",
+            "-41729-","-40778-","-35233-","-37438-","-39764-",
+            "-37003-","-40043-","-34333-","-57263-","-38733-",
+            "-40689-","-40860-","-33578-","-38542-","-59196-",
+            "-35645-","-35017-","-45203-","-38269-","-55659-",
+            "-36354-","-37546-"
         ];
         const titleStr = document.title;
         let showAuditMessage = false;
@@ -1395,7 +1398,7 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
     const fullOptions = [
         "Staffed Email",
         "Staffed UBER Health",
-        "Staffed Revised",
+        "Staffed Revised at Approved Rates",
         "Standard Rate Request",
         "CareIQ Rate Request",
         "Homelink Rate Request",
@@ -1409,13 +1412,13 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
     // Filter exclusions based on headerTitle
     let exclusions = [];
     if (headerTitle.startsWith("212-")) {
-        exclusions = ["Standard Rate Request", "CareIQ Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Staffed UBER Health", "Staffed Revised"];
+        exclusions = ["Standard Rate Request", "CareIQ Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Staffed UBER Health", "Staffed Revised at Approved Rates"];
     } else if (headerTitle.startsWith("4474-")) {
         exclusions = ["Standard Rate Request", "CareIQ Rate Request", "Homelink Rate Request"];
     } else if (headerTitle.startsWith("133-")) {
-        exclusions = ["Standard Rate Request", "Homelink Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Staffed UBER Health", "Staffed Revised"];
+        exclusions = ["Standard Rate Request", "Homelink Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Staffed UBER Health", "Staffed Revised at Approved Rates"];
     } else {
-        exclusions = ["CareIQ Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Homelink Rate Request", "Staffed UBER Health", "Staffed Revised"];
+        exclusions = ["CareIQ Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Homelink Rate Request", "Staffed UBER Health", "Staffed Revised at Approved Rates"];
     }
 
     const filteredOptions = fullOptions.filter(opt => !exclusions.includes(opt));
@@ -1480,7 +1483,7 @@ function finalizeCopy(claimant, claim, referralDate, selectedOption) {
                 } else {
                     proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption);
                 }
-            }, 1500);
+            }, 3000);
         });
     } else {
         showMessage('EmailConfirmation button not found.', false);
@@ -1555,8 +1558,11 @@ function proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption
         });
 }
 
-// Shows the animated processing message
+// Shows the animated processing message with a 5s auto-dismiss fail-safe
 function showProcessingMessage() {
+    // If an existing message is up, reset it (prevents stacking)
+    hideProcessingMessage();
+
     const messages = [
         "Please be patient, I'm thinking...",
         "Crunching the numbers, hang tight!",
@@ -1585,7 +1591,29 @@ function showProcessingMessage() {
     ];
     const randomMessage = messages[Math.floor(Math.random() * messages.length)];
 
-    let msg = document.createElement('div');
+    // Create or reuse spinner CSS (avoid duplicate <style> nodes)
+    if (!document.getElementById('processingMessageStyle')) {
+        const style = document.createElement('style');
+        style.id = 'processingMessageStyle';
+        style.innerHTML = `
+            .loader {
+                border: 4px solid #f3f3f3;
+                border-top: 4px solid #3498db;
+                border-radius: 50%;
+                width: 30px;
+                height: 30px;
+                animation: spin 1s linear infinite;
+                margin-bottom: 10px;
+            }
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    const msg = document.createElement('div');
     msg.id = 'processingMessage';
     msg.innerHTML = `<div class="loader"></div><div>${randomMessage}</div>`;
     Object.assign(msg.style, {
@@ -1603,34 +1631,45 @@ function showProcessingMessage() {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
+        maxWidth: '80%',
+        wordBreak: 'break-word'
     });
 
-    const style = document.createElement('style');
-    style.innerHTML = `
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 10px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    `;
-    document.head.appendChild(style);
+    // Optional: allow manual dismiss with ESC
+    const escHandler = (e) => {
+        if (e.key === 'Escape') hideProcessingMessage();
+    };
+    msg.dataset.escHandler = 'true';
+    document.addEventListener('keydown', escHandler, { once: true });
+
+    // Keep a reference so we can remove that listener even if auto-dismiss fires
+    msg._escHandler = escHandler;
+
     document.body.appendChild(msg);
+
+    // 🔒 Fail-safe: auto-hide after 5 seconds so users can finish manually
+    processingTimeoutId = window.setTimeout(() => {
+        hideProcessingMessage();
+    }, 5000);
 }
 
-// Hides the processing message
+// Hides the processing message and clears the fail-safe timer
 function hideProcessingMessage() {
-    let msg = document.getElementById('processingMessage');
-    if (msg) msg.remove();
-}
+    // Clear the one-shot timeout if it's pending
+    if (processingTimeoutId !== null) {
+        clearTimeout(processingTimeoutId);
+        processingTimeoutId = null;
+    }
 
+    const msg = document.getElementById('processingMessage');
+    if (msg) {
+        // Remove the ESC handler if we attached one
+        if (msg._escHandler) {
+            document.removeEventListener('keydown', msg._escHandler);
+        }
+        msg.remove();
+    }
+}
 
 // Function to detect when the page has fully loaded
 function waitForPageToLoad() {
@@ -1658,7 +1697,7 @@ function selectCorrectRadioButton(selectedOption) {
         labelToFind = "Staffed";
     } else if (selectedOption === "Staffed UBER Health") {
         labelToFind = "CareWorks Uber Staffed";
-    } else if (selectedOption === "Staffed Revised") {
+    } else if (selectedOption === "Staffed Revised at Approved Rates") {
         labelToFind = "Careworks Revision Staffed";
     } else if (selectedOption === "Standard Rate Request") {
         labelToFind = "Request for Higher Rates";
@@ -1707,7 +1746,7 @@ function selectCorrectRadioButton(selectedOption) {
 
                                 if (selectedOption !== "Staffed Email" &&
                                     selectedOption !== "Staffed UBER Health" &&
-                                    selectedOption !== "Staffed Revised") {
+                                    selectedOption !== "Staffed Revised at Approved Rates") {
                                     setTimeout(function () {
                                         var deleteButton = document.querySelector('button[aria-label="Delete Referral Outbox"]');
                                         if (deleteButton) {
