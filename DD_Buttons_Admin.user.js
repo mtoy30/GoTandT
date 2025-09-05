@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.16
+// @version      4.1.17
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1650,7 +1650,7 @@ function showProcessingMessage() {
     // 🔒 Fail-safe: auto-hide after 5 seconds so users can finish manually
     processingTimeoutId = window.setTimeout(() => {
         hideProcessingMessage();
-    }, 5000);
+    }, 7000);
 }
 
 // Hides the processing message and clears the fail-safe timer
