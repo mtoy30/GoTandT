@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.17
+// @version      4.1.18
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -861,7 +861,7 @@ function copyBoth() {
     }
 }
 
-    //Create Options for Email templates
+//Create Options for Email templates
 function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
     var existingDropdown = document.getElementById("customDropdownContainer");
     if (existingDropdown) existingDropdown.remove();
@@ -920,9 +920,13 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
     const filteredOptions = fullOptions.filter(opt => !exclusions.includes(opt));
 
     filteredOptions.forEach(optionText => {
+        const isStaff = /staff/i.test(optionText);
+        const start = isStaff ? "#fde047" : "#3b82f6"; // yellow start for "staff"
+        const end   = isStaff ? "#facc15" : "#60a5fa"; // yellow end for "staff"
+
         const button = createModernButton(
             optionText,
-            "#3b82f6", "#60a5fa",
+            start, end,
             () => {
                 finalizeCopy(claimant, claim, referralDate, optionText);
                 dropdownContainer.remove();
