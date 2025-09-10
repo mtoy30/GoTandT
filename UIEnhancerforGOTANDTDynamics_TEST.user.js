@@ -420,5 +420,3 @@
     if (titleNode) titleObserver.observe(titleNode, { childList: true });
 
 })();
-    titleObserver.observe(document.querySelector("title"), { childList: true });
-})();
