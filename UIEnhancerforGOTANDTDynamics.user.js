@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.1.10
+// @version      1.1.12
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Enhances UI with banner, row highlights, spacing, and styled notifications
@@ -14,9 +14,64 @@
 (function () {
     'use strict';
 
-    const statusText = "Pending - RATE Authorization Requested";
+    /* ------------------------- constants & selectors ------------------------- */
+    const statusText     = "Pending - RATE Authorization Requested";
     const headerSelector = '[id^="formHeaderTitle_"]';
     const buttonSelector = 'button[aria-label="Rate Approval Status"]';
+
+    /* ------------------------------ helpers --------------------------------- */
+
+    // Anything related to the global search UI should be excluded
+    function isInSearchUI(el) {
+        if (!el) return false;
+
+        const selectors = [
+            '#GlobalSearchBox',                // the search input
+            '.ms-SearchBox',                   // Office Fabric search box
+            '[role="search"]',
+            '[role="searchbox"]',
+            '[aria-label="Search"]',
+            '[aria-label*="search"]',
+            '[aria-label*="Search results"]',
+            '.quickFind',
+            '.globalSearch',
+            '.searchResults',
+            '.ms-Panel',
+            '.ms-Callout',
+            '.ms-Layer',
+            '[data-lp-id="globalQuickFind"]',
+            '[data-id="globalQuickFind"]',
+            '[id*="GlobalQuickFind"]',
+            '[id*="SearchBox"]'
+        ];
+
+        const hit = el.closest(selectors.join(','));
+        if (hit) return true;
+
+        // id-based heuristics as a backstop
+        let a = el;
+        while (a) {
+            if (a.id && /(GlobalQuickFind|quickFind|Search|SearchBox)/i.test(a.id)) return true;
+            a = a.parentElement;
+        }
+        return false;
+    }
+
+    // Remove any legends that somehow landed inside the search UI
+    function removeLegendsInsideSearch() {
+        document.querySelectorAll('[data-legend="true"]').forEach(el => {
+            if (isInSearchUI(el)) el.remove();
+        });
+    }
+
+    // Main content root (safe area for injecting UI)
+    function getMainRoot() {
+        return document.querySelector('[data-id="fullPageContentRoot"]')
+            || document.querySelector('[data-lp-id="fullPageContentRoot"]')
+            || document.body;
+    }
+
+    /* ------------------------------ banners --------------------------------- */
 
     function insertBanner() {
         const header = document.querySelector(headerSelector);
@@ -44,23 +99,18 @@
     function checkStatusAndInsertBanner() {
         const button = document.querySelector(buttonSelector);
         if (!button) return;
-        if (button.textContent.includes(statusText)) {
-            insertBanner();
-        } else {
-            removeBanner();
-        }
+        if (button.textContent.includes(statusText)) insertBanner();
+        else removeBanner();
     }
 
     function observeRateStatusChanges() {
         const button = document.querySelector(buttonSelector);
         if (!button) return;
-
-        const observer = new MutationObserver(() => {
-            checkStatusAndInsertBanner();
-        });
-
+        const observer = new MutationObserver(() => checkStatusAndInsertBanner());
         observer.observe(button, { childList: true, subtree: true, characterData: true });
     }
+
+    /* ---------------------------- row highlighting -------------------------- */
 
     function highlightAllRowsGlobal() {
         const vipTerms = [
@@ -96,6 +146,7 @@
                 row.style.backgroundColor = 'lightcoral';
             }
 
+            // light-peach for past pickup/appt times
             const timeCols = ["gtt_localizedpickuptime", "gtt_localizedappttime"];
             const minutesDelay = 5;
             const threshold = new Date(now.getTime() - minutesDelay * 60000);
@@ -119,6 +170,8 @@
         });
     }
 
+    /* -------------------------------- legend -------------------------------- */
+
     function createLegendElement(type = "default") {
         const legend = document.createElement("div");
         legend.style.marginTop = "5px";
@@ -130,14 +183,12 @@
             <span style="background-color: lightgreen; padding: 2px 6px; border-radius: 4px; margin-right: 5px;">First Time/Surgery</span>
             <span style="background-color: lightcoral; padding: 2px 6px; border-radius: 4px; margin-right: 5px;">Airport</span>
         `;
-
         if (type === "default") {
             html += `
                 <span style="background-color: lightblue; padding: 2px 6px; border-radius: 4px; margin-right: 5px;">Pending Rate Approval</span>
                 <span style="background-color: plum; padding: 2px 6px; border-radius: 4px; margin-right: 5px;">Rates Approved</span>
             `;
         }
-
         if (type === "-confirm") {
             html += `<span style="background-color: #FFDAB9; padding: 2px 6px; border-radius: 4px;">Pickup/Appt Time Passed</span>`;
         }
@@ -146,51 +197,65 @@
         return legend;
     }
 
-function addLegend() {
-    document.querySelectorAll('[data-legend="true"]').forEach(el => el.remove());
+    // Scoped legend injector that avoids the global search UI
+    function addLegend() {
+        const root = getMainRoot();
 
-    const targetSpans = document.querySelectorAll('span[id*="_text-value"]');
-    targetSpans.forEach(span => {
-        const label = span.textContent.toLowerCase();
-        if (
-            (label.includes("unassigned transportation") ||
-             label.includes("same day confirmations") ||
-             label.includes("same day (oncall)")) &&
-            !label.includes("delete")
-        ) {
-            const type = (label.includes("-confirm") || label.includes("same day confirmations") || label.includes("same day (oncall)"))
-                ? "-confirm"
-                : "default";
-            const legend = createLegendElement(type);
-            span.parentElement?.appendChild(legend);
-        }
-    });
+        // 1) Remove any legends that ended up inside search UI (from prior runs)
+        removeLegendsInsideSearch();
 
-    const buttons = document.querySelectorAll('button[aria-label*="~Transport"], button[aria-label*="UBER"], button[aria-label*="Prev Vendor Search"], button[aria-label]');
-    buttons.forEach(button => {
-        const ariaLabel = button.getAttribute('aria-label')?.toLowerCase() || "";
-        const labelText = button.querySelector('.ms-Button-label')?.textContent.toLowerCase() || "";
+        // 2) Remove existing legends under our main root (we’ll re-add as needed)
+        root.querySelectorAll('[data-legend="true"]').forEach(el => el.remove());
 
-        if (ariaLabel.includes("delete") || labelText.includes("delete")) return;
+        // ---- Add below header spans (scoped) ----
+        const targetSpans = root.querySelectorAll('span[id*="_text-value"]');
+        targetSpans.forEach(span => {
+            if (!span || isInSearchUI(span)) return;
 
-        const isConfirm = labelText.includes("-confirm") ||
-                          labelText.includes("same day confirmations") ||
-                          labelText.includes("same day (oncall)");
+            const label = (span.textContent || '').toLowerCase();
+            if (
+                (label.includes("unassigned transportation") ||
+                 label.includes("same day confirmations") ||
+                 label.includes("same day (oncall)")) &&
+                !label.includes("delete")
+            ) {
+                const type = (label.includes("-confirm") || label.includes("same day confirmations") || label.includes("same day (oncall)"))
+                    ? "-confirm"
+                    : "default";
+                const legend = createLegendElement(type);
+                span.parentElement?.appendChild(legend);
+            }
+        });
 
-        if (
-            ariaLabel.includes("unassigned transport") ||
-            ariaLabel.includes("~transport") ||
-            ariaLabel.includes("uber") ||
-            ariaLabel.includes("prev vendor search") ||
-            isConfirm
-        ) {
-            const type = isConfirm ? "-confirm" : "default";
-            const legend = createLegendElement(type);
-            button.parentElement?.insertBefore(legend, button.nextSibling);
-        }
-    });
-}
+        // ---- Add below specific buttons (scoped) ----
+        const buttons = root.querySelectorAll('button[aria-label*="~Transport"], button[aria-label*="UBER"], button[aria-label*="Prev Vendor Search"], button[aria-label]');
+        buttons.forEach(button => {
+            if (!button || isInSearchUI(button)) return;
 
+            const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase();
+            const labelText = (button.querySelector('.ms-Button-label')?.textContent || '').toLowerCase();
+
+            if (ariaLabel.includes("delete") || labelText.includes("delete")) return;
+
+            const isConfirm = labelText.includes("-confirm")
+                           || labelText.includes("same day confirmations")
+                           || labelText.includes("same day (oncall)");
+
+            if (
+                ariaLabel.includes("unassigned transport") ||
+                ariaLabel.includes("~transport") ||
+                ariaLabel.includes("uber") ||
+                ariaLabel.includes("prev vendor search") ||
+                isConfirm
+            ) {
+                const type = isConfirm ? "-confirm" : "default";
+                const legend = createLegendElement(type);
+                button.parentElement?.insertBefore(legend, button.nextSibling);
+            }
+        });
+    }
+
+    /* ------------------------ spacing & notifications ------------------------ */
 
     function adjustSpacing() {
         const headerTitle = document.querySelector('[data-lp-id="form-header-title"] h1');
@@ -215,6 +280,8 @@ function addLegend() {
         observer.observe(document.body, { childList: true, subtree: true });
     }
 
+    /* ------------------------------- one-offs ------------------------------- */
+
     function insertJbaBannerIfNeeded() {
         const titleText = document.title;
         const providerDiv = Array.from(document.querySelectorAll('div[role="presentation"]'))
@@ -234,79 +301,83 @@ function addLegend() {
         banner.style.textAlign = "center";
         banner.style.borderRadius = "5px";
 
-        if (header) {
-            header.parentNode.insertBefore(banner, header.nextSibling);
+        if (header) header.parentNode.insertBefore(banner, header.nextSibling);
+    }
+
+    function insertVipBannerIfNeeded() {
+        const titleText = document.title;
+        const header = document.querySelector(headerSelector);
+
+        const vipIds = [
+            "4474-65549",
+            "4474-48338",
+            "4474-48380",
+            "202-46904",
+            "202-50715",
+            "4474-64737",
+            "10837-61025",
+            "4474-66551",
+            "4474-63533"
+        ];
+
+        if (!vipIds.some(id => titleText.includes(id))) {
+            return; // fixed syntax
         }
+        if (document.getElementById("vip-banner")) {
+            return; // fixed syntax
+        }
+
+        const banner = document.createElement("div");
+        banner.id = "vip-banner";
+        banner.textContent = "VIP file please read all Alerts and staff as early as possible";
+        banner.style.backgroundColor = "#f8d7da";
+        banner.style.color = "#721c24";
+        banner.style.padding = "6px";
+        banner.style.marginTop = "5px";
+        banner.style.fontWeight = "bold";
+        banner.style.textAlign = "center";
+        banner.style.borderRadius = "5px";
+
+        if (header) header.parentNode.insertBefore(banner, header.nextSibling);
     }
 
-function insertVipBannerIfNeeded() {
-    const titleText = document.title;
-    const header = document.querySelector(headerSelector);
+    /* ------------------------------- init/run -------------------------------- */
 
-    const vipIds = [
-        "4474-65549",
-        "4474-48338",
-        "4474-48380",
-        "202-46904",
-        "202-50715",
-        "4474-64737",
-        "10837-61025",
-        "4474-66551",
-        "4474-63533"
-    ];
-
-    if (!vipIds.some(id => titleText.includes(id)) || document.getElementById("vip-banner")) return;
-
-    const banner = document.createElement("div");
-    banner.id = "vip-banner";
-    banner.textContent = "VIP file please read all Alerts and staff as early as possible";
-    banner.style.backgroundColor = "#f8d7da";
-    banner.style.color = "#721c24";
-    banner.style.padding = "6px";
-    banner.style.marginTop = "5px";
-    banner.style.fontWeight = "bold";
-    banner.style.textAlign = "center";
-    banner.style.borderRadius = "5px";
-
-    if (header) {
-        header.parentNode.insertBefore(banner, header.nextSibling);
-    }
-}
-
-
-    let timeout;
+    let debounceTimer;
     const globalObserver = new MutationObserver(() => {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
             checkStatusAndInsertBanner();
             highlightAllRowsGlobal();
-            addLegend();
+            addLegend();                 // scoped + search-safe
             adjustSpacing();
             styleNotificationWrapper();
             observeRateStatusChanges();
             insertJbaBannerIfNeeded();
             insertVipBannerIfNeeded();
+            removeLegendsInsideSearch(); // extra cleanup pass
         }, 200);
     });
-
     globalObserver.observe(document.body, { childList: true, subtree: true });
 
     let attempts = 0;
     const tryInit = setInterval(() => {
         checkStatusAndInsertBanner();
         highlightAllRowsGlobal();
-        addLegend();
+        addLegend();                     // scoped + search-safe
         adjustSpacing();
         styleNotificationWrapper();
         observeRateStatusChanges();
         insertJbaBannerIfNeeded();
         insertVipBannerIfNeeded();
+        removeLegendsInsideSearch();     // extra cleanup pass
         attempts++;
         if (attempts > 20) clearInterval(tryInit);
     }, 500);
 
     observeNotifications();
 
+    // Injects hint message for Monique inside email recipient iframe
     function waitForMoniqueInIframe(retries = 20, delay = 1000) {
         const iframe = document.querySelector('#WebResource_RecipientSelector');
         if (!iframe) {
@@ -345,6 +416,7 @@ function insertVipBannerIfNeeded() {
             waitForMoniqueInIframe();
         }
     });
+    const titleNode = document.querySelector("title");
+    if (titleNode) titleObserver.observe(titleNode, { childList: true });
 
-    titleObserver.observe(document.querySelector("title"), { childList: true });
 })();
