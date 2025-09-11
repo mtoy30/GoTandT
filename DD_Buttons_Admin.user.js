@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.19
+// @version      4.1.20
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1687,7 +1687,7 @@ function waitForPageToLoad() {
         observer.observe(document.body, { childList: true, subtree: true });
 
         // Fallback timeout in case the observer misses the event
-        setTimeout(resolve, 5000);
+        setTimeout(resolve, 14000);
     });
 }
 
