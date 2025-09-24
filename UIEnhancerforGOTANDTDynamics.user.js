@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.2
+// @version      1.2.1
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill behavior (iframe-safe). Time fields + key fields always unlocked; company/email soft-prefill; unlock-all-on-submit.
@@ -62,8 +62,10 @@ const UNLOCK_WINDOW_MS = 10000; // stay unlocked for 10s after last user activit
 // --- Names used for yourName datalist ---
 const YOURNAME_OPTIONS = [
   'Alexandra Cirlan',
+  'Ashley Oliver',
   'Christian Antunez',
   'Christina Armstrong',
+  'Damaris Olmeda',
   'David Hobbs',
   'Jeremy Rivera',
   'Kevin Roberts',
