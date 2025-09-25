@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.2.4
+// @version      1.2.5
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
-// @description  Dynamics UI tweaks; Boomerang form autofill behavior (iframe-safe). Time fields + key fields always unlocked; company/email soft-prefill; unlock-all-on-submit.
+// @description  Dynamics UI tweaks; Boomerang form autofill behavior (iframe-safe). Time fields + key fields always unlocked; company/email soft-prefill; unlock-all-on-submit. Also adds a yellow Copy button in PowerApps Leg Info overlay that preserves on-screen order (including duplicate lines like city/state).
 // @author       Michael Toy
 // @match        https://*.powerapps.com/*
 // @match        https://*.powerplatform.com/*
@@ -124,12 +124,11 @@
         return domPrecedes(a.el, b.el) ? -1 : 1;    // within row: DOM order (label → values)
       });
 
+      // Build the output lines — KEEP duplicates on purpose (city/state can repeat)
       const out = [];
-      let last = '';
       for (const it of items) {
-        if (!it.text || it.text === last) continue;
+        if (!it.text) continue;
         out.push(it.text);
-        last = it.text;
       }
       return out.join('\n');
     }
@@ -215,14 +214,10 @@
 
   /* =====================================================================================
      PART B — UI ENHANCER (Dynamics, Boomerang, Apps Script)
-     (Your existing script; lightly refactored to only run on intended hosts)
      ===================================================================================== */
 
-  /* -------- early outs: only run enhancer on Dynamics/Boomerang/Apps Script -------- */
+  /* Early out: only run enhancer on Dynamics/Boomerang/Apps Script */
   if (!(isDynamics || onBoomerang || onAppsScript)) return;
-
-  /* ------------------------- switches used below ------------------------- */
-  // (onBoomerang / onAppsScript already defined above)
 
   /* ============================== BOOMERANG/APPS SCRIPT ============================== */
   if (onBoomerang || onAppsScript) {
@@ -580,7 +575,7 @@
     } else {
       apply(document);
     }
-    // Do not `return`; we may also be on Dynamics in another tab—handled below via isDynamics
+    // Do not `return`; we may also be on Dynamics—handled below via isDynamics
   }
 
   /* =================================== DYNAMICS SECTION =================================== */
@@ -806,7 +801,7 @@
         "4474-65549","4474-48338","4474-48380","202-46904","202-50715",
         "4474-64737","10837-61025","4474-66551","4474-63533"
       ];
-      if (!vipIds.some(id => titleText.includes(id))) return;
+        if (!vipIds.some(id => titleText.includes(id))) return;
       if (document.getElementById("vip-banner")) return;
       const banner = document.createElement("div");
       banner.id = "vip-banner";
