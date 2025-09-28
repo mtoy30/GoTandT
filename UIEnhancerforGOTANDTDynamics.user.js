@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.2.5
+// @version      1.2.6
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill behavior (iframe-safe). Time fields + key fields always unlocked; company/email soft-prefill; unlock-all-on-submit. Also adds a yellow Copy button in PowerApps Leg Info overlay that preserves on-screen order (including duplicate lines like city/state).
@@ -871,12 +871,13 @@
         td.textContent.trim().includes("Monique Jones")
       );
       if (td && !td.querySelector(".monique-message")) {
-        td.style.fontSize = "14px";
+        td.style.fontSize = "12px";
         td.style.fontWeight = "bold";
         const note = document.createElement("div");
         note.className = "monique-message";
         note.textContent = "Please combine staffing and/or auth requests into one email (include multiple dates into one email).";
         note.style.marginTop = "5px";
+        note.style.marginBottom = "15px";
         note.style.color = "darkred";
         note.style.fontWeight = "bold";
         td.appendChild(note);
@@ -885,12 +886,47 @@
       }
     }
 
+    function waitForAUTHEMAIL(retries = 20, delay = 1000) {
+      const iframe = document.querySelector('#WebResource_RecipientSelector');
+      if (!iframe) {
+        if (retries > 0) setTimeout(() => waitForAUTHEMAIL(retries - 1, delay), delay);
+        return;
+      }
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      if (!doc || !doc.body) {
+        if (retries > 0) setTimeout(() => waitForAUTHEMAIL(retries - 1, delay), delay);
+        return;
+      }
+      const td = [...doc.querySelectorAll("td")].find(td =>
+        td.textContent.trim().includes("AUTH EMAIL")
+      );
+      if (td && !td.querySelector(".auth-message")) {
+        td.style.fontSize = "12px";
+        td.style.fontWeight = "bold";
+        const note = document.createElement("div");
+        note.className = "auth-message";
+        note.textContent = "DO NOT SEND staffing or rate request here.";
+        note.style.marginTop = "5px";
+        note.style.marginBottom = "15px";
+        note.style.color = "darkred";
+        note.style.fontWeight = "bold";
+        td.appendChild(note);
+      } else if (retries > 0) {
+        setTimeout(() => waitForAUTHEMAIL(retries - 3, delay), delay);
+      }
+    }
+
     const titleObserver = new MutationObserver(() => {
       if (document.title.includes("Email:")) {
         waitForMoniqueInIframe();
+        waitForAUTHEMAIL();
       }
     });
     const titleNode = document.querySelector("title");
     if (titleNode) titleObserver.observe(titleNode, { childList: true });
+    if (document.title.includes('Email:')) {
+        waitForMoniqueInIframe();
+        waitForAUTHEMAIL();
+    }
   }
 })();
