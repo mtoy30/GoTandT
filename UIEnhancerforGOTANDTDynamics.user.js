@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.2.6
+// @version      1.2.9
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill behavior (iframe-safe). Time fields + key fields always unlocked; company/email soft-prefill; unlock-all-on-submit. Also adds a yellow Copy button in PowerApps Leg Info overlay that preserves on-screen order (including duplicate lines like city/state).
@@ -58,6 +58,8 @@
     ].join(',');
 
     const DATE_RE = /\b\d{1,2}\/\d{1,2}\/\d{2,4}(?:\s+\d{1,2}:\d{2}\s*[AP]M?)?\b/i;
+    // City/state ZIP detector to keep two-city rows in visual (left→right) order
+    const CITY_RE = /^[A-Za-z].+,\s+[A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)*\s+\d{5}(?:-\d{4})?$/;
 
     function findOverlayContainer() {
       let cands = Array.from(document.querySelectorAll(
@@ -100,6 +102,15 @@
 
     function domPrecedes(a, b) { return !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING); }
 
+    // NEW: determine if two boxes visually share a row using vertical overlap
+    function sameVisualRow(a, b, minOverlapRatio = 0.35) {
+      const top = Math.max(a.rect.top, b.rect.top);
+      const bottom = Math.min(a.rect.bottom, b.rect.bottom);
+      const overlap = Math.max(0, bottom - top);
+      const denom = Math.max(a.rect.height, b.rect.height) || 1;
+      return (overlap / denom) >= minOverlapRatio;
+    }
+
     function collectOverlayText(container) {
       let nodes = Array.from(container.querySelectorAll(TEXT_SELECTORS)).filter(isVisible);
       nodes = nodes.filter(n => !n.closest('#mtoy-inline-copy') && !n.closest('#mtoy-copy-toast'));
@@ -116,20 +127,31 @@
 
       if (!items.length) return '';
 
-      const ROW_TOL = 8;
       items.sort((a, b) => {
-        const dy = a.rect.top - b.rect.top;
-        if (Math.abs(dy) > ROW_TOL) return dy;      // top → bottom
-        if (a.el === b.el) return 0;
-        return domPrecedes(a.el, b.el) ? -1 : 1;    // within row: DOM order (label → values)
+        // First: by visual row (top→bottom) using overlap, not just top distance
+        if (!sameVisualRow(a, b)) {
+          const topDelta = a.rect.top - b.rect.top;
+          if (topDelta !== 0) return topDelta;
+          // rare exact tie: fall back to left→right
+          const leftDelta = a.rect.left - b.rect.left;
+          if (leftDelta !== 0) return leftDelta;
+        } else {
+          // Within the same visual row:
+          const aCity = CITY_RE.test(a.text), bCity = CITY_RE.test(b.text);
+          if (aCity && bCity) {
+            // Two city/state/ZIPs → keep left→right on the row
+            const dx = a.rect.left - b.rect.left;
+            if (dx !== 0) return dx;
+          }
+          // Default: DOM order to keep label→value semantics
+          if (a.el !== b.el) return domPrecedes(a.el, b.el) ? -1 : 1;
+        }
+        return 0;
       });
 
-      // Build the output lines — KEEP duplicates on purpose (city/state can repeat)
+      // Keep duplicates on purpose (e.g., same city for pickup & drop)
       const out = [];
-      for (const it of items) {
-        if (!it.text) continue;
-        out.push(it.text);
-      }
+      for (const it of items) out.push(it.text);
       return out.join('\n');
     }
 
@@ -161,7 +183,6 @@
       if (!anchor) { if (existing) existing.remove(); return; }
 
       if (existing && existing.nextElementSibling === anchor) return; // already in place
-
       if (existing) existing.remove();
 
       const btn = document.createElement('button');
@@ -801,7 +822,7 @@
         "4474-65549","4474-48338","4474-48380","202-46904","202-50715",
         "4474-64737","10837-61025","4474-66551","4474-63533"
       ];
-        if (!vipIds.some(id => titleText.includes(id))) return;
+      if (!vipIds.some(id => titleText.includes(id))) return;
       if (document.getElementById("vip-banner")) return;
       const banner = document.createElement("div");
       banner.id = "vip-banner";
