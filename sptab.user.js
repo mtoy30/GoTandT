@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         sptab
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      0.4.0
+// @version      0.4.1
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/sptab.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/sptab.user.js
 // @description  Hides specific Power Apps controls, repositions NoteText & Button4, and conditionally adds a "Portal Submission" button that sets the note and clicks Button4 to save.
