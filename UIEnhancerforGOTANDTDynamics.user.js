@@ -601,7 +601,7 @@
 
   /* =================================== DYNAMICS SECTION =================================== */
   if (isDynamics) {
-    const statusText     = "Pending - RATES";
+    const statusText     = "Pending - RATE Authorization Requested";
     const headerSelector = '[id^="formHeaderTitle_"]';
     const buttonSelector = 'button[aria-label="Rate Approval Status"]';
 
