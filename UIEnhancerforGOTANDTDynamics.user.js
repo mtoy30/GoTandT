@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.2.9
+// @version      1.2.10
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill behavior (iframe-safe). Time fields + key fields always unlocked; company/email soft-prefill; unlock-all-on-submit. Also adds a yellow Copy button in PowerApps Leg Info overlay that preserves on-screen order (including duplicate lines like city/state).
@@ -601,7 +601,7 @@
 
   /* =================================== DYNAMICS SECTION =================================== */
   if (isDynamics) {
-    const statusText     = "Pending - RATE Authorization Requested";
+    const statusText     = "Pending - RATES";
     const headerSelector = '[id^="formHeaderTitle_"]';
     const buttonSelector = 'button[aria-label="Rate Approval Status"]';
 
