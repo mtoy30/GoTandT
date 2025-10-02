@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.2.10
+// @version      1.2.11
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill behavior (iframe-safe). Time fields + key fields always unlocked; company/email soft-prefill; unlock-all-on-submit. Also adds a yellow Copy button in PowerApps Leg Info overlay that preserves on-screen order (including duplicate lines like city/state).
@@ -263,7 +263,7 @@
     };
     const SOFT_PREFILL_BY_NAME = SOFT_PREFILL_BY_ID;
 
-    const UNLOCK_WINDOW_MS = 10000;
+    const UNLOCK_WINDOW_MS = 30000;
 
     const YOURNAME_OPTIONS = [
       'Alexandra Cirlan',
