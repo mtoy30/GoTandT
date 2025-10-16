@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.2.14
+// @version      1.2.15
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill behavior (iframe-safe). Time fields + key fields always unlocked; company/email soft-prefill; unlock-all-on-submit. Also adds a yellow Copy button in PowerApps Leg Info overlay that preserves on-screen order (including duplicate lines like city/state).
@@ -818,7 +818,7 @@
       const header = document.querySelector(headerSelector);
       const vipIds = [
         "4474-65549","4474-48338","4474-48380","202-46904","202-50715",
-        "4474-64737","10837-61025","4474-66551","4474-63533"
+        "4474-64737","10837-61025","4474-66551","4474-63533", "10530-68938"
       ];
       if (!vipIds.some(id => titleText.includes(id))) return;
       if (document.getElementById("vip-banner")) return;
