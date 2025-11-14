@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.21
+// @version      4.1.22
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -536,10 +536,12 @@ const headerText = headerElement?.textContent?.trim() || "";
 
 // Determine margin threshold
 let marginThreshold = 34.99;
-if (/^(133\-|4474\-|202\-|9616\-)/.test(headerText)) {
+if (/^(133\-|202\-|9616\-)/.test(headerText)) {
     marginThreshold = 24.99;
 } else if (headerText.startsWith("999-")) {
     marginThreshold = 29.99;
+} else if (headerText.startsWith("4474-")) {
+    marginThreshold = 19.99;
 } else if (headerText.startsWith("212-")) {
     marginThreshold = 49.99;
 }
