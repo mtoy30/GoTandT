@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.23
+// @version      4.1.24
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -399,13 +399,12 @@ function buildPartsString(productInputs, quantities, miles, loadFeeQuantity) {
           label === "No Show" ? "No Show/Late Cancel" :
           label;
 
-      if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
-  const transportMiles = miles > 0 ? miles : (quantities[label] || 0);
-
+if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
+  // For transport, user wants ONLY the rate per mile (no "x ## miles")
   if (value.toLowerCase() === "contract rates") {
-    parts.push(`Contract rates/mile x ${transportMiles} miles`);
+    parts.push(`Contract rates/mile`);
   } else if (!isNaN(parseFloat(value))) {
-    parts.push(`$${parseFloat(value).toFixed(2)}/mile x ${transportMiles} miles`);
+    parts.push(`$${parseFloat(value).toFixed(2)}/mile`);
   } else {
     parts.push(`${value} ${normalizedLabel}`);
   }
