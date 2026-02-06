@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.24
+// @version      4.1.25
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -714,9 +714,9 @@ let higherApprovalNote = higherMargin <= highermarginThreshold
     box.appendChild(twoColumnWrapper);
     box.appendChild(result);
     box.appendChild(targetLabel);
-    box.appendChild(higherHeader);
-    box.appendChild(higherInputsWrapper);
-    box.appendChild(higherResult);
+    // box.appendChild(higherHeader);
+    // box.appendChild(higherInputsWrapper);
+    // box.appendChild(higherResult);
     box.appendChild(resetButton);
     // box.appendChild(requestRatesButton);
 
