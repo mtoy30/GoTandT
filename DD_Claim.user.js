@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         DD_Claim
+// @name         TL_Claim
 // @namespace    https://github.com/mtoy30/GoTandT
 // @version      1.0.0
-// @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Claim.user.js
-// @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Claim.user.js
+// @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/TL_Claim.user.js
+// @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/TL_Claim.user.js
 // @description  Adds one button that copies Claimant + Claim + DOS (Start Date) to clipboard. Nothing else.
 // @match        https://gotandt.crm.dynamics.com/*
 // @author       Michael Toy
