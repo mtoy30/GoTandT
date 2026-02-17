@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.24
+// @version      4.1.26
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1556,7 +1556,7 @@ function proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption
                     console.error('No iframe found.');
                     hideProcessingMessage();
                 }
-            }, 2000);
+            }, 5000);
         })
         .catch((error) => {
             showMessage(error, false);
