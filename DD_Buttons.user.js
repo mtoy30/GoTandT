@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.27
+// @version      4.1.28
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1018,7 +1018,9 @@ function proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption
 
     waitForSavePrimary()
         .then((savePrimaryButton) => {
+            setTimeout(() => {
             savePrimaryButton.click();
+        }, 2000); // 👈 delay BEFORE clicking SavePrimary
 
             setTimeout(() => {
                 var iframe = document.querySelector('#WebResource_AttachmentSelector');
