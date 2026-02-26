@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.28
-// @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
-// @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
+// @version      4.1.29
+// @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
+// @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
 // @match        https://gotandt.crm.dynamics.com/*
 // @author       Michael Toy
@@ -396,7 +396,7 @@ rows.forEach(row => {
         const totalValue = parseFloat(totalText);
 
         // Exclude "Rush Fee" from totalBilled
-        if (productsToTrack.includes(product) && 
+        if (productsToTrack.includes(product) &&
             product !== "Rush Fee" &&
             product !== "Weekend Holiday" &&
             product !== "Wheelchair Rental" &&
@@ -833,17 +833,12 @@ function copyBoth() {
         var text2 = element2.textContent.trim(); // Claim #
         var headerTitle = titleElement ? titleElement.textContent.trim() : "";
 
-        if (headerTitle.startsWith("4474-")) {
-            alert("Rate increase needs to go to the adjuster and authorized by as well as AboveContractedRateRequest@sedgwick.com");
-        }
-
         if (headerTitle.startsWith("4403-54316")) {
             alert("Please combine staffing and/or auth requests into one email (include multiple dates into one email).");
         }
 
-        if (/^H\d+$/.test(text2)) {
-            alert(`The claim number "${text2}" appears to be an HES claim. Please verify the payer is CareWorks and send related emails to HES@careworks.com`);
-        }
+        // ✅ CHANGE #1: Remove the H-claim alert/message block entirely (no popup)
+        // (Previously: if (/^H\d+$/.test(text2)) alert(...); )
 
         // Use Start Date as default value in prompt
         var referralDate = prompt("Please enter the referral date(s):", startDateValue);
@@ -895,21 +890,34 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
     label.style.fontWeight = "bold";
     dropdownContainer.appendChild(label);
 
-    const fullOptions = [
-        "Staffed Email",
-        "Staffed UBER Health",
-        "Staffed Revised at Approved Rates",
-        "Standard Rate Request",
-        "CareIQ Rate Request",
-        "Homelink Rate Request",
-        "CareWorks Rate Request",
-        "JBS Request for Higher Rates",
-        "Wait time request",
-        "Request Demographics",
-        "Other"
-    ];
+    let fullOptions = [
+  "Staffed Email",
+  "Staffed UBER Health",
+  "Staffed Revised at Approved Rates",
+  "Standard Rate Request",
+  "CareIQ Rate Request",
+  "Homelink Rate Request",
+  "Wait time request",
+  "Request Demographics",
+  "Other"
+];
 
-    // Filter exclusions based on headerTitle
+// ✅ 4474- logic depends on BOTH header + claim
+const is4474 = headerTitle.startsWith("4474-");
+const isHClaim = /^H/i.test((claim || "").trim());
+
+if (is4474 && isHClaim) {
+  // Only show Orchid for 4474- + H claim
+  fullOptions.splice(6, 0, "L-Orchid-CareWorks"); // insert after Homelink
+} else if (is4474 && !isHClaim) {
+  // 4474- but NOT H claim => show the two originals
+  fullOptions.splice(6, 0, "CareWorks Rate Request", "JBS Request for Higher Rates");
+} else {
+  // all other headerTitles => your normal behavior (include or exclude however you want)
+  fullOptions.splice(6, 0, "CareWorks Rate Request", "JBS Request for Higher Rates");
+}
+
+    // Filter exclusions based on headerTitle (kept as-is, but options removed so they won't show anyway)
     let exclusions = [];
     if (headerTitle.startsWith("212-")) {
         exclusions = ["Standard Rate Request", "CareIQ Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Staffed UBER Health", "Staffed Revised at Approved Rates"];
@@ -1218,6 +1226,10 @@ function selectCorrectRadioButton(selectedOption) {
         labelToFind = "CareWorks - Request for Higher Rates";
     } else if (selectedOption === "Request Demographics") {
         labelToFind = "Request for Additional Information";
+    } else if (selectedOption === "L-Orchid-CareWorks") {
+        // ✅ CHANGE #4: map new button -> template radio label
+        // This must match the text in the template picker list (the label's .titleText).
+        labelToFind = "L-Orchid-CareWorks";
     } else if (selectedOption === "Other") {
         labelToFind = "";
     }
@@ -1249,8 +1261,8 @@ function selectCorrectRadioButton(selectedOption) {
                             if (okButton) {
                                 okButton.click();
 
-                                if (selectedOption !== "Staffed Email" && 
-                                    selectedOption !== "Staffed UBER Health" && 
+                                if (selectedOption !== "Staffed Email" &&
+                                    selectedOption !== "Staffed UBER Health" &&
                                     selectedOption !== "Staffed Revised at Approved Rates") {
                                     setTimeout(function () {
                                         var deleteButton = document.querySelector('button[aria-label="Delete Referral Outbox"]');
