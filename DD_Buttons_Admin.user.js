@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.28
+// @version      4.1.29
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1336,16 +1336,8 @@ function copyBoth() {
         var text2 = element2.textContent.trim(); // Claim #
         var headerTitle = titleElement ? titleElement.textContent.trim() : "";
 
-        if (headerTitle.startsWith("4474-")) {
-            alert("Rate increase needs to go to the adjuster and authorized by as well as AboveContractedRateRequest@sedgwick.com");
-        }
-
         if (headerTitle.startsWith("4403-54316")) {
             alert("Please combine staffing and/or auth requests into one email (include multiple dates into one email).");
-        }
-
-        if (/^H\d+$/.test(text2)) {
-            alert(`The claim number "${text2}" appears to be an HES claim. Please verify the payer is CareWorks and send related emails to HES@careworks.com`);
         }
 
         // Use Start Date as default value in prompt
@@ -1398,38 +1390,73 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
     label.style.fontWeight = "bold";
     dropdownContainer.appendChild(label);
 
-    const fullOptions = [
+    // Base options (we will insert the 4474-related options dynamically)
+    let fullOptions = [
         "Staffed Email",
         "Staffed UBER Health",
         "Staffed Revised at Approved Rates",
         "Standard Rate Request",
         "CareIQ Rate Request",
         "Homelink Rate Request",
-        "CareWorks Rate Request",
-        "JBS Request for Higher Rates",
         "Wait time request",
         "Request Demographics",
         "Other"
     ];
 
+    // ✅ 4474- logic depends on BOTH header + claim
+    const is4474 = headerTitle.startsWith("4474-");
+    const isHClaim = /^H/i.test((claim || "").trim()); // starts with H (case-insensitive)
+
+    if (is4474 && isHClaim) {
+        // Only show Orchid for 4474- + H claim
+        fullOptions.splice(6, 0, "L-Orchid-CareWorks"); // insert after Homelink
+    } else if (is4474 && !isHClaim) {
+        // 4474- but NOT H claim => show the two originals
+        fullOptions.splice(6, 0, "CareWorks Rate Request", "JBS Request for Higher Rates");
+    } else {
+        // all other headers => normal behavior
+        fullOptions.splice(6, 0, "CareWorks Rate Request", "JBS Request for Higher Rates");
+    }
+
     // Filter exclusions based on headerTitle
     let exclusions = [];
     if (headerTitle.startsWith("212-")) {
-        exclusions = ["Standard Rate Request", "CareIQ Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Staffed UBER Health", "Staffed Revised at Approved Rates"];
+        exclusions = [
+            "Standard Rate Request",
+            "CareIQ Rate Request",
+            "JBS Request for Higher Rates",
+            "CareWorks Rate Request",
+            "Staffed UBER Health",
+            "Staffed Revised at Approved Rates"
+        ];
     } else if (headerTitle.startsWith("4474-")) {
         exclusions = ["Standard Rate Request", "CareIQ Rate Request", "Homelink Rate Request"];
     } else if (headerTitle.startsWith("133-")) {
-        exclusions = ["Standard Rate Request", "Homelink Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Staffed UBER Health", "Staffed Revised at Approved Rates"];
+        exclusions = [
+            "Standard Rate Request",
+            "Homelink Rate Request",
+            "JBS Request for Higher Rates",
+            "CareWorks Rate Request",
+            "Staffed UBER Health",
+            "Staffed Revised at Approved Rates"
+        ];
     } else {
-        exclusions = ["CareIQ Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Homelink Rate Request", "Staffed UBER Health", "Staffed Revised at Approved Rates"];
+        exclusions = [
+            "CareIQ Rate Request",
+            "JBS Request for Higher Rates",
+            "CareWorks Rate Request",
+            "Homelink Rate Request",
+            "Staffed UBER Health",
+            "Staffed Revised at Approved Rates"
+        ];
     }
 
     const filteredOptions = fullOptions.filter(opt => !exclusions.includes(opt));
 
     filteredOptions.forEach(optionText => {
         const isStaff = /staff/i.test(optionText);
-        const start = isStaff ? "#fde047" : "#3b82f6"; // yellow start for "staff"
-        const end   = isStaff ? "#facc15" : "#60a5fa"; // yellow end for "staff"
+        const start = isStaff ? "#fde047" : "#3b82f6";
+        const end   = isStaff ? "#facc15" : "#60a5fa";
 
         const button = createModernButton(
             optionText,
@@ -1439,11 +1466,10 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
                 dropdownContainer.remove();
             }
         );
-        button.style.width = "100%"; // Ensure full width
+        button.style.width = "100%";
         dropdownContainer.appendChild(button);
     });
 
-    // Close button
     const closeButton = createModernButton(
         "Close",
         "#7f1d1d", "#f87171",
@@ -1721,6 +1747,8 @@ function selectCorrectRadioButton(selectedOption) {
         labelToFind = "CareWorks - Request for Higher Rates";
     } else if (selectedOption === "Request Demographics") {
         labelToFind = "Request for Additional Information";
+    } else if (selectedOption === "L-Orchid-CareWorks") {
+        labelToFind = "L-Orchid-CareWorks";
     } else if (selectedOption === "Other") {
         labelToFind = "";
     }
