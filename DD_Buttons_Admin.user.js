@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.29
+// @version      4.1.30
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -83,7 +83,7 @@ function createModernButton(text, gradientStart, gradientEnd, onClick) {
         setTimeout(() => {
             popup.style.opacity = '0';
             setTimeout(() => popup.remove(), 500);
-        }, 3000);
+        }, 2000);
     }
 
     // Function to show calculator UI
@@ -218,6 +218,25 @@ input.style.marginTop = "10px";
 input.style.marginBottom = "15px";
 providerWrapper.appendChild(input);
 
+// --- Provider Load Fee (only shows when Per Mile + Load Fee is present) ---
+const providerLoadFeeWrap = document.createElement("div");
+providerLoadFeeWrap.style.display = "none"; // hidden by default
+
+const providerLoadFeeLabel = document.createElement("label");
+providerLoadFeeLabel.innerText = "Enter Provider Load Fee:";
+providerLoadFeeLabel.style.fontWeight = "bold";
+providerLoadFeeWrap.appendChild(providerLoadFeeLabel);
+
+const providerLoadFeeInput = document.createElement("input");
+providerLoadFeeInput.type = "number";
+providerLoadFeeInput.style.width = "100%";
+providerLoadFeeInput.style.marginTop = "10px";
+providerLoadFeeInput.style.marginBottom = "15px";
+providerLoadFeeInput.value = "";
+providerLoadFeeWrap.appendChild(providerLoadFeeInput);
+
+providerWrapper.appendChild(providerLoadFeeWrap);
+
 // Wait Time column
 const waitWrapper = document.createElement("div");
 waitWrapper.style.flex = "1";
@@ -284,6 +303,8 @@ const resetButton = createModernButton("Reset", "#ef4444", "#f87171");
     resetButton.onclick = () => {
         input.value = "";
         waitTimeInput.value = "";
+        providerLoadFeeInput.value = "";
+        providerLoadFeeWrap.style.display = "none";
         flatRadio.checked = true;
         mileRadio.checked = false;
         result.innerHTML = "";
@@ -999,6 +1020,18 @@ preferredOrder.forEach(product => {
             higherResult.innerText = "";
         }
 
+        const loadFeeQty = quantities["Load Fee"] || 0;
+
+        // Only show Provider Load Fee input when Per Mile + Load Fee exists
+        if (rateType === "mile" && loadFeeQty > 0) {
+            providerLoadFeeWrap.style.display = "block";
+        } else {
+            providerLoadFeeWrap.style.display = "none";
+            providerLoadFeeInput.value = "";
+        }
+
+        const providerLoadFee = parseFloat(providerLoadFeeInput.value) || 0;
+
         let paidAmount = inputValue + waitTimeValue;
         if (rateType === "mile") {
             if (quantity === 0) {
@@ -1007,7 +1040,7 @@ preferredOrder.forEach(product => {
                 higherResult.innerText = "";
                 return;
             }
-            paidAmount = (inputValue * quantity) + waitTimeValue;
+            paidAmount = (inputValue * quantity) + (providerLoadFee * loadFeeQty) + waitTimeValue;
         }
 
         const margin = 100 - ((paidAmount / totalBilled) * 100);
@@ -1035,9 +1068,15 @@ let approvalNote = margin <= marginThreshold
     ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>`
     : "";
 
+        const loadFeeLine =
+          (rateType === "mile" && loadFeeQty > 0)
+            ? `<br><span>Load Fee: $${providerLoadFee.toFixed(2)} x ${loadFeeQty} = $${(providerLoadFee * loadFeeQty).toFixed(2)}</span>`
+            : "";
+
         result.innerHTML = `
     ${rateType === "mile" ? `<span>Miles: ${quantity}</span>` : ""}
-    <span>Total Paid: $${paidAmount.toFixed(2)}</span><br>
+    ${loadFeeLine}
+    <br><span>Total Paid: $${paidAmount.toFixed(2)}</span><br>
     <span>Total Billed: $${totalBilled.toFixed(2)}</span>
     <span style="color: ${marginColor}; font-weight: bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
 `.trim();
@@ -1180,14 +1219,19 @@ let higherApprovalNote = higherMargin <= highermarginThreshold
 
     input.addEventListener("input", calculateMargin);
     waitTimeInput.addEventListener("input", calculateMargin);
+    providerLoadFeeInput.addEventListener("input", calculateMargin);
     flatRadio.addEventListener("change", () => {
         input.value = "";
         waitTimeInput.value = "";
+        providerLoadFeeInput.value = "";
+        providerLoadFeeWrap.style.display = "none";
         calculateMargin();
     });
     mileRadio.addEventListener("change", () => {
         input.value = "";
         waitTimeInput.value = "";
+        // do not force-show here; calculateMargin will decide based on Load Fee qty
+        providerLoadFeeInput.value = "";
         calculateMargin();
     });
 
@@ -1506,7 +1550,7 @@ function finalizeCopy(claimant, claim, referralDate, selectedOption) {
                             waitForPageToLoad().then(() => {
                                 setTimeout(() => {
                                     proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption);
-                                }, 2000);
+                                }, 1500);
                             });
                         }
                     });
@@ -1515,7 +1559,7 @@ function finalizeCopy(claimant, claim, referralDate, selectedOption) {
                 } else {
                     proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption);
                 }
-            }, 3000);
+            }, 2000);
         });
     } else {
         showMessage('EmailConfirmation button not found.', false);
@@ -1549,7 +1593,7 @@ function proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption
         .then((savePrimaryButton) => {
             setTimeout(() => {
             savePrimaryButton.click();
-        }, 2000); // 👈 delay BEFORE clicking SavePrimary
+        }, 1500); // 👈 delay BEFORE clicking SavePrimary
 
             setTimeout(() => {
                 var iframe = document.querySelector('#WebResource_AttachmentSelector');
@@ -1816,7 +1860,7 @@ function selectCorrectRadioButton(selectedOption) {
 
                                         setTimeout(function () {
                                             document.body.removeChild(messageDiv);
-                                        }, 2000);
+                                        }, 1500);
                                     }, 1500);
                                 }, 1500);
                             }
