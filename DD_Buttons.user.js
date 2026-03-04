@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.30
+// @version      4.1.31
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -203,8 +203,8 @@ providerLoadFeeWrap.appendChild(providerLoadFeeLabel);
 const providerLoadFeeInput = document.createElement("input");
 providerLoadFeeInput.type = "number";
 providerLoadFeeInput.style.width = "100%";
-providerLoadFeeInput.style.marginTop = "10px";
-providerLoadFeeInput.style.marginBottom = "15px";
+providerLoadFeeInput.style.marginTop = "6px";
+providerLoadFeeInput.style.marginBottom = "4px";
 providerLoadFeeInput.value = "";
 providerLoadFeeWrap.appendChild(providerLoadFeeInput);
 
@@ -230,7 +230,7 @@ twoColumnWrapper.appendChild(providerWrapper);
 twoColumnWrapper.appendChild(waitWrapper);
 
     const result = document.createElement("div");
-    result.style.marginTop = "10px";
+    result.style.marginTop = "3px";
     result.style.fontWeight = "bold";
     result.style.whiteSpace = "pre-line";
 
@@ -582,18 +582,23 @@ let approvalNote = margin <= marginThreshold
     ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>`
     : "";
 
-        const loadFeeLine =
+const milesLine =
+  rateType === "mile"
+    ? `<span>Miles: ${quantity}</span>`
+    : "";
+
+const loadFeeLine =
   (rateType === "mile" && loadFeeQty > 0)
-    ? `<span>Load Fee: $${providerLoadFee.toFixed(2)} x ${loadFeeQty} = $${(providerLoadFee * loadFeeQty).toFixed(2)}</span><br>`
+    ? `<span>Load Fee: $${providerLoadFee.toFixed(2)} x ${loadFeeQty} = $${(providerLoadFee * loadFeeQty).toFixed(2)}</span>`
     : "";
 
 result.innerHTML = `
-    <span>Total Billed: $${totalBilled.toFixed(2)}</span><br>
-    <span>Total Paid: $${paidAmount.toFixed(2)}</span><br>
-    ${rateType === "mile" ? `<span>Miles: ${quantity}</span><br>` : ""}
-    ${loadFeeLine}
-    <span style="color: ${marginColor}; font-weight: bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
-`.trim();
+${milesLine}
+${loadFeeLine}
+<span>Total Paid: $${paidAmount.toFixed(2)}</span>
+<span>Total Billed: $${totalBilled.toFixed(2)}</span>
+<span style="color:${marginColor};font-weight:bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
+`;
 
 
         const target = totalBilled * (1 - 0.35);
