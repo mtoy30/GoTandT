@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.29
+// @version      4.1.30
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -191,6 +191,25 @@ input.style.marginTop = "10px";
 input.style.marginBottom = "15px";
 providerWrapper.appendChild(input);
 
+// --- Provider Load Fee (only shows when Per Mile + Load Fee is present) ---
+const providerLoadFeeWrap = document.createElement("div");
+providerLoadFeeWrap.style.display = "none"; // hidden by default
+
+const providerLoadFeeLabel = document.createElement("label");
+providerLoadFeeLabel.innerText = "Enter Provider Load Fee:";
+providerLoadFeeLabel.style.fontWeight = "bold";
+providerLoadFeeWrap.appendChild(providerLoadFeeLabel);
+
+const providerLoadFeeInput = document.createElement("input");
+providerLoadFeeInput.type = "number";
+providerLoadFeeInput.style.width = "100%";
+providerLoadFeeInput.style.marginTop = "10px";
+providerLoadFeeInput.style.marginBottom = "15px";
+providerLoadFeeInput.value = "";
+providerLoadFeeWrap.appendChild(providerLoadFeeInput);
+
+providerWrapper.appendChild(providerLoadFeeWrap);
+
 // Wait Time column
 const waitWrapper = document.createElement("div");
 waitWrapper.style.flex = "1";
@@ -257,6 +276,8 @@ const resetButton = createModernButton("Reset", "#ef4444", "#f87171");
     resetButton.onclick = () => {
         input.value = "";
         waitTimeInput.value = "";
+        providerLoadFeeInput.value = "";
+        providerLoadFeeWrap.style.display = "none";
         flatRadio.checked = true;
         mileRadio.checked = false;
         result.innerHTML = "";
@@ -514,18 +535,29 @@ higherInputsWrapper.appendChild(wrapper);
             higherResult.innerText = "";
         }
 
-        let paidAmount = inputValue + waitTimeValue;
-        if (rateType === "mile") {
-            if (quantity === 0) {
-                result.innerText = "Could not find transport quantity.";
-                result.style.color = "black";
-                higherResult.innerText = "";
-                return;
-            }
-            paidAmount = (inputValue * quantity) + waitTimeValue;
-        }
+        const loadFeeQty = quantities["Load Fee"] || 0;
 
-        const margin = 100 - ((paidAmount / totalBilled) * 100);
+// Only show Provider Load Fee input when Per Mile + Load Fee exists
+if (rateType === "mile" && loadFeeQty > 0) {
+    providerLoadFeeWrap.style.display = "block";
+} else {
+    providerLoadFeeWrap.style.display = "none";
+    providerLoadFeeInput.value = "";
+}
+
+const providerLoadFee = parseFloat(providerLoadFeeInput.value) || 0;
+
+let paidAmount = inputValue + waitTimeValue;
+if (rateType === "mile") {
+    if (quantity === 0) {
+        result.innerText = "Could not find transport quantity.";
+        result.style.color = "black";
+        higherResult.innerText = "";
+        return;
+    }
+    paidAmount = (inputValue * quantity) + (providerLoadFee * loadFeeQty) + waitTimeValue;
+}
+const margin = 100 - ((paidAmount / totalBilled) * 100);
         let marginColor = "black";
         if (margin <= 24.99) marginColor = "red";
         else if (margin < 35) marginColor = "goldenrod";
@@ -550,12 +582,19 @@ let approvalNote = margin <= marginThreshold
     ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>`
     : "";
 
-        result.innerHTML = `
+        const loadFeeLine =
+  (rateType === "mile" && loadFeeQty > 0)
+    ? `<span>Load Fee: $${providerLoadFee.toFixed(2)} x ${loadFeeQty} = $${(providerLoadFee * loadFeeQty).toFixed(2)}</span><br>`
+    : "";
+
+result.innerHTML = `
     <span>Total Billed: $${totalBilled.toFixed(2)}</span><br>
     <span>Total Paid: $${paidAmount.toFixed(2)}</span><br>
     ${rateType === "mile" ? `<span>Miles: ${quantity}</span><br>` : ""}
+    ${loadFeeLine}
     <span style="color: ${marginColor}; font-weight: bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
 `.trim();
+
 
         const target = totalBilled * (1 - 0.35);
         targetLabel.innerHTML = `<span>Target to pay this or less: $${target.toFixed(2)}</span>`;
@@ -694,14 +733,19 @@ let higherApprovalNote = higherMargin <= highermarginThreshold
 
     input.addEventListener("input", calculateMargin);
     waitTimeInput.addEventListener("input", calculateMargin);
+    providerLoadFeeInput.addEventListener("input", calculateMargin);
     flatRadio.addEventListener("change", () => {
         input.value = "";
         waitTimeInput.value = "";
+        providerLoadFeeInput.value = "";
+        providerLoadFeeWrap.style.display = "none";
         calculateMargin();
     });
     mileRadio.addEventListener("change", () => {
         input.value = "";
         waitTimeInput.value = "";
+        providerLoadFeeInput.value = "";
+        providerLoadFeeWrap.style.display = "none";
         calculateMargin();
     });
 
