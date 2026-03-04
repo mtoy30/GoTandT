@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.16
+// @version      4.1.30
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin_TEST.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -83,7 +83,7 @@ function createModernButton(text, gradientStart, gradientEnd, onClick) {
         setTimeout(() => {
             popup.style.opacity = '0';
             setTimeout(() => popup.remove(), 500);
-        }, 3000);
+        }, 2000);
     }
 
     // Function to show calculator UI
@@ -218,6 +218,25 @@ input.style.marginTop = "10px";
 input.style.marginBottom = "15px";
 providerWrapper.appendChild(input);
 
+// --- Provider Load Fee (only shows when Per Mile + Load Fee is present) ---
+const providerLoadFeeWrap = document.createElement("div");
+providerLoadFeeWrap.style.display = "none"; // hidden by default
+
+const providerLoadFeeLabel = document.createElement("label");
+providerLoadFeeLabel.innerText = "Enter Provider Load Fee:";
+providerLoadFeeLabel.style.fontWeight = "bold";
+providerLoadFeeWrap.appendChild(providerLoadFeeLabel);
+
+const providerLoadFeeInput = document.createElement("input");
+providerLoadFeeInput.type = "number";
+providerLoadFeeInput.style.width = "100%";
+providerLoadFeeInput.style.marginTop = "10px";
+providerLoadFeeInput.style.marginBottom = "15px";
+providerLoadFeeInput.value = "";
+providerLoadFeeWrap.appendChild(providerLoadFeeInput);
+
+providerWrapper.appendChild(providerLoadFeeWrap);
+
 // Wait Time column
 const waitWrapper = document.createElement("div");
 waitWrapper.style.flex = "1";
@@ -284,6 +303,8 @@ const resetButton = createModernButton("Reset", "#ef4444", "#f87171");
     resetButton.onclick = () => {
         input.value = "";
         waitTimeInput.value = "";
+        providerLoadFeeInput.value = "";
+        providerLoadFeeWrap.style.display = "none";
         flatRadio.checked = true;
         mileRadio.checked = false;
         result.innerHTML = "";
@@ -399,13 +420,12 @@ function buildPartsString(productInputs, quantities, miles, loadFeeQuantity) {
           label === "No Show" ? "No Show/Late Cancel" :
           label;
 
-      if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
-  const transportMiles = miles > 0 ? miles : (quantities[label] || 0);
-
+if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
+  // For transport, user wants ONLY the rate per mile (no "x ## miles")
   if (value.toLowerCase() === "contract rates") {
-    parts.push(`Contract rates/mile x ${transportMiles} miles`);
+    parts.push(`Contract rates/mile`);
   } else if (!isNaN(parseFloat(value))) {
-    parts.push(`$${parseFloat(value).toFixed(2)}/mile x ${transportMiles} miles`);
+    parts.push(`$${parseFloat(value).toFixed(2)}/mile`);
   } else {
     parts.push(`${value} ${normalizedLabel}`);
   }
@@ -1000,6 +1020,18 @@ preferredOrder.forEach(product => {
             higherResult.innerText = "";
         }
 
+        const loadFeeQty = quantities["Load Fee"] || 0;
+
+        // Only show Provider Load Fee input when Per Mile + Load Fee exists
+        if (rateType === "mile" && loadFeeQty > 0) {
+            providerLoadFeeWrap.style.display = "block";
+        } else {
+            providerLoadFeeWrap.style.display = "none";
+            providerLoadFeeInput.value = "";
+        }
+
+        const providerLoadFee = parseFloat(providerLoadFeeInput.value) || 0;
+
         let paidAmount = inputValue + waitTimeValue;
         if (rateType === "mile") {
             if (quantity === 0) {
@@ -1008,7 +1040,7 @@ preferredOrder.forEach(product => {
                 higherResult.innerText = "";
                 return;
             }
-            paidAmount = (inputValue * quantity) + waitTimeValue;
+            paidAmount = (inputValue * quantity) + (providerLoadFee * loadFeeQty) + waitTimeValue;
         }
 
         const margin = 100 - ((paidAmount / totalBilled) * 100);
@@ -1022,10 +1054,12 @@ const headerText = headerElement?.textContent?.trim() || "";
 
 // Determine margin threshold
 let marginThreshold = 34.99;
-if (/^(133\-|4474\-|202\-|9616\-)/.test(headerText)) {
+if (/^(133\-|202\-|9616\-)/.test(headerText)) {
     marginThreshold = 24.99;
 } else if (headerText.startsWith("999-")) {
     marginThreshold = 29.99;
+} else if (headerText.startsWith("4474-")) {
+    marginThreshold = 19.99;
 } else if (headerText.startsWith("212-")) {
     marginThreshold = 49.99;
 }
@@ -1034,9 +1068,15 @@ let approvalNote = margin <= marginThreshold
     ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>`
     : "";
 
+        const loadFeeLine =
+          (rateType === "mile" && loadFeeQty > 0)
+            ? `<br><span>Load Fee: $${providerLoadFee.toFixed(2)} x ${loadFeeQty} = $${(providerLoadFee * loadFeeQty).toFixed(2)}</span>`
+            : "";
+
         result.innerHTML = `
     ${rateType === "mile" ? `<span>Miles: ${quantity}</span>` : ""}
-    <span>Total Paid: $${paidAmount.toFixed(2)}</span><br>
+    ${loadFeeLine}
+    <br><span>Total Paid: $${paidAmount.toFixed(2)}</span><br>
     <span>Total Billed: $${totalBilled.toFixed(2)}</span>
     <span style="color: ${marginColor}; font-weight: bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
 `.trim();
@@ -1157,10 +1197,12 @@ if (!isNaN(enteredValue)) {
 
 // Determine margin threshold
 let highermarginThreshold = 34.99;
-if (/^(133\-|4474\-|202\-|9616\-)/.test(headerText)) {
+if (/^(133\-|202\-|9616\-)/.test(headerText)) {
     highermarginThreshold = 24.99;
 } else if (headerText.startsWith("999-")) {
     highermarginThreshold = 29.99;
+} else if (headerText.startsWith("4474-")) {
+    highermarginThreshold = 19.99;
 } else if (headerText.startsWith("212-")) {
     highermarginThreshold = 49.99;
 }
@@ -1177,14 +1219,19 @@ let higherApprovalNote = higherMargin <= highermarginThreshold
 
     input.addEventListener("input", calculateMargin);
     waitTimeInput.addEventListener("input", calculateMargin);
+    providerLoadFeeInput.addEventListener("input", calculateMargin);
     flatRadio.addEventListener("change", () => {
         input.value = "";
         waitTimeInput.value = "";
+        providerLoadFeeInput.value = "";
+        providerLoadFeeWrap.style.display = "none";
         calculateMargin();
     });
     mileRadio.addEventListener("change", () => {
         input.value = "";
         waitTimeInput.value = "";
+        // do not force-show here; calculateMargin will decide based on Load Fee qty
+        providerLoadFeeInput.value = "";
         calculateMargin();
     });
 
@@ -1333,16 +1380,8 @@ function copyBoth() {
         var text2 = element2.textContent.trim(); // Claim #
         var headerTitle = titleElement ? titleElement.textContent.trim() : "";
 
-        if (headerTitle.startsWith("4474-")) {
-            alert("Rate increase needs to go to the adjuster and authorized by as well as AboveContractedRateRequest@sedgwick.com");
-        }
-
         if (headerTitle.startsWith("4403-54316")) {
             alert("Please combine staffing and/or auth requests into one email (include multiple dates into one email).");
-        }
-
-        if (/^H\d+$/.test(text2)) {
-            alert(`The claim number "${text2}" appears to be an HES claim. Please verify the payer is CareWorks and send related emails to HES@careworks.com`);
         }
 
         // Use Start Date as default value in prompt
@@ -1365,7 +1404,7 @@ function copyBoth() {
     }
 }
 
-    //Create Options for Email templates
+//Create Options for Email templates
 function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
     var existingDropdown = document.getElementById("customDropdownContainer");
     if (existingDropdown) existingDropdown.remove();
@@ -1395,48 +1434,86 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
     label.style.fontWeight = "bold";
     dropdownContainer.appendChild(label);
 
-    const fullOptions = [
+    // Base options (we will insert the 4474-related options dynamically)
+    let fullOptions = [
         "Staffed Email",
         "Staffed UBER Health",
         "Staffed Revised at Approved Rates",
         "Standard Rate Request",
         "CareIQ Rate Request",
         "Homelink Rate Request",
-        "CareWorks Rate Request",
-        "JBS Request for Higher Rates",
         "Wait time request",
         "Request Demographics",
         "Other"
     ];
 
+    // ✅ 4474- logic depends on BOTH header + claim
+    const is4474 = headerTitle.startsWith("4474-");
+    const isHClaim = /^H/i.test((claim || "").trim()); // starts with H (case-insensitive)
+
+    if (is4474 && isHClaim) {
+        // Only show Orchid for 4474- + H claim
+        fullOptions.splice(6, 0, "L-Orchid-CareWorks"); // insert after Homelink
+    } else if (is4474 && !isHClaim) {
+        // 4474- but NOT H claim => show the two originals
+        fullOptions.splice(6, 0, "CareWorks Rate Request", "JBS Request for Higher Rates");
+    } else {
+        // all other headers => normal behavior
+        fullOptions.splice(6, 0, "CareWorks Rate Request", "JBS Request for Higher Rates");
+    }
+
     // Filter exclusions based on headerTitle
     let exclusions = [];
     if (headerTitle.startsWith("212-")) {
-        exclusions = ["Standard Rate Request", "CareIQ Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Staffed UBER Health", "Staffed Revised at Approved Rates"];
+        exclusions = [
+            "Standard Rate Request",
+            "CareIQ Rate Request",
+            "JBS Request for Higher Rates",
+            "CareWorks Rate Request",
+            "Staffed UBER Health",
+            "Staffed Revised at Approved Rates"
+        ];
     } else if (headerTitle.startsWith("4474-")) {
         exclusions = ["Standard Rate Request", "CareIQ Rate Request", "Homelink Rate Request"];
     } else if (headerTitle.startsWith("133-")) {
-        exclusions = ["Standard Rate Request", "Homelink Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Staffed UBER Health", "Staffed Revised at Approved Rates"];
+        exclusions = [
+            "Standard Rate Request",
+            "Homelink Rate Request",
+            "JBS Request for Higher Rates",
+            "CareWorks Rate Request",
+            "Staffed UBER Health",
+            "Staffed Revised at Approved Rates"
+        ];
     } else {
-        exclusions = ["CareIQ Rate Request", "JBS Request for Higher Rates", "CareWorks Rate Request", "Homelink Rate Request", "Staffed UBER Health", "Staffed Revised at Approved Rates"];
+        exclusions = [
+            "CareIQ Rate Request",
+            "JBS Request for Higher Rates",
+            "CareWorks Rate Request",
+            "Homelink Rate Request",
+            "Staffed UBER Health",
+            "Staffed Revised at Approved Rates"
+        ];
     }
 
     const filteredOptions = fullOptions.filter(opt => !exclusions.includes(opt));
 
     filteredOptions.forEach(optionText => {
+        const isStaff = /staff/i.test(optionText);
+        const start = isStaff ? "#fde047" : "#3b82f6";
+        const end   = isStaff ? "#facc15" : "#60a5fa";
+
         const button = createModernButton(
             optionText,
-            "#3b82f6", "#60a5fa",
+            start, end,
             () => {
                 finalizeCopy(claimant, claim, referralDate, optionText);
                 dropdownContainer.remove();
             }
         );
-        button.style.width = "100%"; // Ensure full width
+        button.style.width = "100%";
         dropdownContainer.appendChild(button);
     });
 
-    // Close button
     const closeButton = createModernButton(
         "Close",
         "#7f1d1d", "#f87171",
@@ -1448,7 +1525,6 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
 
     document.body.appendChild(dropdownContainer);
 }
-
 
 // Function to finalize the copy action
 function finalizeCopy(claimant, claim, referralDate, selectedOption) {
@@ -1474,7 +1550,7 @@ function finalizeCopy(claimant, claim, referralDate, selectedOption) {
                             waitForPageToLoad().then(() => {
                                 setTimeout(() => {
                                     proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption);
-                                }, 2000);
+                                }, 1500);
                             });
                         }
                     });
@@ -1483,7 +1559,7 @@ function finalizeCopy(claimant, claim, referralDate, selectedOption) {
                 } else {
                     proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption);
                 }
-            }, 3000);
+            }, 2000);
         });
     } else {
         showMessage('EmailConfirmation button not found.', false);
@@ -1515,7 +1591,9 @@ function proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption
 
     waitForSavePrimary()
         .then((savePrimaryButton) => {
+            setTimeout(() => {
             savePrimaryButton.click();
+        }, 1500); // 👈 delay BEFORE clicking SavePrimary
 
             setTimeout(() => {
                 var iframe = document.querySelector('#WebResource_AttachmentSelector');
@@ -1535,13 +1613,13 @@ function proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption
 
                                 setTimeout(() => {
                                     selectCorrectRadioButton(selectedOption);
-                                    hideProcessingMessage();
-                                }, 1500);
+                                    //hideProcessingMessage();
+                                }, 2500);
                             } else {
                                 showMessage('Template button not found.', false);
                                 hideProcessingMessage();
                             }
-                        }, 1500);
+                        }, 2500);
                     } catch (e) {
                         console.error('Cannot access iframe content:', e);
                         hideProcessingMessage();
@@ -1550,7 +1628,7 @@ function proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption
                     console.error('No iframe found.');
                     hideProcessingMessage();
                 }
-            }, 2000);
+            }, 5000);
         })
         .catch((error) => {
             showMessage(error, false);
@@ -1647,10 +1725,10 @@ function showProcessingMessage() {
 
     document.body.appendChild(msg);
 
-    // 🔒 Fail-safe: auto-hide after 5 seconds so users can finish manually
+    // 🔒 Fail-safe: auto-hide after 14 seconds so users can finish manually
     processingTimeoutId = window.setTimeout(() => {
         hideProcessingMessage();
-    }, 5000);
+    }, 14000);
 }
 
 // Hides the processing message and clears the fail-safe timer
@@ -1684,7 +1762,7 @@ function waitForPageToLoad() {
         observer.observe(document.body, { childList: true, subtree: true });
 
         // Fallback timeout in case the observer misses the event
-        setTimeout(resolve, 5000);
+        setTimeout(resolve, 14000);
     });
 }
 
@@ -1713,6 +1791,8 @@ function selectCorrectRadioButton(selectedOption) {
         labelToFind = "CareWorks - Request for Higher Rates";
     } else if (selectedOption === "Request Demographics") {
         labelToFind = "Request for Additional Information";
+    } else if (selectedOption === "L-Orchid-CareWorks") {
+        labelToFind = "L-Orchid-CareWorks";
     } else if (selectedOption === "Other") {
         labelToFind = "";
     }
@@ -1780,7 +1860,7 @@ function selectCorrectRadioButton(selectedOption) {
 
                                         setTimeout(function () {
                                             document.body.removeChild(messageDiv);
-                                        }, 2000);
+                                        }, 1500);
                                     }, 1500);
                                 }, 1500);
                             }
