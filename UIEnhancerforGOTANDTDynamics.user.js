@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.2.15
+// @version      1.2.16
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill behavior (iframe-safe). Time fields + key fields always unlocked; company/email soft-prefill; unlock-all-on-submit. Also adds a yellow Copy button in PowerApps Leg Info overlay that preserves on-screen order (including duplicate lines like city/state).
@@ -782,14 +782,22 @@
         headerTitle.style.padding = "0px";
       }
     }
-    function styleNotificationWrapper() {
-      const notificationElements = document.querySelectorAll('[id*="notificationWrapper"], [id*="message"]');
-      notificationElements.forEach(element => {
-        element.style.fontWeight = 'bold';
-        element.style.fontSize = '18px';
-        element.style.backgroundColor = 'lightgreen';
-      });
+function styleNotificationWrapper() {
+  const notificationElements = document.querySelectorAll('[id*="notificationWrapper"], [id*="message"]');
+
+  notificationElements.forEach(element => {
+    const text = (element.textContent || element.innerText || '').trim();
+
+    element.style.fontWeight = 'bold';
+    element.style.fontSize = '18px';
+
+    if (text.includes('~~')) {
+      element.style.backgroundColor = 'yellow';
+    } else {
+      element.style.backgroundColor = 'lightgreen';
     }
+  });
+}
     function observeNotifications() {
       const observer = new MutationObserver(styleNotificationWrapper);
       observer.observe(document.body, { childList: true, subtree: true });
