@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         sptab
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      0.4.1
+// @version      0.4.2
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/sptab.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/sptab.user.js
 // @description  Hides specific Power Apps controls, repositions NoteText & Button4, and conditionally adds a "Portal Submission" button that sets the note and clicks Button4 to save.
@@ -129,7 +129,7 @@
   }
 
   // ---------- Label detection ----------
-  const TARGET_LABEL = 'BOOMERANG TRANSPORT LLC (ACH)';
+  const TARGET_LABEL = 'BOOMERANG TRANSPORT LLC (NC)';
 
   function labelMatches() {
     const nodes = document.querySelectorAll('.appmagic-label-text,[data-control-part="text"].appmagic-label-text');
