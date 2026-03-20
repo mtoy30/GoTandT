@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.33
+// @version      4.1.34
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1858,7 +1858,7 @@ function selectCorrectRadioButton(selectedOption) {
     } else if (selectedOption === "Homelink Rate Request") {
         labelToFind = "Homelink – Request for Higher Rates";
     } else if (selectedOption === "JBS Request for Higher Rates") {
-        labelToFind = "JBS Staffed at Higher Rates (Default Rates)";
+        labelToFind = "JBS Request for Higher Rates (Default Rates)";
     } else if (selectedOption === "Wait time request") {
         labelToFind = "Wait Time Request";
     } else if (selectedOption === "CareWorks Rate Request") {
