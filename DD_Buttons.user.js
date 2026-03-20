@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.32
+// @version      4.1.33
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1303,6 +1303,43 @@ function waitForPageToLoad() {
     });
 }
 
+function clickInsertSignatureButton(retries = 20, delay = 1000) {
+    return new Promise((resolve, reject) => {
+        function tryClick() {
+            const selectors = [
+                '#email\\|NoRelationship\\|Form\\|Mscrm\\.Form\\.email\\.modern\\.InsertSignature73-button',
+                'button[data-id="email|NoRelationship|Form|Mscrm.Form.email.modern.InsertSignature"]',
+                'button[aria-label="Insert Signature"]',
+                'button[title*="Insert Signature"]'
+            ];
+
+            let btn = null;
+            for (const selector of selectors) {
+                btn = document.querySelector(selector);
+                if (btn) break;
+            }
+
+            if (btn) {
+                btn.click();
+                console.log('Clicked Insert Signature button.');
+                resolve(btn);
+                return;
+            }
+
+            if (retries > 0) {
+                setTimeout(() => {
+                    retries--;
+                    tryClick();
+                }, delay);
+            } else {
+                reject('Insert Signature button not found.');
+            }
+        }
+
+        tryClick();
+    });
+}    
+    
 // Function to select the correct radio button
 function selectCorrectRadioButton(selectedOption) {
     showProcessingMessage(); // Start the spinner
@@ -1321,7 +1358,7 @@ function selectCorrectRadioButton(selectedOption) {
     } else if (selectedOption === "Homelink Rate Request") {
         labelToFind = "Homelink – Request for Higher Rates";
     } else if (selectedOption === "JBS Request for Higher Rates") {
-        labelToFind = "JBS Request for Higher Rates (Default Rates)";
+        labelToFind = "JBS Staffed at Higher Rates (Default Rates)";
     } else if (selectedOption === "Wait time request") {
         labelToFind = "Wait Time Request";
     } else if (selectedOption === "CareWorks Rate Request") {
@@ -1329,15 +1366,13 @@ function selectCorrectRadioButton(selectedOption) {
     } else if (selectedOption === "Request Demographics") {
         labelToFind = "Request for Additional Information";
     } else if (selectedOption === "L-Orchid-CareWorks") {
-        // ✅ CHANGE #4: map new button -> template radio label
-        // This must match the text in the template picker list (the label's .titleText).
         labelToFind = "L-Orchid-CareWorks";
     } else if (selectedOption === "Other") {
         labelToFind = "";
     }
 
     if (labelToFind === "") {
-        hideProcessingMessage(); // stop spinner if no action taken
+        hideProcessingMessage();
         return;
     }
 
@@ -1363,9 +1398,11 @@ function selectCorrectRadioButton(selectedOption) {
                             if (okButton) {
                                 okButton.click();
 
-                                if (selectedOption !== "Staffed Email" &&
+                                if (
+                                    selectedOption !== "Staffed Email" &&
                                     selectedOption !== "Staffed UBER Health" &&
-                                    selectedOption !== "Staffed Revised at Approved Rates") {
+                                    selectedOption !== "Staffed Revised at Approved Rates"
+                                ) {
                                     setTimeout(function () {
                                         var deleteButton = document.querySelector('button[aria-label="Delete Referral Outbox"]');
                                         if (deleteButton) {
@@ -1380,33 +1417,76 @@ function selectCorrectRadioButton(selectedOption) {
                                         savePrimaryButton.click();
                                     }
 
-                                    hideProcessingMessage(); // ✅ Stop the spinner here
-
-                                    // ✅ Now show final message
+                                    // After save, wait a bit and then click Insert Signature
                                     setTimeout(function () {
-                                        var messageDiv = document.createElement("div");
-                                        messageDiv.innerText = "Actions completed. Please proceed with filling out the remainder of the information needed.";
-                                        messageDiv.style.position = "fixed";
-                                        messageDiv.style.top = "50%";
-                                        messageDiv.style.left = "50%";
-                                        messageDiv.style.transform = "translate(-50%, -50%)";
-                                        messageDiv.style.backgroundColor = "#000";
-                                        messageDiv.style.color = "#fff";
-                                        messageDiv.style.padding = "20px";
-                                        messageDiv.style.borderRadius = "10px";
-                                        messageDiv.style.zIndex = "1000";
-                                        document.body.appendChild(messageDiv);
+                                        clickInsertSignatureButton(20, 1000)
+                                            .then(() => {
+                                                setTimeout(function () {
+                                                    hideProcessingMessage();
 
-                                        setTimeout(function () {
-                                            document.body.removeChild(messageDiv);
-                                        }, 2000);
-                                    }, 1500);
+                                                    var messageDiv = document.createElement("div");
+                                                    messageDiv.innerText = "Template applied and signature inserted. Please proceed with filling out the remainder of the information needed.";
+                                                    messageDiv.style.position = "fixed";
+                                                    messageDiv.style.top = "50%";
+                                                    messageDiv.style.left = "50%";
+                                                    messageDiv.style.transform = "translate(-50%, -50%)";
+                                                    messageDiv.style.backgroundColor = "#000";
+                                                    messageDiv.style.color = "#fff";
+                                                    messageDiv.style.padding = "20px";
+                                                    messageDiv.style.borderRadius = "10px";
+                                                    messageDiv.style.zIndex = "1000";
+                                                    document.body.appendChild(messageDiv);
+
+                                                    setTimeout(function () {
+                                                        if (document.body.contains(messageDiv)) {
+                                                            document.body.removeChild(messageDiv);
+                                                        }
+                                                    }, 1500);
+                                                }, 1000);
+                                            })
+                                            .catch((error) => {
+                                                console.warn(error);
+                                                hideProcessingMessage();
+
+                                                var messageDiv = document.createElement("div");
+                                                messageDiv.innerText = "Template applied, but Insert Signature button was not found.";
+                                                messageDiv.style.position = "fixed";
+                                                messageDiv.style.top = "50%";
+                                                messageDiv.style.left = "50%";
+                                                messageDiv.style.transform = "translate(-50%, -50%)";
+                                                messageDiv.style.backgroundColor = "#000";
+                                                messageDiv.style.color = "#fff";
+                                                messageDiv.style.padding = "20px";
+                                                messageDiv.style.borderRadius = "10px";
+                                                messageDiv.style.zIndex = "1000";
+                                                document.body.appendChild(messageDiv);
+
+                                                setTimeout(function () {
+                                                    if (document.body.contains(messageDiv)) {
+                                                        document.body.removeChild(messageDiv);
+                                                    }
+                                                }, 2000);
+                                            });
+                                    }, 2000);
+
                                 }, 1500);
+                            } else {
+                                hideProcessingMessage();
+                                showMessage('OK button not found.', false);
                             }
                         }, 1500);
+                    } else {
+                        hideProcessingMessage();
+                        showMessage('Apply template button not found.', false);
                     }
                 }, 1500);
+            } else {
+                hideProcessingMessage();
+                showMessage('Associated radio button not found.', false);
             }
+        } else {
+            hideProcessingMessage();
+            showMessage(`Template label not found: ${labelToFind}`, false);
         }
     }, 1000);
 }
