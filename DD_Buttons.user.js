@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.34
+// @version      4.1.36
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1303,25 +1303,145 @@ function waitForPageToLoad() {
     });
 }
 
-function clickInsertSignatureButton(retries = 20, delay = 1000) {
-    return new Promise((resolve, reject) => {
-        function tryClick() {
-            const selectors = [
-                '#email\\|NoRelationship\\|Form\\|Mscrm\\.Form\\.email\\.modern\\.InsertSignature73-button',
-                'button[data-id="email|NoRelationship|Form|Mscrm.Form.email.modern.InsertSignature"]',
-                'button[aria-label="Insert Signature"]',
-                'button[title*="Insert Signature"]'
-            ];
+function getVisibleElements(selector) {
+    return Array.from(document.querySelectorAll(selector)).filter(el => {
+        const style = window.getComputedStyle(el);
+        return (
+            el.offsetParent !== null &&
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            style.opacity !== '0' &&
+            !el.disabled &&
+            el.getAttribute('aria-disabled') !== 'true'
+        );
+    });
+}
 
-            let btn = null;
-            for (const selector of selectors) {
-                btn = document.querySelector(selector);
-                if (btn) break;
+function getLastVisibleElement(selector) {
+    const els = getVisibleElements(selector);
+    return els.length ? els[els.length - 1] : null;
+}
+
+function waitForVisibleButton(selector, timeout = 8000) {
+    return new Promise((resolve, reject) => {
+        const start = Date.now();
+
+        function findButton() {
+            const matches = Array.from(document.querySelectorAll(selector)).filter(btn => {
+                const style = window.getComputedStyle(btn);
+                return (
+                    btn.offsetParent !== null &&
+                    style.display !== 'none' &&
+                    style.visibility !== 'hidden' &&
+                    style.opacity !== '0' &&
+                    !btn.disabled &&
+                    btn.getAttribute('aria-disabled') !== 'true'
+                );
+            });
+
+            return matches.length ? matches[matches.length - 1] : null;
+        }
+
+        function check() {
+            const btn = findButton();
+            if (btn) {
+                resolve(btn);
+                return;
             }
 
-            if (btn) {
+            if (Date.now() - start >= timeout) {
+                reject(`Button not found: ${selector}`);
+                return;
+            }
+
+            setTimeout(check, 200);
+        }
+
+        check();
+    });
+}
+
+function waitForDeleteReferralOutboxToFinish(timeout = 10000) {
+    return new Promise((resolve) => {
+        const start = Date.now();
+
+        function check() {
+            const deleteButton = document.querySelector('button[aria-label="Delete Referral Outbox"]');
+
+            if (!deleteButton || deleteButton.offsetParent === null) {
+                resolve();
+                return;
+            }
+
+            if (Date.now() - start >= timeout) {
+                resolve();
+                return;
+            }
+
+            setTimeout(check, 250);
+        }
+
+        check();
+    });
+}
+
+function clickDeleteReferralOutboxIfPresent(timeout = 5000) {
+    return new Promise((resolve) => {
+        const start = Date.now();
+
+        function check() {
+            const deleteButtons = Array.from(document.querySelectorAll('button[aria-label="Delete Referral Outbox"]')).filter(btn => {
+                const style = window.getComputedStyle(btn);
+                return (
+                    btn.offsetParent !== null &&
+                    style.display !== 'none' &&
+                    style.visibility !== 'hidden' &&
+                    style.opacity !== '0' &&
+                    !btn.disabled &&
+                    btn.getAttribute('aria-disabled') !== 'true'
+                );
+            });
+
+            if (deleteButtons.length) {
+                const btn = deleteButtons[deleteButtons.length - 1];
                 btn.click();
-                console.log('Clicked Insert Signature button.');
+                console.log('Clicked Delete Referral Outbox after signature.');
+                waitForDeleteReferralOutboxToFinish(10000).then(resolve);
+                return;
+            }
+
+            if (Date.now() - start >= timeout) {
+                resolve();
+                return;
+            }
+
+            setTimeout(check, 250);
+        }
+
+        check();
+    });
+}
+
+function clickInsertSignatureButton(retries = 25, delay = 1000) {
+    return new Promise((resolve, reject) => {
+        function tryClick() {
+            const buttons = Array.from(document.querySelectorAll('button[aria-label="Insert Signature"]')).filter(btn => {
+                const style = window.getComputedStyle(btn);
+                return (
+                    btn.offsetParent !== null &&
+                    style.display !== 'none' &&
+                    style.visibility !== 'hidden' &&
+                    style.opacity !== '0' &&
+                    !btn.disabled &&
+                    btn.getAttribute('aria-disabled') !== 'true'
+                );
+            });
+
+            if (buttons.length) {
+                const btn = buttons[buttons.length - 1];
+                try { btn.focus(); } catch (e) {}
+                btn.click();
+                console.log('Clicked Insert Signature button:', btn);
                 resolve(btn);
                 return;
             }
@@ -1338,11 +1458,11 @@ function clickInsertSignatureButton(retries = 20, delay = 1000) {
 
         tryClick();
     });
-}    
-    
+}
+
 // Function to select the correct radio button
 function selectCorrectRadioButton(selectedOption) {
-    showProcessingMessage(); // Start the spinner
+    showProcessingMessage();
 
     var labelToFind = "";
     if (selectedOption === "Staffed Email") {
@@ -1376,119 +1496,157 @@ function selectCorrectRadioButton(selectedOption) {
         return;
     }
 
-    setTimeout(function () {
+    const isStaffTemplate =
+        selectedOption === "Staffed Email" ||
+        selectedOption === "Staffed UBER Health" ||
+        selectedOption === "Staffed Revised at Approved Rates";
+
+    try {
         var labels = document.querySelectorAll('label');
         var correctLabel = Array.from(labels).find(label => {
             var titleSpan = label.querySelector('.titleText');
             return titleSpan && titleSpan.textContent.trim() === labelToFind;
         });
 
-        if (correctLabel) {
-            var associatedRadio = document.getElementById(correctLabel.getAttribute('for'));
-            if (associatedRadio) {
-                associatedRadio.click();
-
-                setTimeout(function () {
-                    var applyTemplateButton = document.querySelector('button[title="Apply template"]');
-                    if (applyTemplateButton) {
-                        applyTemplateButton.click();
-
-                        setTimeout(function () {
-                            var okButton = document.querySelector('button[title="OK"]');
-                            if (okButton) {
-                                okButton.click();
-
-                                if (
-                                    selectedOption !== "Staffed Email" &&
-                                    selectedOption !== "Staffed UBER Health" &&
-                                    selectedOption !== "Staffed Revised at Approved Rates"
-                                ) {
-                                    setTimeout(function () {
-                                        var deleteButton = document.querySelector('button[aria-label="Delete Referral Outbox"]');
-                                        if (deleteButton) {
-                                            deleteButton.click();
-                                        }
-                                    }, 1500);
-                                }
-
-                                setTimeout(function () {
-                                    var savePrimaryButton = document.querySelector('[id*="SavePrimary"]');
-                                    if (savePrimaryButton) {
-                                        savePrimaryButton.click();
-                                    }
-
-                                    // After save, wait a bit and then click Insert Signature
-                                    setTimeout(function () {
-                                        clickInsertSignatureButton(20, 1000)
-                                            .then(() => {
-                                                setTimeout(function () {
-                                                    hideProcessingMessage();
-
-                                                    var messageDiv = document.createElement("div");
-                                                    messageDiv.innerText = "Template applied and signature inserted. Please proceed with filling out the remainder of the information needed.";
-                                                    messageDiv.style.position = "fixed";
-                                                    messageDiv.style.top = "50%";
-                                                    messageDiv.style.left = "50%";
-                                                    messageDiv.style.transform = "translate(-50%, -50%)";
-                                                    messageDiv.style.backgroundColor = "#000";
-                                                    messageDiv.style.color = "#fff";
-                                                    messageDiv.style.padding = "20px";
-                                                    messageDiv.style.borderRadius = "10px";
-                                                    messageDiv.style.zIndex = "1000";
-                                                    document.body.appendChild(messageDiv);
-
-                                                    setTimeout(function () {
-                                                        if (document.body.contains(messageDiv)) {
-                                                            document.body.removeChild(messageDiv);
-                                                        }
-                                                    }, 1500);
-                                                }, 1000);
-                                            })
-                                            .catch((error) => {
-                                                console.warn(error);
-                                                hideProcessingMessage();
-
-                                                var messageDiv = document.createElement("div");
-                                                messageDiv.innerText = "Template applied, but Insert Signature button was not found.";
-                                                messageDiv.style.position = "fixed";
-                                                messageDiv.style.top = "50%";
-                                                messageDiv.style.left = "50%";
-                                                messageDiv.style.transform = "translate(-50%, -50%)";
-                                                messageDiv.style.backgroundColor = "#000";
-                                                messageDiv.style.color = "#fff";
-                                                messageDiv.style.padding = "20px";
-                                                messageDiv.style.borderRadius = "10px";
-                                                messageDiv.style.zIndex = "1000";
-                                                document.body.appendChild(messageDiv);
-
-                                                setTimeout(function () {
-                                                    if (document.body.contains(messageDiv)) {
-                                                        document.body.removeChild(messageDiv);
-                                                    }
-                                                }, 2000);
-                                            });
-                                    }, 2000);
-
-                                }, 1500);
-                            } else {
-                                hideProcessingMessage();
-                                showMessage('OK button not found.', false);
-                            }
-                        }, 1500);
-                    } else {
-                        hideProcessingMessage();
-                        showMessage('Apply template button not found.', false);
-                    }
-                }, 1500);
-            } else {
-                hideProcessingMessage();
-                showMessage('Associated radio button not found.', false);
-            }
-        } else {
+        if (!correctLabel) {
             hideProcessingMessage();
             showMessage(`Template label not found: ${labelToFind}`, false);
+            return;
         }
-    }, 1000);
+
+        var associatedRadio = document.getElementById(correctLabel.getAttribute('for'));
+        if (!associatedRadio) {
+            hideProcessingMessage();
+            showMessage('Associated radio button not found.', false);
+            return;
+        }
+
+        associatedRadio.click();
+
+        waitForVisibleButton('button[title="Apply template"]', 8000)
+            .then((applyTemplateButton) => {
+                applyTemplateButton.click();
+                return waitForVisibleButton('button[title="OK"]', 8000);
+            })
+            .then((okButton) => {
+                okButton.click();
+                return waitForVisibleButton('[id*="SavePrimary"]', 10000);
+            })
+            .then((savePrimaryButton) => {
+                savePrimaryButton.click();
+
+                setTimeout(() => {
+                    clickInsertSignatureButton(
+                        isStaffTemplate ? 20 : 30,
+                        isStaffTemplate ? 800 : 1000
+                    )
+                        .then(() => {
+                            if (isStaffTemplate) {
+                                hideProcessingMessage();
+
+                                var messageDiv = document.createElement("div");
+                                messageDiv.innerText = "Template applied and signature inserted. Please proceed with filling out the remainder of the information needed.";
+                                messageDiv.style.position = "fixed";
+                                messageDiv.style.top = "50%";
+                                messageDiv.style.left = "50%";
+                                messageDiv.style.transform = "translate(-50%, -50%)";
+                                messageDiv.style.backgroundColor = "#000";
+                                messageDiv.style.color = "#fff";
+                                messageDiv.style.padding = "20px";
+                                messageDiv.style.borderRadius = "10px";
+                                messageDiv.style.zIndex = "1000";
+                                document.body.appendChild(messageDiv);
+
+                                setTimeout(function () {
+                                    if (document.body.contains(messageDiv)) {
+                                        document.body.removeChild(messageDiv);
+                                    }
+                                }, 1500);
+                                return;
+                            }
+
+                            setTimeout(() => {
+                                clickDeleteReferralOutboxIfPresent(5000).then(() => {
+                                    setTimeout(() => {
+                                        const saveAgainButtons = Array.from(document.querySelectorAll('[id*="SavePrimary"]')).filter(btn => {
+                                            const style = window.getComputedStyle(btn);
+                                            return (
+                                                btn.offsetParent !== null &&
+                                                style.display !== 'none' &&
+                                                style.visibility !== 'hidden' &&
+                                                style.opacity !== '0' &&
+                                                !btn.disabled &&
+                                                btn.getAttribute('aria-disabled') !== 'true'
+                                            );
+                                        });
+
+                                        if (saveAgainButtons.length) {
+                                            saveAgainButtons[saveAgainButtons.length - 1].click();
+                                        }
+
+                                        hideProcessingMessage();
+
+                                        var messageDiv = document.createElement("div");
+                                        messageDiv.innerText = "Template applied and signature inserted. Please proceed with filling out the remainder of the information needed.";
+                                        messageDiv.style.position = "fixed";
+                                        messageDiv.style.top = "50%";
+                                        messageDiv.style.left = "50%";
+                                        messageDiv.style.transform = "translate(-50%, -50%)";
+                                        messageDiv.style.backgroundColor = "#000";
+                                        messageDiv.style.color = "#fff";
+                                        messageDiv.style.padding = "20px";
+                                        messageDiv.style.borderRadius = "10px";
+                                        messageDiv.style.zIndex = "1000";
+                                        document.body.appendChild(messageDiv);
+
+                                        setTimeout(function () {
+                                            if (document.body.contains(messageDiv)) {
+                                                document.body.removeChild(messageDiv);
+                                            }
+                                        }, 1500);
+                                    }, 800);
+                                });
+                            }, 800);
+                        })
+                        .catch((error) => {
+                            console.warn(error);
+                            hideProcessingMessage();
+
+                            var messageDiv = document.createElement("div");
+                            messageDiv.innerText = "Template applied, but Insert Signature button was not found.";
+                            messageDiv.style.position = "fixed";
+                            messageDiv.style.top = "50%";
+                            messageDiv.style.left = "50%";
+                            messageDiv.style.transform = "translate(-50%, -50%)";
+                            messageDiv.style.backgroundColor = "#000";
+                            messageDiv.style.color = "#fff";
+                            messageDiv.style.padding = "20px";
+                            messageDiv.style.borderRadius = "10px";
+                            messageDiv.style.zIndex = "1000";
+                            document.body.appendChild(messageDiv);
+
+                            setTimeout(function () {
+                                if (document.body.contains(messageDiv)) {
+                                    document.body.removeChild(messageDiv);
+                                }
+                            }, 2000);
+                        });
+                }, isStaffTemplate ? 1200 : 1600);
+            })
+            .catch((error) => {
+                console.warn(error);
+                hideProcessingMessage();
+                showMessage(
+                    error && error.message ? error.message : 'Template flow failed.',
+                    false
+                );
+            });
+
+    } catch (error) {
+        console.warn(error);
+        hideProcessingMessage();
+        showMessage('Template flow failed.', false);
+    }
 }
 
 // Helper function to wait for an element to appear
