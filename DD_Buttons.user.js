@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.37
+// @version      4.1.38
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -256,6 +256,7 @@ twoColumnWrapper.appendChild(waitWrapper);
     higherResult.style.whiteSpace = "pre-line";
 
     const productInputs = {};
+    let noShowPreview = null;
     const productsToTrack = [
     "Transport Ambulatory",
     "Transport Wheelchair",
@@ -271,6 +272,53 @@ twoColumnWrapper.appendChild(waitWrapper);
     "Airport Pickup Fee"
 ];
 
+function getNoShowAmountFromRow() {
+    const rows = document.querySelectorAll('div[row-index]');
+    const transportProducts = [
+        "Transport Ambulatory",
+        "Transport Wheelchair",
+        "Transport Stretcher, ALS & BLS"
+    ];
+
+    const headerElement = document.querySelector('[id^="formHeaderTitle"]');
+    const headerText = headerElement?.textContent?.trim() || "";
+
+    const groupFlat = ["202-","9616-","4474-","11525-"];
+    const group16 = [
+        "9617-","145-","9548-","9337-","4234-","4403-","5219-",
+        "6117-","6345-","10322-","10530-","10531-","4417-","6931-"
+    ];
+
+    for (const row of rows) {
+        const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+        const priceCell = row.querySelector('[col-id="gtt_price"]');
+
+        if (!productCell || !priceCell) continue;
+
+        const productName = productCell.innerText.trim();
+        if (!transportProducts.includes(productName)) continue;
+
+        const priceText = priceCell.innerText.trim().replace(/[^0-9.-]+/g, '');
+        const priceValue = parseFloat(priceText);
+
+        if (isNaN(priceValue) || priceValue <= 0) continue;
+
+        if (groupFlat.some(prefix => headerText.startsWith(prefix))) {
+            if (productName === "Transport Ambulatory") return 35;
+            if (productName === "Transport Wheelchair") return 60;
+            return 35;
+        }
+
+        if (group16.some(prefix => headerText.startsWith(prefix))) {
+            return priceValue * 16;
+        }
+
+        return priceValue * 18;
+    }
+
+    return 0;
+}
+
 const resetButton = createModernButton("Reset", "#ef4444", "#f87171");
 
     resetButton.onclick = () => {
@@ -283,6 +331,7 @@ const resetButton = createModernButton("Reset", "#ef4444", "#f87171");
         result.innerHTML = "";
         targetLabel.innerHTML = "";
         higherResult.innerHTML = "";
+        if (noShowPreview) noShowPreview.innerText = "";
 
         Object.values(productInputs).forEach(field => {
             field.value = "";
@@ -309,60 +358,18 @@ requestRatesButton.onclick = () => {
 
       if (accountProductText.includes("Transport") && !isNaN(quantity)) {
         miles = quantity;
-        console.log("Matched Transport with quantity:", miles);
       }
 
       if (accountProductText.includes("Load Fee") && !isNaN(quantity)) {
         loadFeeQuantity = quantity;
-        console.log("Matched Load Fee with quantity:", loadFeeQuantity);
       }
     }
   });
 
-  // Now you can use miles and loadFeeQuantity accurately:
-  let parts = [];
+  const finalParts = buildPartsString(productInputs, {}, miles, loadFeeQuantity);
 
-  Object.entries(productInputs).forEach(([label, input]) => {
-  const value = input.value.trim();
-  if (value !== "") {
-    // Normalize labels
-    let normalizedLabel = label === "Miscellaneous Dead Miles" ? "Dead Miles" :
-                          label === "No Show" ? "No Show/Late Cancel" :
-                          label;
+  const finalText = "Request rates " + finalParts;
 
-    if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
-      if (!isNaN(parseFloat(value))) {
-        parts.push(`$${parseFloat(value).toFixed(2)}/mile x ${miles} miles`);
-      } else {
-        parts.push(`${value} ${normalizedLabel}`);
-      }
-    } else if (label === "Load Fee") {
-      if (!isNaN(parseFloat(value))) {
-        const fee = `$${parseFloat(value).toFixed(2)} Load Fee`;
-        const withQty = loadFeeQuantity ? `${fee} x ${loadFeeQuantity}` : fee;
-        parts.push(withQty);
-      } else {
-        parts.push(`${value} Load Fee`);
-      }
-    } else if (normalizedLabel === "Dead Miles") {
-      if (!isNaN(parseFloat(value))) {
-        parts.push(`${parseFloat(value)} ${normalizedLabel}`);
-      } else {
-        parts.push(`${value} ${normalizedLabel}`);
-      }
-    } else {
-      if (value.toLowerCase() === "contract" || value.toLowerCase().includes("contract")) {
-        parts.push(`contract ${normalizedLabel}`);
-      } else if (!isNaN(parseFloat(value))) {
-        parts.push(`$${parseFloat(value).toFixed(2)} ${normalizedLabel}`);
-      } else {
-        parts.push(`${value} ${normalizedLabel}`);
-      }
-    }
-  }
-});
-
-  const finalText = "Previously requested rates " + parts.join(", ");
   navigator.clipboard.writeText(finalText).then(() => {
     const copiedMsg = document.createElement("div");
     copiedMsg.innerText = `"${finalText}" copied!`;
@@ -388,11 +395,401 @@ requestRatesButton.onclick = () => {
   });
 };
 
+// Create the "Apply Rates" button
+const applyRatesButton = createModernButton("Apply & Staff", "#a855f7", "#c084fc");
+
+// Button click behavior
+applyRatesButton.onclick = () => {
+  let miles = 0;
+  let loadFeeQuantity = 0;
+
+  const rows = document.querySelectorAll('[role="row"]');
+  rows.forEach(row => {
+    const accountProductCell = row.querySelector('[col-id="gtt_accountproduct"]');
+    const quantityCell = row.querySelector('[col-id="gtt_quantity"]');
+
+    if (accountProductCell && quantityCell) {
+      const accountProductText = accountProductCell.innerText.trim();
+      const quantityText = quantityCell.innerText.trim();
+      const quantity = parseFloat(quantityText);
+
+      if (accountProductText.includes("Transport") && !isNaN(quantity)) {
+        miles = quantity;
+      }
+
+      if (accountProductText.includes("Load Fee") && !isNaN(quantity)) {
+        loadFeeQuantity = quantity;
+      }
+    }
+  });
+
+  const finalParts = buildPartsString(productInputs, {}, miles, loadFeeQuantity);
+
+  const finalText = "Apply rates " + finalParts + " // Advise in Staffing email";
+
+  navigator.clipboard.writeText(finalText).then(() => {
+    const copiedMsg = document.createElement("div");
+    copiedMsg.innerText = `"${finalText}" copied!`;
+    copiedMsg.style.position = "fixed";
+    copiedMsg.style.top = "50%";
+    copiedMsg.style.left = "50%";
+    copiedMsg.style.transform = "translate(-50%, -50%)";
+    copiedMsg.style.background = "rgba(0,0,0,0.8)";
+    copiedMsg.style.color = "#fff";
+    copiedMsg.style.padding = "15px 25px";
+    copiedMsg.style.borderRadius = "8px";
+    copiedMsg.style.zIndex = "10001";
+    copiedMsg.style.fontSize = "18px";
+    copiedMsg.style.fontWeight = "bold";
+    copiedMsg.style.textAlign = "center";
+    copiedMsg.style.maxWidth = "80%";
+    copiedMsg.style.wordWrap = "break-word";
+    document.body.appendChild(copiedMsg);
+
+    setTimeout(() => {
+      copiedMsg.remove();
+    }, 1500);
+  });
+};
+
+//Homelink Button
+const homelinkButton = createModernButton("Request Homelink Rates", "#a855f7", "#c084fc");
+
+homelinkButton.onclick = () => {
+  let higherTotal = 0;
+  let alreadyCounted = new Set();
+
+  const quantities = {};
+  const rows = document.querySelectorAll('[role="row"]');
+  rows.forEach(row => {
+    const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+    const qtyCell = row.querySelector('[col-id="gtt_quantity"]');
+
+    if (productCell && qtyCell) {
+      const product = productCell.innerText.trim();
+      const qty = parseFloat(qtyCell.innerText.trim());
+      if (!isNaN(qty)) quantities[product] = qty;
+    }
+  });
+
+  const foundProducts = Object.keys(productInputs);
+
+  const activeTransportRate = parseFloat(
+    productInputs["Transport Ambulatory"]?.value ||
+    productInputs["Transport Wheelchair"]?.value ||
+    productInputs["Transport Stretcher, ALS & BLS"]?.value
+  );
+
+  if (!activeTransportRate || isNaN(activeTransportRate)) {
+    alert("Please enter a valid Transport rate.");
+    return;
+  }
+
+  foundProducts.forEach(product => {
+    if (product === "Wait Time" || product === "No Show") return;
+
+    if (["Rush Fee", "Tolls", "Other", "Assistance Fee", "Passenger Fee", "Miscellaneous Dead Miles"].includes(product)) {
+      if (alreadyCounted.has(product)) return;
+      alreadyCounted.add(product);
+    }
+
+    const enteredValueRaw = productInputs[product]?.value;
+    const enteredValue = parseFloat(enteredValueRaw);
+    const qty = quantities[product] || 0;
+
+    if (!isNaN(enteredValue)) {
+      if (product === "Miscellaneous Dead Miles" || product === "One Way Surcharge") {
+        higherTotal += enteredValue * (activeTransportRate / 2);
+      } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
+        higherTotal += enteredValue;
+      } else {
+        higherTotal += enteredValue * qty;
+      }
+    }
+  });
+
+  // Extract Wait Time and No Show like Boomerang button
+  let waitTimeText = "";
+  let noShowText = "";
+  if (productInputs["Wait Time"]) {
+    const waitVal = productInputs["Wait Time"].value.trim();
+    waitTimeText = waitVal.toLowerCase() === "contract rates" ? "Contract" : waitVal;
+  }
+  if (productInputs["No Show"]) {
+    const noShowVal = productInputs["No Show"].value.trim();
+    noShowText = noShowVal.toLowerCase() === "contract rates" ? "Contract" : noShowVal;
+  }
+
+  // Use the same buildPartsString function
+  const partsString = buildPartsString(productInputs, quantities, 0, quantities["Load Fee"]);
+  const goatString = `**Enter in Goat as ${partsString}`;
+
+// Build extras text
+let extras = [];
+
+if (waitTimeText) {
+  const waitDisplay = isNaN(waitTimeText) ? waitTimeText : `$${waitTimeText}/hour`;
+  extras.push(`${waitDisplay} wait time in addition to flat rate`);
+}
+
+if (noShowText) {
+  const noShowDisplay = isNaN(noShowText) ? noShowText : `$${noShowText}`;
+  extras.push(`${noShowDisplay} No Show/Late Cancel`);
+}
+
+const extrasText = extras.length > 0 ? `. ${extras.join(", ")}` : "";
+
+const homelinkText = `Request Flat Rate of $${higherTotal.toFixed(2)}${extrasText}. ${goatString}`;
+
+
+  // Copy and notify
+  navigator.clipboard.writeText(homelinkText).then(() => {
+    const copiedMsg = document.createElement("div");
+    copiedMsg.innerText = `"${homelinkText}" copied!`;
+    copiedMsg.style.position = "fixed";
+    copiedMsg.style.top = "50%";
+    copiedMsg.style.left = "50%";
+    copiedMsg.style.transform = "translate(-50%, -50%)";
+    copiedMsg.style.background = "rgba(0,0,0,0.8)";
+    copiedMsg.style.color = "#fff";
+    copiedMsg.style.padding = "15px 25px";
+    copiedMsg.style.borderRadius = "8px";
+    copiedMsg.style.zIndex = "10001";
+    copiedMsg.style.fontSize = "18px";
+    copiedMsg.style.fontWeight = "bold";
+    copiedMsg.style.textAlign = "center";
+    copiedMsg.style.maxWidth = "80%";
+    copiedMsg.style.wordWrap = "break-word";
+    document.body.appendChild(copiedMsg);
+
+    setTimeout(() => {
+      copiedMsg.remove();
+    }, 1500);
+  });
+};
+
+
+// Create the "Boomerang" button
+const boomerangButton = createModernButton("Boomerang Request & Staff", "#f97316", "#fb923c");
+
+// Button click behavior
+boomerangButton.onclick = () => {
+  const titleHeader = document.querySelector('[id^="formHeaderTitle"]');
+  const titleText = titleHeader ? titleHeader.innerText.trim() : "";
+  const isHomeLink = titleText.startsWith("212-");
+
+  let miles = 0;
+  let loadFeeQuantity = 0;
+  const quantities = {};
+
+  const rows = document.querySelectorAll('[role="row"]');
+  rows.forEach(row => {
+    const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+    const qtyCell = row.querySelector('[col-id="gtt_quantity"]');
+
+    if (productCell && qtyCell) {
+      const productText = productCell.innerText.trim();
+      const qty = parseFloat(qtyCell.innerText.trim());
+
+      if (productText && !isNaN(qty)) {
+        quantities[productText] = qty;
+        if (productText.includes("Transport")) miles = qty;
+        if (productText.includes("Load Fee")) loadFeeQuantity = qty;
+      }
+    }
+  });
+
+  let flatRateValue = null;
+  let waitTimeText = "";
+  let noShowText = "";
+
+  const partsString = buildPartsString(productInputs, quantities, miles, loadFeeQuantity);
+
+Object.entries(productInputs).forEach(([label, input]) => {
+  let value = input.value.trim();
+
+  // Normalize Transport inputs for contract case
+  if (
+    ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)
+  ) {
+    value = value.toLowerCase() === "contract rates" ? "Contract rates per mile" : value;
+  }
+
+  // Handle Wait Time
+  if (label === "Wait Time" && value !== "") {
+    waitTimeText = value.toLowerCase() === "contract rates" ? "Contract" : value;
+  }
+
+  // Handle No Show
+  if (label === "No Show" && value !== "") {
+    noShowText = value.toLowerCase() === "contract rates" ? "Contract" : value;
+  }
+
+  // Set flatRateValue based on normalized Transport value
+  if (
+    ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)
+  ) {
+    flatRateValue = value === "Contract rates per mile" ? value : parseFloat(value);
+  }
+});
+
+
+  if (
+  (!flatRateValue || isNaN(flatRateValue)) &&
+  flatRateValue !== "Contract rates per mile"
+) {
+  alert("Please enter a valid Transport rate.");
+  return;
+}
+
+  let higherTotal = 0;
+const alreadyCounted = new Set();
+
+Object.keys(productInputs).forEach(product => {
+  if (product === "Wait Time" || product === "No Show") return;
+
+  const enteredValue = parseFloat(productInputs[product]?.value);
+  const qty = quantities[product] || 0;
+
+  if (!isNaN(enteredValue)) {
+    if (product === "Miscellaneous Dead Miles") {
+      higherTotal += enteredValue * (flatRateValue / 2);
+    } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
+      if (!alreadyCounted.has(product)) {
+        alreadyCounted.add(product);
+        higherTotal += enteredValue;
+      }
+    } else {
+      higherTotal += enteredValue * qty;
+    }
+  }
+});
+
+const flatTotal = higherTotal.toFixed(2);
+
+
+  // Build extras text
+let extras = [];
+
+if (waitTimeText) {
+  const waitDisplay = isNaN(waitTimeText) ? waitTimeText : `$${waitTimeText}/hour`;
+  extras.push(`${waitDisplay} wait time in addition to flat rate`);
+}
+
+if (noShowText) {
+  const noShowDisplay = isNaN(noShowText) ? noShowText : `$${noShowText}`;
+  extras.push(`${noShowDisplay} No Show/Late Cancel`);
+}
+
+const extrasText = extras.length > 0 ? `. ${extras.join(", ")}` : "";
+
+  let boomerangText = "";
+
+  if (isHomeLink) {
+    boomerangText = `Request Flat Rate of $${flatTotal}${extrasText}. **Enter in Goat as ${partsString}** Secure with Boomerang and leave in provider stage until rates approved`;
+  } else {
+    boomerangText = `Request Rates ${partsString}. **Secure with Boomerang and leave in provider stage until rates approved`;
+  }
+
+  // Copy to clipboard and show confirmation
+  navigator.clipboard.writeText(boomerangText).then(() => {
+    const copiedMsg = document.createElement("div");
+    copiedMsg.innerText = `"${boomerangText}" copied!`;
+    copiedMsg.style.position = "fixed";
+    copiedMsg.style.top = "50%";
+    copiedMsg.style.left = "50%";
+    copiedMsg.style.transform = "translate(-50%, -50%)";
+    copiedMsg.style.background = "rgba(0,0,0,0.8)";
+    copiedMsg.style.color = "#fff";
+    copiedMsg.style.padding = "15px 25px";
+    copiedMsg.style.borderRadius = "8px";
+    copiedMsg.style.zIndex = "10001";
+    copiedMsg.style.fontSize = "18px";
+    copiedMsg.style.fontWeight = "bold";
+    copiedMsg.style.textAlign = "center";
+    copiedMsg.style.maxWidth = "80%";
+    copiedMsg.style.wordWrap = "break-word";
+    document.body.appendChild(copiedMsg);
+
+    setTimeout(() => {
+      copiedMsg.remove();
+    }, 1500);
+  });
+};
+
+//Reusable partstring
+function buildPartsString(productInputs, quantities, miles, loadFeeQuantity) {
+  // Prefill "One Way Surcharge" input with the quantity found, if available
+  if (productInputs["One Way Surcharge"] && quantities["One Way Surcharge"] !== undefined) {
+    productInputs["One Way Surcharge"].value = quantities["One Way Surcharge"];
+  }
+
+  const parts = [];
+
+  Object.entries(productInputs).forEach(([label, input]) => {
+    const value = input.value.trim();
+    if (value !== "") {
+      let normalizedLabel =
+          label === "Miscellaneous Dead Miles" ? "Dead Miles" :
+          label === "No Show" ? "No Show/Late Cancel" :
+          label;
+
+if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"].includes(label)) {
+  // For transport, user wants ONLY the rate per mile (no "x ## miles")
+  if (value.toLowerCase() === "contract rates") {
+    parts.push(`Contract rates/mile`);
+  } else if (!isNaN(parseFloat(value))) {
+    parts.push(`$${parseFloat(value).toFixed(2)}/mile`);
+  } else {
+    parts.push(`${value} ${normalizedLabel}`);
+  }
+      } else if (label === "Load Fee") {
+        if (!isNaN(parseFloat(value))) {
+          const fee = `$${parseFloat(value).toFixed(2)} Load Fee`;
+          const withQty = loadFeeQuantity ? `${fee} x ${loadFeeQuantity}` : fee;
+          parts.push(withQty);
+        } else {
+          parts.push(`${value} Load Fee`);
+        }
+      } else if (label === "Miscellaneous Dead Miles") {
+        if (!isNaN(parseFloat(value))) {
+          parts.push(`${parseFloat(value)} ${normalizedLabel}`);
+        } else {
+          parts.push(`${value} ${normalizedLabel}`);
+        }
+      } else if (label === "One Way Surcharge") {
+        if (!isNaN(parseFloat(value))) {
+          parts.push(`${parseFloat(value)} mile One Way Surcharge`);
+        } else {
+          parts.push(`${value} One Way Surcharge`);
+        }
+      } else {
+        if (value.toLowerCase() === "contract" || value.toLowerCase().includes("contract")) {
+          parts.push(`contract ${normalizedLabel}`);
+        } else if (!isNaN(parseFloat(value))) {
+          parts.push(`$${parseFloat(value).toFixed(2)} ${normalizedLabel}`);
+        } else {
+          parts.push(`${value} ${normalizedLabel}`);
+        }
+      }
+    }
+  });
+
+  return parts.join(", ");
+}
 
     const calculateMargin = () => {
         const rateType = document.querySelector('input[name="rateType"]:checked').value;
         const inputValue = parseFloat(input.value) || 0;
         const waitTimeValue = parseFloat(waitTimeInput.value) || 0;
+        const noShowAmount = getNoShowAmountFromRow();
+
+        if (noShowPreview) {
+            noShowPreview.innerText = noShowAmount > 0
+                ? `$${noShowAmount.toFixed(2)}`
+                : "";
+        }
+
         if (isNaN(inputValue) || inputValue <= 0) {
             result.innerText = "Please enter a valid amount.";
             result.style.color = "black";
@@ -457,13 +854,23 @@ rows.forEach(row => {
     }
 });
 
-        ["Miscellaneous Dead Miles", "Tolls", "Other", "No Show", "Wait Time"].forEach(p => foundProducts.add(p));
+        if (foundProducts.has("One Way Surcharge")) {
+            foundProducts.add("One Way Surcharge");
+        } else {
+            foundProducts.add("Miscellaneous Dead Miles");
+        }
+
+        // Always add the remaining extras
+        ["Tolls", "Other", "No Show", "Wait Time"].forEach(p => foundProducts.add(p));
+
+
 
 const preferredOrder = [
   "Transport Ambulatory",
   "Transport Wheelchair",
   "Transport Stretcher, ALS & BLS",
   "Miscellaneous Dead Miles",
+  "One Way Surcharge",
   "Load Fee",
   "Tolls",
   "Other",
@@ -490,13 +897,32 @@ labelRow.style.alignItems = "center";
 labelRow.style.justifyContent = "space-between";
 labelRow.style.marginBottom = "5px";
 
+const leftGroup = document.createElement("div");
+leftGroup.style.display = "flex";
+leftGroup.style.alignItems = "center";
+leftGroup.style.gap = "8px";
+
+const rightGroup = document.createElement("div");
+rightGroup.style.display = "flex";
+rightGroup.style.alignItems = "center";
+
 const label = document.createElement("label");
-label.innerText = product ;
+label.innerText = product;
 label.style.fontWeight = "bold";
 
-labelRow.appendChild(label);
+leftGroup.appendChild(label);
 
-// Add Contract Rates button only for Wait Time and No Show
+if (product === "No Show") {
+    noShowPreview = document.createElement("span");
+    noShowPreview.style.fontSize = "12px";
+    noShowPreview.style.fontWeight = "bold";
+    noShowPreview.style.color = "#b45309";
+    noShowPreview.innerText = noShowAmount > 0
+        ? `$${noShowAmount.toFixed(2)}`
+        : "";
+    leftGroup.appendChild(noShowPreview);
+}
+
 if (["Wait Time", "No Show", "Load Fee", "Additional Passenger", "Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS", "After Hours Fee", "Weekend Holiday"].includes(product)) {
     const contractBtn = document.createElement("button");
     contractBtn.innerText = "Contract Rates";
@@ -508,26 +934,34 @@ if (["Wait Time", "No Show", "Load Fee", "Additional Passenger", "Transport Ambu
         inputField.value = "Contract Rates";
         calculateMargin();
     };
-    labelRow.appendChild(contractBtn);
+    rightGroup.appendChild(contractBtn);
 }
 
-const inputField = document.createElement("input");
-inputField.type = "text";
-inputField.style.width = "100%";
+labelRow.appendChild(leftGroup);
+labelRow.appendChild(rightGroup);
 
-inputField.addEventListener("input", calculateMargin);
+        const inputField = document.createElement("input");
+        inputField.type = "text";
+        inputField.style.width = "100%";
+        inputField.addEventListener("input", calculateMargin);
 
-wrapper.appendChild(labelRow);
-wrapper.appendChild(inputField);
-higherInputsWrapper.appendChild(wrapper);
+        // Prefill "One Way Surcharge" input with the quantity found, if available
+        if (product === "One Way Surcharge" && quantities[product] !== undefined) {
+            inputField.value = quantities[product];
+            inputField.readOnly = true; // Make it read-only
+            inputField.style.background = "#eee"; // Optional: visually show it's disabled
+            inputField.style.cursor = "not-allowed";
+        }
 
+        wrapper.appendChild(labelRow);
+        wrapper.appendChild(inputField);
+        higherInputsWrapper.appendChild(wrapper);
 
         productInputs[product] = inputField;
 
         if (!quantities[product]) quantities[product] = 0;
     }
 });
-
 
         if (totalBilled === 0) {
             result.innerText = "Could not find any billed total.";
@@ -537,27 +971,28 @@ higherInputsWrapper.appendChild(wrapper);
 
         const loadFeeQty = quantities["Load Fee"] || 0;
 
-// Only show Provider Load Fee input when Per Mile + Load Fee exists
-if (rateType === "mile" && loadFeeQty > 0) {
-    providerLoadFeeWrap.style.display = "block";
-} else {
-    providerLoadFeeWrap.style.display = "none";
-    providerLoadFeeInput.value = "";
-}
+        // Only show Provider Load Fee input when Per Mile + Load Fee exists
+        if (rateType === "mile" && loadFeeQty > 0) {
+            providerLoadFeeWrap.style.display = "block";
+        } else {
+            providerLoadFeeWrap.style.display = "none";
+            providerLoadFeeInput.value = "";
+        }
 
-const providerLoadFee = parseFloat(providerLoadFeeInput.value) || 0;
+        const providerLoadFee = parseFloat(providerLoadFeeInput.value) || 0;
 
-let paidAmount = inputValue + waitTimeValue;
-if (rateType === "mile") {
-    if (quantity === 0) {
-        result.innerText = "Could not find transport quantity.";
-        result.style.color = "black";
-        higherResult.innerText = "";
-        return;
-    }
-    paidAmount = (inputValue * quantity) + (providerLoadFee * loadFeeQty) + waitTimeValue;
-}
-const margin = 100 - ((paidAmount / totalBilled) * 100);
+        let paidAmount = inputValue + waitTimeValue;
+        if (rateType === "mile") {
+            if (quantity === 0) {
+                result.innerText = "Could not find transport quantity.";
+                result.style.color = "black";
+                higherResult.innerText = "";
+                return;
+            }
+            paidAmount = (inputValue * quantity) + (providerLoadFee * loadFeeQty) + waitTimeValue;
+        }
+
+        const margin = 100 - ((paidAmount / totalBilled) * 100);
         let marginColor = "black";
         if (margin <= 24.99) marginColor = "red";
         else if (margin < 35) marginColor = "goldenrod";
@@ -569,7 +1004,7 @@ const headerText = headerElement?.textContent?.trim() || "";
 // Determine margin threshold
 let marginThreshold = 34.99;
 if (/^(133\-|202\-|9616\-)/.test(headerText)) {
-    marginThreshold = 19.99;
+    marginThreshold = 24.99;
 } else if (headerText.startsWith("999-")) {
     marginThreshold = 29.99;
 } else if (headerText.startsWith("4474-")) {
@@ -600,7 +1035,6 @@ ${loadFeeLine}
 <span style="color:${marginColor};font-weight:bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
 `;
 
-
         const target = totalBilled * (1 - 0.35);
         targetLabel.innerHTML = `<span>Target to pay this or less: $${target.toFixed(2)}</span>`;
 
@@ -615,7 +1049,7 @@ ${loadFeeLine}
             }
         }
 
-let higherTotal = 0;
+        let higherTotal = 0;
 let alreadyCounted = new Set(); // Track items added once
 
 foundProducts.forEach(product => {
@@ -645,9 +1079,9 @@ foundProducts.forEach(product => {
 let activeTransportRate = 0;
 
 // Check transport inputs and set activeTransportRate
-const transportProducts = ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"];
+const transportProducts2 = ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"];
 
-for (let transport of transportProducts) {
+for (let transport of transportProducts2) {
     const transportInputValue = (productInputs[transport]?.value || "").toLowerCase();
 
     if (transportInputValue.includes("contract")) {
@@ -708,6 +1142,7 @@ if (!isNaN(enteredValue)) {
     }
 }
 });
+
         const higherMargin = 100 - ((paidAmount / higherTotal) * 100);
         let higherMarginColor = "black";
         if (higherMargin <= 24.99) higherMarginColor = "red";
@@ -731,7 +1166,7 @@ let higherApprovalNote = higherMargin <= highermarginThreshold
     : "";
 
         higherResult.innerHTML = `
-            <span>Total Using Higher Rates: $${higherTotal.toFixed(2)}</span><br>
+            <span>Total Using Higher Rates: $${higherTotal.toFixed(2)}</span>
             <span style="color: ${higherMarginColor}; font-weight: bold;">Margin: ${higherMargin.toFixed(2)}%</span>${higherApprovalNote}
         `.trim();
     };
@@ -744,6 +1179,7 @@ let higherApprovalNote = higherMargin <= highermarginThreshold
         waitTimeInput.value = "";
         providerLoadFeeInput.value = "";
         providerLoadFeeWrap.style.display = "none";
+        if (noShowPreview) noShowPreview.innerText = "";
         calculateMargin();
     });
     mileRadio.addEventListener("change", () => {
@@ -751,6 +1187,7 @@ let higherApprovalNote = higherMargin <= highermarginThreshold
         waitTimeInput.value = "";
         providerLoadFeeInput.value = "";
         providerLoadFeeWrap.style.display = "none";
+        if (noShowPreview) noShowPreview.innerText = "";
         calculateMargin();
     });
 
@@ -763,9 +1200,9 @@ let higherApprovalNote = higherMargin <= highermarginThreshold
     box.appendChild(twoColumnWrapper);
     box.appendChild(result);
     box.appendChild(targetLabel);
-    // box.appendChild(higherHeader);
-    // box.appendChild(higherInputsWrapper);
-    // box.appendChild(higherResult);
+    box.appendChild(higherHeader);
+    box.appendChild(higherInputsWrapper);
+    box.appendChild(higherResult);
     box.appendChild(resetButton);
     // box.appendChild(requestRatesButton);
 
@@ -799,8 +1236,9 @@ document.addEventListener('mousemove', function (e) {
 
 document.addEventListener('mouseup', function () {
     isDragging = false;
-    box.style.cursor = 'default';
+    box.style.cursor = 'grab';
 });
+
 
 }
 
@@ -810,7 +1248,7 @@ document.addEventListener('mouseup', function () {
         calculatorButton.addEventListener('click', showCalculatorBox);
     }
 
-// Function to copy claimant name
+    // Function to copy claimant name
 function copyClaimantName() {
     // Look for any anchor tag with an aria-label that looks like a name and href pointing to a contact record
     var elementToCopy = Array.from(document.querySelectorAll('a[aria-label][href*="etn=contact"]'))
@@ -886,9 +1324,6 @@ function copyBoth() {
             alert("Please combine staffing and/or auth requests into one email (include multiple dates into one email).");
         }
 
-        // ✅ CHANGE #1: Remove the H-claim alert/message block entirely (no popup)
-        // (Previously: if (/^H\d+$/.test(text2)) alert(...); )
-
         // Use Start Date as default value in prompt
         var referralDate = prompt("Please enter the referral date(s):", startDateValue);
         if (referralDate === null) {
@@ -939,104 +1374,79 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
     label.style.fontWeight = "bold";
     dropdownContainer.appendChild(label);
 
+    // Base options (we will insert the 4474-related options dynamically)
     let fullOptions = [
-  "Staffed Email",
-  "Staffed UBER Health",
-  "Staffed Revised at Approved Rates",
-  "Standard Rate Request",
-  "CareIQ Rate Request",
-  "Homelink Rate Request",
-  "Wait time request",
-  "Request Demographics",
-  "Other"
-];
-
-// Header + claim checks
-const is4474 = headerTitle.startsWith("4474-");
-const is11525 = headerTitle.startsWith("11525-");
-const isHClaim = /^H/i.test((claim || "").trim()); // starts with H
-
-// Dynamic insert logic
-if (is4474 && isHClaim) {
-    // Only Orchid for 4474- + H claim
-    fullOptions.splice(6, 0, "L-Orchid-CareWorks");
-
-} else if (is4474 && !isHClaim) {
-    // 4474- but NOT H claim
-    fullOptions.splice(6, 0, "CareWorks Rate Request");
-
-} else if (is11525) {
-    // 11525- special handling
-    fullOptions.splice(6, 0, "JBS Request for Higher Rates");
-
-} else {
-    // normal behavior
-    fullOptions.splice(6, 0, "CareWorks Rate Request", "JBS Request for Higher Rates");
-}
-
-
-// Filter exclusions based on headerTitle
-let exclusions = [];
-
-if (headerTitle.startsWith("212-")) {
-
-    exclusions = [
-        "Standard Rate Request",
-        "CareIQ Rate Request",
-        "JBS Request for Higher Rates",
-        "CareWorks Rate Request",
+        "Staffed Email",
         "Staffed UBER Health",
-        "Staffed Revised at Approved Rates"
-    ];
-
-} else if (is4474) {
-
-    exclusions = [
+        "Staffed Revised at Approved Rates",
         "Standard Rate Request",
         "CareIQ Rate Request",
         "Homelink Rate Request",
-        "JBS Request for Higher Rates" // ✅ hide JBS for all 4474-
+        "Wait time request",
+        "Request Demographics",
+        "Other"
     ];
 
-} else if (headerTitle.startsWith("133-")) {
+    // ✅ 4474-related logic depends on BOTH header + claim
+    const is4474 = headerTitle.startsWith("4474-");
+    const isHClaim = /^H/i.test((claim || "").trim()); // starts with H (case-insensitive)
 
-    exclusions = [
-        "Standard Rate Request",
-        "Homelink Rate Request",
-        "JBS Request for Higher Rates",
-        "CareWorks Rate Request",
-        "Staffed UBER Health",
-        "Staffed Revised at Approved Rates"
-    ];
+    if (is4474 && isHClaim) {
+        // Only show Orchid for 4474- + H claim
+        fullOptions.splice(6, 0, "L-Orchid-CareWorks");
+    } else if (is4474 && !isHClaim) {
+        // 4474- but NOT H claim
+        fullOptions.splice(6, 0, "CareWorks Rate Request");
+    } else {
+        // All other referrals
+        fullOptions.splice(6, 0, "CareWorks Rate Request", "JBS Request for Higher Rates");
+    }
 
-} else if (is11525) {
+    // Filter exclusions based on headerTitle
+    let exclusions = [];
 
-    exclusions = [
-        "Standard Rate Request",
-        "CareIQ Rate Request",
-        "CareWorks Rate Request",
-        "Homelink Rate Request",
-        "Staffed UBER Health",
-        "Staffed Revised at Approved Rates"
-    ];
+    if (headerTitle.startsWith("212-")) {
+        exclusions = [
+            "Standard Rate Request",
+            "CareIQ Rate Request",
+            "JBS Request for Higher Rates",
+            "CareWorks Rate Request",
+            "Staffed UBER Health",
+            "Staffed Revised at Approved Rates"
+        ];
+    } else if (headerTitle.startsWith("4474-")) {
+        exclusions = [
+            "Standard Rate Request",
+            "CareIQ Rate Request",
+            "Homelink Rate Request",
+            "JBS Request for Higher Rates"
+        ];
+    } else if (headerTitle.startsWith("133-")) {
+        exclusions = [
+            "Standard Rate Request",
+            "Homelink Rate Request",
+            "JBS Request for Higher Rates",
+            "CareWorks Rate Request",
+            "Staffed UBER Health",
+            "Staffed Revised at Approved Rates"
+        ];
+    } else {
+        exclusions = [
+            "JBS Request for Higher Rates",
+            "CareIQ Rate Request",
+            "CareWorks Rate Request",
+            "Homelink Rate Request",
+            "Staffed UBER Health",
+            "Staffed Revised at Approved Rates"
+        ];
+    }
 
-} else {
-
-    exclusions = [
-        "JBS Request for Higher Rates",
-        "CareIQ Rate Request",
-        "CareWorks Rate Request",
-        "Homelink Rate Request",
-        "Staffed UBER Health",
-        "Staffed Revised at Approved Rates"
-    ];
-}
     const filteredOptions = fullOptions.filter(opt => !exclusions.includes(opt));
 
     filteredOptions.forEach(optionText => {
         const isStaff = /staff/i.test(optionText);
-        const start = isStaff ? "#fde047" : "#3b82f6"; // yellow start for "staff"
-        const end   = isStaff ? "#facc15" : "#60a5fa"; // yellow end for "staff"
+        const start = isStaff ? "#fde047" : "#3b82f6";
+        const end   = isStaff ? "#facc15" : "#60a5fa";
 
         const button = createModernButton(
             optionText,
@@ -1046,11 +1456,10 @@ if (headerTitle.startsWith("212-")) {
                 dropdownContainer.remove();
             }
         );
-        button.style.width = "100%"; // Ensure full width
+        button.style.width = "100%";
         dropdownContainer.appendChild(button);
     });
 
-    // Close button
     const closeButton = createModernButton(
         "Close",
         "#7f1d1d", "#f87171",
@@ -1087,7 +1496,7 @@ function finalizeCopy(claimant, claim, referralDate, selectedOption) {
                             waitForPageToLoad().then(() => {
                                 setTimeout(() => {
                                     proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption);
-                                }, 2000);
+                                }, 1500);
                             });
                         }
                     });
@@ -1096,7 +1505,7 @@ function finalizeCopy(claimant, claim, referralDate, selectedOption) {
                 } else {
                     proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption);
                 }
-            }, 3000);
+            }, 2000);
         });
     } else {
         showMessage('EmailConfirmation button not found.', false);
@@ -1130,7 +1539,7 @@ function proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption
         .then((savePrimaryButton) => {
             setTimeout(() => {
             savePrimaryButton.click();
-        }, 2000); // 👈 delay BEFORE clicking SavePrimary
+        }, 1500); // 👈 delay BEFORE clicking SavePrimary
 
             setTimeout(() => {
                 var iframe = document.querySelector('#WebResource_AttachmentSelector');
@@ -1361,6 +1770,44 @@ function waitForVisibleButton(selector, timeout = 8000) {
     });
 }
 
+function clickInsertSignatureButton(retries = 25, delay = 1000) {
+    return new Promise((resolve, reject) => {
+        function tryClick() {
+            const buttons = Array.from(document.querySelectorAll('button[aria-label="Insert Signature"]')).filter(btn => {
+                const style = window.getComputedStyle(btn);
+                return (
+                    btn.offsetParent !== null &&
+                    style.display !== 'none' &&
+                    style.visibility !== 'hidden' &&
+                    style.opacity !== '0' &&
+                    !btn.disabled &&
+                    btn.getAttribute('aria-disabled') !== 'true'
+                );
+            });
+
+            if (buttons.length) {
+                const btn = buttons[buttons.length - 1];
+                try { btn.focus(); } catch (e) {}
+                btn.click();
+                console.log('Clicked Insert Signature button:', btn);
+                resolve(btn);
+                return;
+            }
+
+            if (retries > 0) {
+                setTimeout(() => {
+                    retries--;
+                    tryClick();
+                }, delay);
+            } else {
+                reject('Insert Signature button not found.');
+            }
+        }
+
+        tryClick();
+    });
+}
+
 function waitForDeleteReferralOutboxToFinish(timeout = 10000) {
     return new Promise((resolve) => {
         const start = Date.now();
@@ -1411,7 +1858,7 @@ function clickDeleteReferralOutboxIfPresent(timeout = 5000) {
             }
 
             if (Date.now() - start >= timeout) {
-                resolve();
+                resolve(); // don't fail the whole flow if delete never appears
                 return;
             }
 
@@ -1419,44 +1866,6 @@ function clickDeleteReferralOutboxIfPresent(timeout = 5000) {
         }
 
         check();
-    });
-}
-
-function clickInsertSignatureButton(retries = 25, delay = 1000) {
-    return new Promise((resolve, reject) => {
-        function tryClick() {
-            const buttons = Array.from(document.querySelectorAll('button[aria-label="Insert Signature"]')).filter(btn => {
-                const style = window.getComputedStyle(btn);
-                return (
-                    btn.offsetParent !== null &&
-                    style.display !== 'none' &&
-                    style.visibility !== 'hidden' &&
-                    style.opacity !== '0' &&
-                    !btn.disabled &&
-                    btn.getAttribute('aria-disabled') !== 'true'
-                );
-            });
-
-            if (buttons.length) {
-                const btn = buttons[buttons.length - 1];
-                try { btn.focus(); } catch (e) {}
-                btn.click();
-                console.log('Clicked Insert Signature button:', btn);
-                resolve(btn);
-                return;
-            }
-
-            if (retries > 0) {
-                setTimeout(() => {
-                    retries--;
-                    tryClick();
-                }, delay);
-            } else {
-                reject('Insert Signature button not found.');
-            }
-        }
-
-        tryClick();
     });
 }
 
@@ -1533,6 +1942,7 @@ function selectCorrectRadioButton(selectedOption) {
                 return waitForVisibleButton('[id*="SavePrimary"]', 10000);
             })
             .then((savePrimaryButton) => {
+                // keep the save -> signature order that actually worked
                 savePrimaryButton.click();
 
                 setTimeout(() => {
@@ -1565,6 +1975,7 @@ function selectCorrectRadioButton(selectedOption) {
                                 return;
                             }
 
+                            // non-staff: signature FIRST, then delete outbox, then save again
                             setTimeout(() => {
                                 clickDeleteReferralOutboxIfPresent(5000).then(() => {
                                     setTimeout(() => {
@@ -1668,6 +2079,19 @@ function extractAndCopyTitle() {
     if (titleElement) {
         const title = titleElement.textContent.trim();
         console.log('Title Found:', title);
+
+        // Check if title contains '4473' and show an alert
+        if (title.startsWith("4473-")) {
+            alert("Rates up to $3.75/mile are ok to apply and include in staffing email.\n\n" +
+                  "Wait time ok if 25 miles or more each way and not surgery.\n\n" +
+                  "If scheduled the day before appointment, ok to proceed with staffing above approved rates if needed and include in staffing email.");
+        }
+
+
+        // Check if title contains '5843-' and show a different alert
+        if (title.startsWith("5843-")) {
+            alert("Rate Increases do not need AUTH - provide rate increase in staffed email");
+        }
 
         // Check if title contains '212-' and show a different alert
         if (title.startsWith("212-")) {
