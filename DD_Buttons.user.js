@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.38
+// @version      4.1.39
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -284,6 +284,7 @@ function getNoShowAmountFromRow() {
     const headerText = headerElement?.textContent?.trim() || "";
 
     const groupFlat = ["202-","9616-","4474-","11525-"];
+    const group15 = ["133-"];
     const group16 = [
         "9617-","145-","9548-","9337-","4234-","4403-","5219-",
         "6117-","6345-","10322-","10530-","10531-","4417-","6931-"
@@ -304,19 +305,30 @@ function getNoShowAmountFromRow() {
         if (isNaN(priceValue) || priceValue <= 0) continue;
 
         if (groupFlat.some(prefix => headerText.startsWith(prefix))) {
-            if (productName === "Transport Ambulatory") return 35;
-            if (productName === "Transport Wheelchair") return 60;
-            return 35;
+            if (productName === "Transport Ambulatory") {
+                return { amount: 35, rule: "Flat rule: Ambulatory = $35" };
+            }
+            if (productName === "Transport Wheelchair") {
+                return { amount: 60, rule: "Flat rule: Wheelchair = $60" };
+            }
+            return { amount: 35, rule: "Flat rule fallback = $35" };
+        }
+
+        if (group15.some(prefix => headerText.startsWith(prefix))) {
+            return {
+                amount: priceValue * 15,
+                rule: `Price rule: gtt_price × 15 (${priceValue.toFixed(2)} × 15)`
+            };
         }
 
         if (group16.some(prefix => headerText.startsWith(prefix))) {
-            return priceValue * 16;
+            return { amount: priceValue * 16, rule: `Price rule: gtt_price × 16 (${priceValue.toFixed(2)} × 16)` };
         }
 
-        return priceValue * 18;
+        return { amount: priceValue * 18, rule: `Default rule: gtt_price × 18 (${priceValue.toFixed(2)} × 18)` };
     }
 
-    return 0;
+    return { amount: 0, rule: "" };
 }
 
 const resetButton = createModernButton("Reset", "#ef4444", "#f87171");
@@ -782,12 +794,13 @@ if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS &
         const rateType = document.querySelector('input[name="rateType"]:checked').value;
         const inputValue = parseFloat(input.value) || 0;
         const waitTimeValue = parseFloat(waitTimeInput.value) || 0;
-        const noShowAmount = getNoShowAmountFromRow();
+        const noShowInfo = getNoShowAmountFromRow();
 
         if (noShowPreview) {
-            noShowPreview.innerText = noShowAmount > 0
-                ? `$${noShowAmount.toFixed(2)}`
-                : "";
+            noShowPreview.innerText = noShowInfo.amount > 0
+                ? `$${noShowInfo.amount.toFixed(2)}`
+            : "";
+            noShowPreview.title = noShowInfo.rule || "";
         }
 
         if (isNaN(inputValue) || inputValue <= 0) {
@@ -917,9 +930,10 @@ if (product === "No Show") {
     noShowPreview.style.fontSize = "12px";
     noShowPreview.style.fontWeight = "bold";
     noShowPreview.style.color = "#b45309";
-    noShowPreview.innerText = noShowAmount > 0
-        ? `$${noShowAmount.toFixed(2)}`
-        : "";
+    noShowPreview.innerText = noShowInfo.amount > 0
+        ? `$${noShowInfo.amount.toFixed(2)}`
+    : "";
+    noShowPreview.title = noShowInfo.rule || "";
     leftGroup.appendChild(noShowPreview);
 }
 
