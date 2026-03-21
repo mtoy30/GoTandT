@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.38
+// @version      4.1.39
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -277,7 +277,7 @@
         higherResult.style.whiteSpace = "pre-line";
 
         const productInputs = {};
-        let noShow133Preview = null;
+        let noShowPreview = null;
 
         const productsToTrack = [
             "Transport Ambulatory",
@@ -294,56 +294,70 @@
             "Airport Pickup Fee"
         ];
 
-function getNoShowAmountFromRow() {
-    const rows = document.querySelectorAll('div[row-index]');
-    const transportProducts = [
-        "Transport Ambulatory",
-        "Transport Wheelchair",
-        "Transport Stretcher, ALS & BLS"
-    ];
+        function getNoShowAmountFromRow() {
+            const rows = document.querySelectorAll('div[row-index]');
+            const transportProducts = [
+                "Transport Ambulatory",
+                "Transport Wheelchair",
+                "Transport Stretcher, ALS & BLS"
+            ];
 
-    const headerElement = document.querySelector('[id^="formHeaderTitle"]');
-    const headerText = headerElement?.textContent?.trim() || "";
-    //$35 Amb $60 Wheelchair
-    const groupFlat = ["202-","9616-","4474-","11525-","8814-","10837-"];
-    //min one way 16 miles
-    const group16 = [
-        "9617-","145-","9548-","9337-","4234-","4403-","5219-",
-        "6117-","6345-","10322-","10530-","10531-","4417-","6931-"
-    ];
+            const headerElement = document.querySelector('[id^="formHeaderTitle"]');
+            const headerText = headerElement?.textContent?.trim() || "";
 
-    for (const row of rows) {
-        const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
-        const priceCell = row.querySelector('[col-id="gtt_price"]');
+            const groupFlat = ["202-","9616-","4474-","11525-","8814-","10837-"];
+            const group15 = ["133-"];
+            const group16 = [
+                "9617-","145-","9548-","9337-","4234-","4403-","5219-",
+                "6117-","6345-","10322-","10530-","10531-","4417-","6931-"
+            ];
 
-        if (!productCell || !priceCell) continue;
+            for (const row of rows) {
+                const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+                const priceCell = row.querySelector('[col-id="gtt_price"]');
 
-        const productName = productCell.innerText.trim();
-        if (!transportProducts.includes(productName)) continue;
+                if (!productCell || !priceCell) continue;
 
-        const priceText = priceCell.innerText.trim().replace(/[^0-9.-]+/g, '');
-        const priceValue = parseFloat(priceText);
+                const productName = productCell.innerText.trim();
+                if (!transportProducts.includes(productName)) continue;
 
-        if (isNaN(priceValue) || priceValue <= 0) continue;
+                const priceText = priceCell.innerText.trim().replace(/[^0-9.-]+/g, '');
+                const priceValue = parseFloat(priceText);
 
-        // ✅ GROUP 1 (fixed values)
-        if (groupFlat.some(prefix => headerText.startsWith(prefix))) {
-            if (productName === "Transport Ambulatory") return 35;
-            if (productName === "Transport Wheelchair") return 60;
-            return 35; // fallback
+                if (isNaN(priceValue) || priceValue <= 0) continue;
+
+                if (groupFlat.some(prefix => headerText.startsWith(prefix))) {
+                    if (productName === "Transport Ambulatory") {
+                        return { amount: 35, rule: "Flat rule: Ambulatory = $35" };
+                    }
+                    if (productName === "Transport Wheelchair") {
+                        return { amount: 60, rule: "Flat rule: Wheelchair = $60" };
+                    }
+                    return { amount: 35, rule: "Flat rule fallback = $35" };
+                }
+
+                if (group15.some(prefix => headerText.startsWith(prefix))) {
+                    return {
+                        amount: priceValue * 15,
+                        rule: `Price rule: gtt_price × 15 (${priceValue.toFixed(2)} × 15)`
+                    };
+                }
+
+                if (group16.some(prefix => headerText.startsWith(prefix))) {
+                    return {
+                        amount: priceValue * 16,
+                        rule: `Price rule: gtt_price × 16 (${priceValue.toFixed(2)} × 16)`
+                    };
+                }
+
+                return {
+                    amount: priceValue * 18,
+                    rule: `Default rule: gtt_price × 18 (${priceValue.toFixed(2)} × 18)`
+                };
+            }
+
+            return { amount: 0, rule: "" };
         }
-
-        // ✅ GROUP 2 (x16)
-        if (group16.some(prefix => headerText.startsWith(prefix))) {
-            return priceValue * 16;
-        }
-
-        // ✅ DEFAULT (x18)
-        return priceValue * 18;
-    }
-
-    return 0;
-}
 
         const resetButton = createModernButton("Reset", "#ef4444", "#f87171");
         resetButton.onclick = () => {
@@ -356,7 +370,10 @@ function getNoShowAmountFromRow() {
             result.innerHTML = "";
             targetLabel.innerHTML = "";
             higherResult.innerHTML = "";
-            if (noShow133Preview) noShow133Preview.innerText = "";
+            if (noShowPreview) {
+                noShowPreview.innerText = "";
+                noShowPreview.title = "";
+            }
 
             Object.values(productInputs).forEach(field => {
                 field.value = "";
@@ -816,13 +833,13 @@ function getNoShowAmountFromRow() {
             const rateType = document.querySelector('input[name="rateType"]:checked').value;
             const inputValue = parseFloat(input.value) || 0;
             const waitTimeValue = parseFloat(waitTimeInput.value) || 0;
+            const noShowInfo = getNoShowAmountFromRow();
 
-            const noShowAmount = getNoShowAmountFromRow();
-
-            if (noShow133Preview) {
-                noShow133Preview.innerText = noShowAmount > 0
-                    ? `$${noShowAmount.toFixed(2)}`
-                : "";
+            if (noShowPreview) {
+                noShowPreview.innerText = noShowInfo.amount > 0
+                    ? `$${noShowInfo.amount.toFixed(2)}`
+                    : "";
+                noShowPreview.title = noShowInfo.rule || "";
             }
 
             if (isNaN(inputValue) || inputValue <= 0) {
@@ -938,18 +955,19 @@ function getNoShowAmountFromRow() {
                     label.style.fontWeight = "bold";
                     leftGroup.appendChild(label);
 
-                    if (product === "No Show") {
-                        noShow133Preview = document.createElement("span");
-                        noShow133Preview.style.fontSize = "12px";
-                        noShow133Preview.style.fontWeight = "bold";
-                        noShow133Preview.style.color = "#b45309";
-                        noShow133Preview.innerText = noShowAmount > 0
-                            ? `$${noShowAmount.toFixed(2)}`
-                        : "";
-                        leftGroup.appendChild(noShow133Preview);
-                    }
-
                     let inputField;
+
+                    if (product === "No Show") {
+                        noShowPreview = document.createElement("span");
+                        noShowPreview.style.fontSize = "12px";
+                        noShowPreview.style.fontWeight = "bold";
+                        noShowPreview.style.color = "#b45309";
+                        noShowPreview.innerText = noShowInfo.amount > 0
+                            ? `$${noShowInfo.amount.toFixed(2)}`
+                            : "";
+                        noShowPreview.title = noShowInfo.rule || "";
+                        leftGroup.appendChild(noShowPreview);
+                    }
 
                     if (["Wait Time", "No Show", "Load Fee", "Additional Passenger", "Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS", "After Hours Fee", "Weekend Holiday"].includes(product)) {
                         const contractBtn = document.createElement("button");
@@ -1180,12 +1198,20 @@ ${loadFeeLine}
             waitTimeInput.value = "";
             providerLoadFeeInput.value = "";
             providerLoadFeeWrap.style.display = "none";
+            if (noShowPreview) {
+                noShowPreview.innerText = "";
+                noShowPreview.title = "";
+            }
             calculateMargin();
         });
         mileRadio.addEventListener("change", () => {
             input.value = "";
             waitTimeInput.value = "";
             providerLoadFeeInput.value = "";
+            if (noShowPreview) {
+                noShowPreview.innerText = "";
+                noShowPreview.title = "";
+            }
             calculateMargin();
         });
 
