@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.39
+// @version      4.1.40
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -257,6 +257,7 @@ twoColumnWrapper.appendChild(waitWrapper);
 
     const productInputs = {};
     let noShowPreview = null;
+    let transportPreview = null;
     const productsToTrack = [
     "Transport Ambulatory",
     "Transport Wheelchair",
@@ -331,6 +332,60 @@ function getNoShowAmountFromRow() {
     return { amount: 0, rule: "" };
 }
 
+function getTransportPreviewAmount() {
+    const ambulatoryVal = parseFloat((productInputs["Transport Ambulatory"]?.value || "").trim());
+    const wheelchairVal = parseFloat((productInputs["Transport Wheelchair"]?.value || "").trim());
+
+    let enteredRate = 0;
+    let transportType = "";
+
+    if (!isNaN(ambulatoryVal) && ambulatoryVal > 0) {
+        enteredRate = ambulatoryVal;
+        transportType = "Ambulatory";
+    } else if (!isNaN(wheelchairVal) && wheelchairVal > 0) {
+        enteredRate = wheelchairVal;
+        transportType = "Wheelchair";
+    } else {
+        return { amount: 0, rule: "" };
+    }
+
+    const headerElement = document.querySelector('[id^="formHeaderTitle"]');
+    const headerText = headerElement?.textContent?.trim() || "";
+
+    const groupFlat = ["202-","9616-","4474-","11525-"];
+    const group15 = ["133-"];
+    const group16 = [
+        "9617-","145-","9548-","9337-","4234-","4403-","5219-",
+        "6117-","6345-","10322-","10530-","10531-","4417-","6931-"
+    ];
+
+    if (groupFlat.some(prefix => headerText.startsWith(prefix))) {
+        if (transportType === "Wheelchair") {
+            return { amount: 60, rule: "Flat rule: Wheelchair = $60" };
+        }
+        return { amount: 35, rule: "Flat rule: Ambulatory = $35" };
+    }
+
+    if (group15.some(prefix => headerText.startsWith(prefix))) {
+        return {
+            amount: enteredRate * 15,
+            rule: `Entered rate × 15 (${enteredRate.toFixed(2)} × 15)`
+        };
+    }
+
+    if (group16.some(prefix => headerText.startsWith(prefix))) {
+        return {
+            amount: enteredRate * 16,
+            rule: `Entered rate × 16 (${enteredRate.toFixed(2)} × 16)`
+        };
+    }
+
+    return {
+        amount: enteredRate * 18,
+        rule: `Entered rate × 18 (${enteredRate.toFixed(2)} × 18)`
+    };
+}
+
 const resetButton = createModernButton("Reset", "#ef4444", "#f87171");
 
     resetButton.onclick = () => {
@@ -343,7 +398,14 @@ const resetButton = createModernButton("Reset", "#ef4444", "#f87171");
         result.innerHTML = "";
         targetLabel.innerHTML = "";
         higherResult.innerHTML = "";
-        if (noShowPreview) noShowPreview.innerText = "";
+if (noShowPreview) {
+    noShowPreview.innerText = "";
+    noShowPreview.title = "";
+}
+if (transportPreview) {
+    transportPreview.innerText = "";
+    transportPreview.title = "";
+}
 
         Object.values(productInputs).forEach(field => {
             field.value = "";
@@ -796,12 +858,20 @@ if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS &
         const waitTimeValue = parseFloat(waitTimeInput.value) || 0;
         const noShowInfo = getNoShowAmountFromRow();
 
-        if (noShowPreview) {
-            noShowPreview.innerText = noShowInfo.amount > 0
-                ? `$${noShowInfo.amount.toFixed(2)}`
-            : "";
-            noShowPreview.title = noShowInfo.rule || "";
-        }
+if (noShowPreview) {
+    noShowPreview.innerText = noShowInfo.amount > 0
+        ? `$${noShowInfo.amount.toFixed(2)}`
+        : "";
+    noShowPreview.title = noShowInfo.rule || "";
+}
+
+if (transportPreview) {
+    const transportInfo = getTransportPreviewAmount();
+    transportPreview.innerText = transportInfo.amount > 0
+        ? `$${transportInfo.amount.toFixed(2)}`
+        : "";
+    transportPreview.title = transportInfo.rule || "";
+}
 
         if (isNaN(inputValue) || inputValue <= 0) {
             result.innerText = "Please enter a valid amount.";
@@ -929,12 +999,24 @@ if (product === "No Show") {
     noShowPreview = document.createElement("span");
     noShowPreview.style.fontSize = "12px";
     noShowPreview.style.fontWeight = "bold";
-    noShowPreview.style.color = "#b45309";
+    noShowPreview.style.color = "green";
     noShowPreview.innerText = noShowInfo.amount > 0
         ? `$${noShowInfo.amount.toFixed(2)}`
-    : "";
+        : "";
     noShowPreview.title = noShowInfo.rule || "";
     leftGroup.appendChild(noShowPreview);
+
+    const transportInfo = getTransportPreviewAmount();
+    transportPreview = document.createElement("span");
+    transportPreview.style.fontSize = "12px";
+    transportPreview.style.fontWeight = "bold";
+    transportPreview.style.color = "red";
+    transportPreview.style.marginLeft = "8px";
+    transportPreview.innerText = transportInfo.amount > 0
+        ? `$${transportInfo.amount.toFixed(2)}`
+        : "";
+    transportPreview.title = transportInfo.rule || "";
+    leftGroup.appendChild(transportPreview);
 }
 
 if (["Wait Time", "No Show", "Load Fee", "Additional Passenger", "Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS", "After Hours Fee", "Weekend Holiday"].includes(product)) {
@@ -1193,16 +1275,30 @@ let higherApprovalNote = higherMargin <= highermarginThreshold
         waitTimeInput.value = "";
         providerLoadFeeInput.value = "";
         providerLoadFeeWrap.style.display = "none";
-        if (noShowPreview) noShowPreview.innerText = "";
-        calculateMargin();
+if (noShowPreview) {
+    noShowPreview.innerText = "";
+    noShowPreview.title = "";
+}
+if (transportPreview) {
+    transportPreview.innerText = "";
+    transportPreview.title = "";
+}
+calculateMargin();
     });
     mileRadio.addEventListener("change", () => {
         input.value = "";
         waitTimeInput.value = "";
         providerLoadFeeInput.value = "";
         providerLoadFeeWrap.style.display = "none";
-        if (noShowPreview) noShowPreview.innerText = "";
-        calculateMargin();
+if (noShowPreview) {
+    noShowPreview.innerText = "";
+    noShowPreview.title = "";
+}
+if (transportPreview) {
+    transportPreview.innerText = "";
+    transportPreview.title = "";
+}
+calculateMargin();
     });
 
     box.appendChild(closeButton);
