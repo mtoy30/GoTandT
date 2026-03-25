@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.40
+// @version      4.1.41
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -295,124 +295,145 @@
             "Airport Pickup Fee"
         ];
 
-        function getNoShowAmountFromRow() {
-            const rows = document.querySelectorAll('div[row-index]');
-            const transportProducts = [
-                "Transport Ambulatory",
-                "Transport Wheelchair",
-                "Transport Stretcher, ALS & BLS"
-            ];
+function getNoShowAmountFromRow() {
+    const rows = document.querySelectorAll('div[row-index]');
+    const transportProducts = [
+        "Transport Ambulatory",
+        "Transport Wheelchair",
+        "Transport Stretcher, ALS & BLS"
+    ];
 
-            const headerElement = document.querySelector('[id^="formHeaderTitle"]');
-            const headerText = headerElement?.textContent?.trim() || "";
+    const headerElement = document.querySelector('[id^="formHeaderTitle"]');
+    const headerText = headerElement?.textContent?.trim() || "";
 
-            const groupFlat = ["202-","9616-","4474-","11525-","8814-","10837-"];
-            const group15 = ["133-"];
-            const group16 = [
-                "9617-","145-","9548-","9337-","4234-","4403-","5219-",
-                "6117-","6345-","10322-","10530-","10531-","4417-","6931-"
-            ];
+    const groupFlat = ["4474-","11525-","8814-","10837-"];
+    const group15 = ["133-","202-","9616-"];
+    const group16 = [
+        "9617-","145-","9548-","9337-","4234-","4403-","5219-",
+        "6117-","6345-","10322-","10530-","10531-","4417-","6931-"
+    ];
 
-            for (const row of rows) {
-                const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
-                const priceCell = row.querySelector('[col-id="gtt_price"]');
+    for (const row of rows) {
+        const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+        const priceCell = row.querySelector('[col-id="gtt_price"]');
 
-                if (!productCell || !priceCell) continue;
+        if (!productCell || !priceCell) continue;
 
-                const productName = productCell.innerText.trim();
-                if (!transportProducts.includes(productName)) continue;
+        const productName = productCell.innerText.trim();
+        if (!transportProducts.includes(productName)) continue;
 
-                const priceText = priceCell.innerText.trim().replace(/[^0-9.-]+/g, '');
-                const priceValue = parseFloat(priceText);
+        const priceText = priceCell.innerText.trim().replace(/[^0-9.-]+/g, '');
+        const priceValue = parseFloat(priceText);
 
-                if (isNaN(priceValue) || priceValue <= 0) continue;
+        if (isNaN(priceValue) || priceValue <= 0) continue;
 
-                if (groupFlat.some(prefix => headerText.startsWith(prefix))) {
-                    if (productName === "Transport Ambulatory") {
-                        return { amount: 35, rule: "Flat rule: Ambulatory = $35" };
-                    }
-                    if (productName === "Transport Wheelchair") {
-                        return { amount: 60, rule: "Flat rule: Wheelchair = $60" };
-                    }
-                    return { amount: 35, rule: "Flat rule fallback = $35" };
-                }
-
-                if (group15.some(prefix => headerText.startsWith(prefix))) {
-                    return {
-                        amount: priceValue * 15,
-                        rule: `Price rule: gtt_price × 15 (${priceValue.toFixed(2)} × 15)`
-                    };
-                }
-
-                if (group16.some(prefix => headerText.startsWith(prefix))) {
-                    return {
-                        amount: priceValue * 16,
-                        rule: `Price rule: gtt_price × 16 (${priceValue.toFixed(2)} × 16)`
-                    };
-                }
-
-                return {
-                    amount: priceValue * 18,
-                    rule: `Default rule: gtt_price × 18 (${priceValue.toFixed(2)} × 18)`
-                };
-            }
-
-            return { amount: 0, rule: "" };
-        }
-
-        function getTransportPreviewAmount() {
-            const ambulatoryVal = parseFloat((productInputs["Transport Ambulatory"]?.value || "").trim());
-            const wheelchairVal = parseFloat((productInputs["Transport Wheelchair"]?.value || "").trim());
-
-            let enteredRate = 0;
-            let transportType = "";
-
-            if (!isNaN(ambulatoryVal) && ambulatoryVal > 0) {
-                enteredRate = ambulatoryVal;
-                transportType = "Ambulatory";
-            } else if (!isNaN(wheelchairVal) && wheelchairVal > 0) {
-                enteredRate = wheelchairVal;
-                transportType = "Wheelchair";
-            } else {
-                return { amount: 0, rule: "" };
-            }
-
-            const headerElement = document.querySelector('[id^="formHeaderTitle"]');
-            const headerText = headerElement?.textContent?.trim() || "";
-
-            const groupFlat = ["202-","9616-","4474-","11525-","8814-","10837-"];
-            const group15 = ["133-"];
-            const group16 = [
-                "9617-","145-","9548-","9337-","4234-","4403-","5219-",
-                "6117-","6345-","10322-","10530-","10531-","4417-","6931-"
-            ];
-
-            if (groupFlat.some(prefix => headerText.startsWith(prefix))) {
-                if (transportType === "Wheelchair") {
-                    return { amount: 60, rule: "Flat rule: Wheelchair = $60" };
-                }
+        if (groupFlat.some(prefix => headerText.startsWith(prefix))) {
+            if (productName === "Transport Ambulatory") {
                 return { amount: 35, rule: "Flat rule: Ambulatory = $35" };
             }
-
-            if (group15.some(prefix => headerText.startsWith(prefix))) {
-                return {
-                    amount: enteredRate * 15,
-                    rule: `Entered rate × 15 (${enteredRate.toFixed(2)} × 15)`
-                };
+            if (productName === "Transport Wheelchair") {
+                return { amount: 60, rule: "Flat rule: Wheelchair = $60" };
             }
+            return { amount: 35, rule: "Flat rule fallback = $35" };
+        }
 
-            if (group16.some(prefix => headerText.startsWith(prefix))) {
+        if (group15.some(prefix => headerText.startsWith(prefix))) {
+            if (
+                (headerText.startsWith("202-") || headerText.startsWith("9616-")) &&
+                productName === "Transport Wheelchair"
+            ) {
                 return {
-                    amount: enteredRate * 16,
-                    rule: `Entered rate × 16 (${enteredRate.toFixed(2)} × 16)`
+                    amount: (priceValue * 15) + 60,
+                    rule: `Wheelchair rule: gtt_price × 15 + 60 (${priceValue.toFixed(2)} × 15 + 60)`
                 };
             }
 
             return {
-                amount: enteredRate * 18,
-                rule: `Entered rate × 18 (${enteredRate.toFixed(2)} × 18)`
+                amount: priceValue * 15,
+                rule: `Price rule: gtt_price × 15 (${priceValue.toFixed(2)} × 15)`
             };
         }
+
+        if (group16.some(prefix => headerText.startsWith(prefix))) {
+            return {
+                amount: priceValue * 16,
+                rule: `Price rule: gtt_price × 16 (${priceValue.toFixed(2)} × 16)`
+            };
+        }
+
+        return {
+            amount: priceValue * 18,
+            rule: `Default rule: gtt_price × 18 (${priceValue.toFixed(2)} × 18)`
+        };
+    }
+
+    return { amount: 0, rule: "" };
+}
+
+function getTransportPreviewAmount() {
+    const ambulatoryVal = parseFloat((productInputs["Transport Ambulatory"]?.value || "").trim());
+    const wheelchairVal = parseFloat((productInputs["Transport Wheelchair"]?.value || "").trim());
+    const loadFeeVal = parseFloat((productInputs["Load Fee"]?.value || "").trim()) || 0;
+
+    let enteredRate = 0;
+    let transportType = "";
+
+    if (!isNaN(ambulatoryVal) && ambulatoryVal > 0) {
+        enteredRate = ambulatoryVal;
+        transportType = "Ambulatory";
+    } else if (!isNaN(wheelchairVal) && wheelchairVal > 0) {
+        enteredRate = wheelchairVal;
+        transportType = "Wheelchair";
+    } else {
+        return { amount: 0, rule: "" };
+    }
+
+    const headerElement = document.querySelector('[id^="formHeaderTitle"]');
+    const headerText = headerElement?.textContent?.trim() || "";
+
+    const groupFlat = ["4474-","11525-","8814-","10837-"];
+    const group15 = ["133-","202-","9616-"];
+    const group16 = [
+        "9617-","145-","9548-","9337-","4234-","4403-","5219-",
+        "6117-","6345-","10322-","10530-","10531-","4417-","6931-"
+    ];
+
+    if (groupFlat.some(prefix => headerText.startsWith(prefix))) {
+        if (transportType === "Wheelchair") {
+            return { amount: 60, rule: "Flat rule: Wheelchair = $60" };
+        }
+        return { amount: 35, rule: "Flat rule: Ambulatory = $35" };
+    }
+
+    if (group15.some(prefix => headerText.startsWith(prefix))) {
+        if (
+            (headerText.startsWith("202-") || headerText.startsWith("9616-")) &&
+            transportType === "Wheelchair"
+        ) {
+            return {
+                amount: (enteredRate * 15) + loadFeeVal,
+                rule: `Wheelchair preview rule: entered Transport Wheelchair × 15 + Load Fee (${enteredRate.toFixed(2)} × 15 + ${loadFeeVal.toFixed(2)})`
+            };
+        }
+
+        return {
+            amount: enteredRate * 15,
+            rule: `Entered rate × 15 (${enteredRate.toFixed(2)} × 15)`
+        };
+    }
+
+    if (group16.some(prefix => headerText.startsWith(prefix))) {
+        return {
+            amount: enteredRate * 16,
+            rule: `Entered rate × 16 (${enteredRate.toFixed(2)} × 16)`
+        };
+    }
+
+    return {
+        amount: enteredRate * 18,
+        rule: `Entered rate × 18 (${enteredRate.toFixed(2)} × 18)`
+    };
+}
 
         const resetButton = createModernButton("Reset", "#ef4444", "#f87171");
         resetButton.onclick = () => {
