@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.40
+// @version      4.1.41
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -284,8 +284,8 @@ function getNoShowAmountFromRow() {
     const headerElement = document.querySelector('[id^="formHeaderTitle"]');
     const headerText = headerElement?.textContent?.trim() || "";
 
-    const groupFlat = ["202-","9616-","4474-","11525-"];
-    const group15 = ["133-"];
+    const groupFlat = ["4474-","11525-","8814-","10837-"];
+    const group15 = ["133-","202-","9616-"];
     const group16 = [
         "9617-","145-","9548-","9337-","4234-","4403-","5219-",
         "6117-","6345-","10322-","10530-","10531-","4417-","6931-"
@@ -316,6 +316,16 @@ function getNoShowAmountFromRow() {
         }
 
         if (group15.some(prefix => headerText.startsWith(prefix))) {
+            if (
+                (headerText.startsWith("202-") || headerText.startsWith("9616-")) &&
+                productName === "Transport Wheelchair"
+            ) {
+                return {
+                    amount: (priceValue * 15) + 60,
+                    rule: `Wheelchair rule: gtt_price × 15 + 60 (${priceValue.toFixed(2)} × 15 + 60)`
+                };
+            }
+
             return {
                 amount: priceValue * 15,
                 rule: `Price rule: gtt_price × 15 (${priceValue.toFixed(2)} × 15)`
@@ -323,10 +333,16 @@ function getNoShowAmountFromRow() {
         }
 
         if (group16.some(prefix => headerText.startsWith(prefix))) {
-            return { amount: priceValue * 16, rule: `Price rule: gtt_price × 16 (${priceValue.toFixed(2)} × 16)` };
+            return {
+                amount: priceValue * 16,
+                rule: `Price rule: gtt_price × 16 (${priceValue.toFixed(2)} × 16)`
+            };
         }
 
-        return { amount: priceValue * 18, rule: `Default rule: gtt_price × 18 (${priceValue.toFixed(2)} × 18)` };
+        return {
+            amount: priceValue * 18,
+            rule: `Default rule: gtt_price × 18 (${priceValue.toFixed(2)} × 18)`
+        };
     }
 
     return { amount: 0, rule: "" };
@@ -335,6 +351,7 @@ function getNoShowAmountFromRow() {
 function getTransportPreviewAmount() {
     const ambulatoryVal = parseFloat((productInputs["Transport Ambulatory"]?.value || "").trim());
     const wheelchairVal = parseFloat((productInputs["Transport Wheelchair"]?.value || "").trim());
+    const loadFeeVal = parseFloat((productInputs["Load Fee"]?.value || "").trim()) || 0;
 
     let enteredRate = 0;
     let transportType = "";
@@ -352,8 +369,8 @@ function getTransportPreviewAmount() {
     const headerElement = document.querySelector('[id^="formHeaderTitle"]');
     const headerText = headerElement?.textContent?.trim() || "";
 
-    const groupFlat = ["202-","9616-","4474-","11525-"];
-    const group15 = ["133-"];
+    const groupFlat = ["4474-","11525-","8814-","10837-"];
+    const group15 = ["133-","202-","9616-"];
     const group16 = [
         "9617-","145-","9548-","9337-","4234-","4403-","5219-",
         "6117-","6345-","10322-","10530-","10531-","4417-","6931-"
@@ -367,6 +384,16 @@ function getTransportPreviewAmount() {
     }
 
     if (group15.some(prefix => headerText.startsWith(prefix))) {
+        if (
+            (headerText.startsWith("202-") || headerText.startsWith("9616-")) &&
+            transportType === "Wheelchair"
+        ) {
+            return {
+                amount: (enteredRate * 15) + loadFeeVal,
+                rule: `Wheelchair preview rule: entered Transport Wheelchair × 15 + Load Fee (${enteredRate.toFixed(2)} × 15 + ${loadFeeVal.toFixed(2)})`
+            };
+        }
+
         return {
             amount: enteredRate * 15,
             rule: `Entered rate × 15 (${enteredRate.toFixed(2)} × 15)`
