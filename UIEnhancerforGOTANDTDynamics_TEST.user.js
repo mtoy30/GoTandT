@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics_TEST
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.2.3
+// @version      1.2.17
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics_TEST.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics_TEST.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill behavior (iframe-safe). Time fields + key fields always unlocked; company/email soft-prefill; unlock-all-on-submit.
@@ -58,6 +58,8 @@
     ].join(',');
 
     const DATE_RE = /\b\d{1,2}\/\d{1,2}\/\d{2,4}(?:\s+\d{1,2}:\d{2}\s*[AP]M?)?\b/i;
+    // City/state ZIP detector to keep two-city rows in visual (left→right) order
+    const CITY_RE = /^[A-Za-z].+,\s+[A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)*\s+\d{5}(?:-\d{4})?$/;
 
     function findOverlayContainer() {
       let cands = Array.from(document.querySelectorAll(
@@ -100,11 +102,18 @@
 
     function domPrecedes(a, b) { return !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING); }
 
+    function sameVisualRow(a, b, minOverlapRatio = 0.35) {
+      const top = Math.max(a.rect.top, b.rect.top);
+      const bottom = Math.min(a.rect.bottom, b.rect.bottom);
+      const overlap = Math.max(0, bottom - top);
+      const denom = Math.max(a.rect.height, b.rect.height) || 1;
+      return (overlap / denom) >= minOverlapRatio;
+    }
+
     function collectOverlayText(container) {
       let nodes = Array.from(container.querySelectorAll(TEXT_SELECTORS)).filter(isVisible);
       nodes = nodes.filter(n => !n.closest('#mtoy-inline-copy') && !n.closest('#mtoy-copy-toast'));
 
-      // keep leaf-most nodes (avoid parent+child dupes)
       const set = new Set(nodes);
       nodes = nodes.filter(n => !Array.from(set).some(m => m !== n && n.contains(m)));
 
@@ -116,21 +125,25 @@
 
       if (!items.length) return '';
 
-      const ROW_TOL = 8;
       items.sort((a, b) => {
-        const dy = a.rect.top - b.rect.top;
-        if (Math.abs(dy) > ROW_TOL) return dy;      // top → bottom
-        if (a.el === b.el) return 0;
-        return domPrecedes(a.el, b.el) ? -1 : 1;    // within row: DOM order (label → values)
+        if (!sameVisualRow(a, b)) {
+          const topDelta = a.rect.top - b.rect.top;
+          if (topDelta !== 0) return topDelta;
+          const leftDelta = a.rect.left - b.rect.left;
+          if (leftDelta !== 0) return leftDelta;
+        } else {
+          const aCity = CITY_RE.test(a.text), bCity = CITY_RE.test(b.text);
+          if (aCity && bCity) {
+            const dx = a.rect.left - b.rect.left;
+            if (dx !== 0) return dx;
+          }
+          if (a.el !== b.el) return domPrecedes(a.el, b.el) ? -1 : 1;
+        }
+        return 0;
       });
 
       const out = [];
-      let last = '';
-      for (const it of items) {
-        if (!it.text || it.text === last) continue;
-        out.push(it.text);
-        last = it.text;
-      }
+      for (const it of items) out.push(it.text);
       return out.join('\n');
     }
 
@@ -161,8 +174,7 @@
       const anchor = findDateAnchorIn(overlay);
       if (!anchor) { if (existing) existing.remove(); return; }
 
-      if (existing && existing.nextElementSibling === anchor) return; // already in place
-
+      if (existing && existing.nextElementSibling === anchor) return;
       if (existing) existing.remove();
 
       const btn = document.createElement('button');
@@ -198,7 +210,7 @@
         }
       });
 
-      anchor.parentNode.insertBefore(btn, anchor); // sits right above the date
+      anchor.parentNode.insertBefore(btn, anchor);
     }
 
     (async () => {
@@ -210,19 +222,14 @@
       setInterval(tick, 800);
     })();
 
-    return; // don’t run the Dynamics code in Power Apps frames
+    return;
   }
 
   /* =====================================================================================
      PART B — UI ENHANCER (Dynamics, Boomerang, Apps Script)
-     (Your existing script; lightly refactored to only run on intended hosts)
      ===================================================================================== */
 
-  /* -------- early outs: only run enhancer on Dynamics/Boomerang/Apps Script -------- */
   if (!(isDynamics || onBoomerang || onAppsScript)) return;
-
-  /* ------------------------- switches used below ------------------------- */
-  // (onBoomerang / onAppsScript already defined above)
 
   /* ============================== BOOMERANG/APPS SCRIPT ============================== */
   if (onBoomerang || onAppsScript) {
@@ -247,7 +254,7 @@
     };
     const SOFT_PREFILL_BY_NAME = SOFT_PREFILL_BY_ID;
 
-    const UNLOCK_WINDOW_MS = 10000;
+    const UNLOCK_WINDOW_MS = 30000;
 
     const YOURNAME_OPTIONS = [
       'Alexandra Cirlan',
@@ -256,7 +263,6 @@
       'Christina Armstrong',
       'Damaris Olmeda',
       'David Hobbs',
-      'Jasmine Allen',
       'Jeremy Rivera',
       'Kevin Roberts',
       'Michael Toy',
@@ -568,7 +574,7 @@
               apply(idoc);
             }
           }
-        } catch { /* cross-origin; also matched separately if same-origin */ }
+        } catch {}
       };
       ifr.addEventListener('load', tryWire);
       tryWire();
@@ -579,7 +585,6 @@
     } else {
       apply(document);
     }
-    // Do not `return`; we may also be on Dynamics in another tab—handled below via isDynamics
   }
 
   /* =================================== DYNAMICS SECTION =================================== */
@@ -616,7 +621,7 @@
       if (!header || document.getElementById('rate-status-banner')) return;
       const banner = document.createElement('div');
       banner.id = 'rate-status-banner';
-      banner.textContent = statusText;
+      banner.textContent = "**PENDING RATES**";
       banner.style.backgroundColor = 'lightblue';
       banner.style.color = 'black';
       banner.style.padding = '5px';
@@ -767,14 +772,24 @@
         headerTitle.style.padding = "0px";
       }
     }
+
     function styleNotificationWrapper() {
       const notificationElements = document.querySelectorAll('[id*="notificationWrapper"], [id*="message"]');
+
       notificationElements.forEach(element => {
+        const text = (element.textContent || element.innerText || '').trim();
+
         element.style.fontWeight = 'bold';
         element.style.fontSize = '18px';
-        element.style.backgroundColor = 'lightgreen';
+
+        if (text.includes('~~')) {
+          element.style.backgroundColor = 'yellow';
+        } else {
+          element.style.backgroundColor = 'lightgreen';
+        }
       });
     }
+
     function observeNotifications() {
       const observer = new MutationObserver(styleNotificationWrapper);
       observer.observe(document.body, { childList: true, subtree: true });
@@ -798,12 +813,13 @@
       banner.style.borderRadius = "5px";
       if (header) header.parentNode.insertBefore(banner, header.nextSibling);
     }
+
     function insertVipBannerIfNeeded() {
       const titleText = document.title;
       const header = document.querySelector(headerSelector);
       const vipIds = [
         "4474-65549","4474-48338","4474-48380","202-46904","202-50715",
-        "4474-64737","10837-61025","4474-66551","4474-63533"
+        "4474-64737","10837-61025","4474-66551","4474-63533", "10530-68938"
       ];
       if (!vipIds.some(id => titleText.includes(id))) return;
       if (document.getElementById("vip-banner")) return;
@@ -824,6 +840,153 @@
       document.querySelectorAll('[data-legend="true"]').forEach(el => {
         if (isInSearchUI(el)) el.remove();
       });
+    }
+
+    function waitForMoniqueInIframe(retries = 20, delay = 1000) {
+      const iframe = document.querySelector('#WebResource_RecipientSelector');
+      if (!iframe) {
+        if (retries > 0) setTimeout(() => waitForMoniqueInIframe(retries - 1, delay), delay);
+        return;
+      }
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      if (!doc || !doc.body) {
+        if (retries > 0) setTimeout(() => waitForMoniqueInIframe(retries - 1, delay), delay);
+        return;
+      }
+      const td = [...doc.querySelectorAll("td")].find(td =>
+        td.textContent.trim().includes("Monique Jones")
+      );
+      if (td && !td.querySelector(".monique-message")) {
+        td.style.fontSize = "12px";
+        td.style.fontWeight = "bold";
+        const note = document.createElement("div");
+        note.className = "monique-message";
+        note.textContent = "Please combine staffing and/or auth requests into one email (include multiple dates into one email).";
+        note.style.marginTop = "5px";
+        note.style.marginBottom = "15px";
+        note.style.color = "darkred";
+        note.style.fontWeight = "bold";
+        td.appendChild(note);
+      } else if (retries > 0) {
+        setTimeout(() => waitForMoniqueInIframe(retries - 3, delay), delay);
+      }
+    }
+
+    function waitForAUTHEMAIL(retries = 20, delay = 1000) {
+      const iframe = document.querySelector('#WebResource_RecipientSelector');
+      if (!iframe) {
+        if (retries > 0) setTimeout(() => waitForAUTHEMAIL(retries - 1, delay), delay);
+        return;
+      }
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      if (!doc || !doc.body) {
+        if (retries > 0) setTimeout(() => waitForAUTHEMAIL(retries - 1, delay), delay);
+        return;
+      }
+      const td = [...doc.querySelectorAll("td")].find(td =>
+        td.textContent.trim().includes("AUTH EMAIL")
+      );
+      if (td && !td.querySelector(".auth-message")) {
+        td.style.fontSize = "12px";
+        td.style.fontWeight = "bold";
+        const note = document.createElement("div");
+        note.className = "auth-message";
+        note.textContent = "DO NOT SEND staffing or rate request here.";
+        note.style.marginTop = "5px";
+        note.style.marginBottom = "15px";
+        note.style.color = "darkred";
+        note.style.fontWeight = "bold";
+        td.appendChild(note);
+      } else if (retries > 0) {
+        setTimeout(() => waitForAUTHEMAIL(retries - 3, delay), delay);
+      }
+    }
+
+    function removeAuthElementsFromDoc(doc) {
+      if (!doc) return 0;
+
+      let removedCount = 0;
+
+      const selectors = [
+        '[data-id="gtt_attachauthemail"]',
+        '[data-control-name="gtt_attachauthemail"]',
+        '[data-id="gtt_authorizationdocument"]',
+        '[data-control-name="gtt_authorizationdocument"]',
+        '[data-id="gtt_authorizationrequired"]',
+        '[data-control-name="gtt_authorizationrequired"]',
+
+        '[data-id="gtt_attachauthemail.fieldControl_container"]',
+        '[data-id="gtt_authorizationdocument.fieldControl_container"]',
+        '[data-id="gtt_authorizationrequired.fieldControl-pcf-container-id"]',
+
+        '[data-id="gtt_attachauthemail-FieldSectionItemContainer"]',
+        '[data-id="gtt_authorizationdocument-FieldSectionItemContainer"]',
+        '[data-id="gtt_authorizationrequired-FieldSectionItemContainer"]'
+          ];
+
+      const seen = new Set();
+
+      selectors.forEach(sel => {
+        doc.querySelectorAll(sel).forEach(el => {
+          let target =
+            el.closest('[data-id="gtt_attachauthemail"]') ||
+            el.closest('[data-control-name="gtt_attachauthemail"]') ||
+            el.closest('[data-id="gtt_authorizationdocument"]') ||
+            el.closest('[data-control-name="gtt_authorizationdocument"]') ||
+            el.closest('[data-id="gtt_authorizationrequired"]') ||
+            el.closest('[data-control-name="gtt_authorizationrequired"]') ||
+            el;
+
+          const outerRow = target.parentElement?.closest('div[role="presentation"].pa-bz');
+          if (outerRow) target = outerRow;
+
+          if (target && target.parentNode && !seen.has(target)) {
+            seen.add(target);
+            target.remove();
+            removedCount++;
+          }
+        });
+      });
+
+      return removedCount;
+    }
+
+    function removeAuthElementsEverywhere() {
+      let total = 0;
+
+      total += removeAuthElementsFromDoc(document);
+
+      const iframe = document.querySelector('#WebResource_RecipientSelector');
+      if (iframe) {
+        try {
+          const idoc = iframe.contentDocument || iframe.contentWindow?.document;
+          total += removeAuthElementsFromDoc(idoc);
+        } catch (e) {}
+      }
+
+      return total;
+    }
+
+    function startAuthElementRemoval() {
+      removeAuthElementsEverywhere();
+      setTimeout(removeAuthElementsEverywhere, 500);
+      setTimeout(removeAuthElementsEverywhere, 1500);
+      setTimeout(removeAuthElementsEverywhere, 3000);
+
+      const mo = new MutationObserver(() => {
+        removeAuthElementsEverywhere();
+      });
+
+      const startObserver = () => {
+        if (!document.body) {
+          setTimeout(startObserver, 100);
+          return;
+        }
+        mo.observe(document.body, { childList: true, subtree: true });
+      };
+      startObserver();
+
+      setInterval(removeAuthElementsEverywhere, 2000);
     }
 
     let debounceTimer;
@@ -859,39 +1022,17 @@
     }, 500);
 
     observeNotifications();
+    startAuthElementRemoval();
 
-    function waitForMoniqueInIframe(retries = 20, delay = 1000) {
-      const iframe = document.querySelector('#WebResource_RecipientSelector');
-      if (!iframe) {
-        if (retries > 0) setTimeout(() => waitForMoniqueInIframe(retries - 1, delay), delay);
-        return;
-      }
-      const doc = iframe.contentDocument || iframe.contentWindow.document;
-      if (!doc || !doc.body) {
-        if (retries > 0) setTimeout(() => waitForMoniqueInIframe(retries - 1, delay), delay);
-        return;
-      }
-      const td = [...doc.querySelectorAll("td")].find(td =>
-        td.textContent.trim().includes("Monique Jones")
-      );
-      if (td && !td.querySelector(".monique-message")) {
-        td.style.fontSize = "14px";
-        td.style.fontWeight = "bold";
-        const note = document.createElement("div");
-        note.className = "monique-message";
-        note.textContent = "Please combine staffing and/or auth requests into one email (include multiple dates into one email).";
-        note.style.marginTop = "5px";
-        note.style.color = "darkred";
-        note.style.fontWeight = "bold";
-        td.appendChild(note);
-      } else if (retries > 0) {
-        setTimeout(() => waitForMoniqueInIframe(retries - 3, delay), delay);
-      }
+    if (document.title.includes('Email:')) {
+      waitForMoniqueInIframe();
+      waitForAUTHEMAIL();
     }
 
     const titleObserver = new MutationObserver(() => {
       if (document.title.includes("Email:")) {
         waitForMoniqueInIframe();
+        waitForAUTHEMAIL();
       }
     });
     const titleNode = document.querySelector("title");
