@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.41
+// @version      4.1.42
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1524,59 +1524,86 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
         "Other"
     ];
 
-    // ✅ 4474-related logic depends on BOTH header + claim
-    const is4474 = headerTitle.startsWith("4474-");
-    const isHClaim = /^H/i.test((claim || "").trim()); // starts with H (case-insensitive)
+const is4474 = headerTitle.startsWith("4474-");
+const is11525 = headerTitle.startsWith("11525-");
+const isHClaim = /^H/i.test((claim || "").trim());
 
-    if (is4474 && isHClaim) {
-        // Only show Orchid for 4474- + H claim
-        fullOptions.splice(6, 0, "L-Orchid-CareWorks");
-    } else if (is4474 && !isHClaim) {
-        // 4474- but NOT H claim
-        fullOptions.splice(6, 0, "CareWorks Rate Request");
-    } else {
-        // All other referrals
-        fullOptions.splice(6, 0, "CareWorks Rate Request", "JBS Request for Higher Rates");
-    }
+// Prefer the selected text node, but fall back to selected tag/title/aria-label
+const payerElement =
+    document.querySelector('[data-id*="gtt_payerid"][data-id*="selected_tag_text"]') ||
+    document.querySelector('[data-id*="gtt_payerid"][data-id*="selected_tag"]');
 
-    // Filter exclusions based on headerTitle
-    let exclusions = [];
+const payerText =
+    payerElement?.textContent?.trim() ||
+    payerElement?.getAttribute('title')?.trim() ||
+    payerElement?.getAttribute('aria-label')?.trim() ||
+    "";
 
-    if (headerTitle.startsWith("212-")) {
-        exclusions = [
-            "Standard Rate Request",
-            "CareIQ Rate Request",
-            "JBS Request for Higher Rates",
-            "CareWorks Rate Request",
-            "Staffed UBER Health",
-            "Staffed Revised at Approved Rates"
-        ];
-    } else if (headerTitle.startsWith("4474-")) {
-        exclusions = [
-            "Standard Rate Request",
-            "CareIQ Rate Request",
-            "Homelink Rate Request",
-            "JBS Request for Higher Rates"
-        ];
-    } else if (headerTitle.startsWith("133-")) {
-        exclusions = [
-            "Standard Rate Request",
-            "Homelink Rate Request",
-            "JBS Request for Higher Rates",
-            "CareWorks Rate Request",
-            "Staffed UBER Health",
-            "Staffed Revised at Approved Rates"
-        ];
-    } else {
-        exclusions = [
-            "JBS Request for Higher Rates",
-            "CareIQ Rate Request",
-            "CareWorks Rate Request",
-            "Homelink Rate Request",
-            "Staffed UBER Health",
-            "Staffed Revised at Approved Rates"
-        ];
-    }
+const isJBSPacking = payerText.toLowerCase().includes("jbs packing");
+
+// Only override 4474 when payer is JBS Packing
+const use11525Rules = is11525 || (is4474 && isJBSPacking);
+
+console.log("headerTitle:", headerTitle);
+console.log("payerText:", payerText);
+console.log("is4474:", is4474, "is11525:", is11525, "isJBSPacking:", isJBSPacking, "use11525Rules:", use11525Rules);
+
+if (use11525Rules) {
+    fullOptions.splice(6, 0, "JBS Request for Higher Rates");
+} else if (is4474 && isHClaim) {
+    fullOptions.splice(6, 0, "L-Orchid-CareWorks");
+} else if (is4474 && !isHClaim) {
+    fullOptions.splice(6, 0, "CareWorks Rate Request");
+} else {
+    fullOptions.splice(6, 0, "CareWorks Rate Request", "JBS Request for Higher Rates");
+}
+
+let exclusions = [];
+
+if (headerTitle.startsWith("212-")) {
+    exclusions = [
+        "Standard Rate Request",
+        "CareIQ Rate Request",
+        "JBS Request for Higher Rates",
+        "CareWorks Rate Request",
+        "Staffed UBER Health",
+        "Staffed Revised at Approved Rates"
+    ];
+} else if (use11525Rules) {
+    exclusions = [
+        "Standard Rate Request",
+        "CareIQ Rate Request",
+        "CareWorks Rate Request",
+        "Homelink Rate Request",
+        "Staffed UBER Health",
+        "Staffed Revised at Approved Rates"
+    ];
+} else if (is4474) {
+    exclusions = [
+        "Standard Rate Request",
+        "CareIQ Rate Request",
+        "Homelink Rate Request",
+        "JBS Request for Higher Rates"
+    ];
+} else if (headerTitle.startsWith("133-")) {
+    exclusions = [
+        "Standard Rate Request",
+        "Homelink Rate Request",
+        "JBS Request for Higher Rates",
+        "CareWorks Rate Request",
+        "Staffed UBER Health",
+        "Staffed Revised at Approved Rates"
+    ];
+} else {
+    exclusions = [
+        "JBS Request for Higher Rates",
+        "CareIQ Rate Request",
+        "CareWorks Rate Request",
+        "Homelink Rate Request",
+        "Staffed UBER Health",
+        "Staffed Revised at Approved Rates"
+    ];
+}
 
     const filteredOptions = fullOptions.filter(opt => !exclusions.includes(opt));
 
