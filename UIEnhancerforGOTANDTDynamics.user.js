@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.2.16
+// @version      1.2.19
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill behavior (iframe-safe). Time fields + key fields always unlocked; company/email soft-prefill; unlock-all-on-submit. Also adds a yellow Copy button in PowerApps Leg Info overlay that preserves on-screen order (including duplicate lines like city/state).
@@ -58,7 +58,6 @@
     ].join(',');
 
     const DATE_RE = /\b\d{1,2}\/\d{1,2}\/\d{2,4}(?:\s+\d{1,2}:\d{2}\s*[AP]M?)?\b/i;
-    // City/state ZIP detector to keep two-city rows in visual (left→right) order
     const CITY_RE = /^[A-Za-z].+,\s+[A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)*\s+\d{5}(?:-\d{4})?$/;
 
     function findOverlayContainer() {
@@ -102,7 +101,6 @@
 
     function domPrecedes(a, b) { return !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING); }
 
-    // NEW: determine if two boxes visually share a row using vertical overlap
     function sameVisualRow(a, b, minOverlapRatio = 0.35) {
       const top = Math.max(a.rect.top, b.rect.top);
       const bottom = Math.min(a.rect.bottom, b.rect.bottom);
@@ -115,7 +113,6 @@
       let nodes = Array.from(container.querySelectorAll(TEXT_SELECTORS)).filter(isVisible);
       nodes = nodes.filter(n => !n.closest('#mtoy-inline-copy') && !n.closest('#mtoy-copy-toast'));
 
-      // keep leaf-most nodes (avoid parent+child dupes)
       const set = new Set(nodes);
       nodes = nodes.filter(n => !Array.from(set).some(m => m !== n && n.contains(m)));
 
@@ -128,28 +125,22 @@
       if (!items.length) return '';
 
       items.sort((a, b) => {
-        // First: by visual row (top→bottom) using overlap, not just top distance
         if (!sameVisualRow(a, b)) {
           const topDelta = a.rect.top - b.rect.top;
           if (topDelta !== 0) return topDelta;
-          // rare exact tie: fall back to left→right
           const leftDelta = a.rect.left - b.rect.left;
           if (leftDelta !== 0) return leftDelta;
         } else {
-          // Within the same visual row:
           const aCity = CITY_RE.test(a.text), bCity = CITY_RE.test(b.text);
           if (aCity && bCity) {
-            // Two city/state/ZIPs → keep left→right on the row
             const dx = a.rect.left - b.rect.left;
             if (dx !== 0) return dx;
           }
-          // Default: DOM order to keep label→value semantics
           if (a.el !== b.el) return domPrecedes(a.el, b.el) ? -1 : 1;
         }
         return 0;
       });
 
-      // Keep duplicates on purpose (e.g., same city for pickup & drop)
       const out = [];
       for (const it of items) out.push(it.text);
       return out.join('\n');
@@ -182,7 +173,7 @@
       const anchor = findDateAnchorIn(overlay);
       if (!anchor) { if (existing) existing.remove(); return; }
 
-      if (existing && existing.nextElementSibling === anchor) return; // already in place
+      if (existing && existing.nextElementSibling === anchor) return;
       if (existing) existing.remove();
 
       const btn = document.createElement('button');
@@ -218,7 +209,7 @@
         }
       });
 
-      anchor.parentNode.insertBefore(btn, anchor); // sits right above the date
+      anchor.parentNode.insertBefore(btn, anchor);
     }
 
     (async () => {
@@ -230,14 +221,13 @@
       setInterval(tick, 800);
     })();
 
-    return; // don’t run the Dynamics code in Power Apps frames
+    return;
   }
 
   /* =====================================================================================
      PART B — UI ENHANCER (Dynamics, Boomerang, Apps Script)
      ===================================================================================== */
 
-  /* Early out: only run enhancer on Dynamics/Boomerang/Apps Script */
   if (!(isDynamics || onBoomerang || onAppsScript)) return;
 
   /* ============================== BOOMERANG/APPS SCRIPT ============================== */
@@ -583,7 +573,7 @@
               apply(idoc);
             }
           }
-        } catch { /* cross-origin; also matched separately if same-origin */ }
+        } catch {}
       };
       ifr.addEventListener('load', tryWire);
       tryWire();
@@ -594,7 +584,6 @@
     } else {
       apply(document);
     }
-    // Do not `return`; we may also be on Dynamics—handled below via isDynamics
   }
 
   /* =================================== DYNAMICS SECTION =================================== */
@@ -620,8 +609,9 @@
       }
       return false;
     }
+
     function removeLegendsInsideSearch() {
-      document.querySelectorAll('[data-legend="true"]').forEach(el => {
+      document.querySelectorAll('[data-legend="true"], [data-legend-wrapper="true"]').forEach(el => {
         if (isInSearchUI(el)) el.remove();
       });
     }
@@ -641,16 +631,19 @@
       banner.style.borderRadius = '5px';
       header.parentNode.insertBefore(banner, header.nextSibling);
     }
+
     function removeBanner() {
       const existing = document.getElementById('rate-status-banner');
       if (existing) existing.remove();
     }
+
     function checkStatusAndInsertBanner() {
       const button = document.querySelector(buttonSelector);
       if (!button) return;
       if (button.textContent.includes(statusText)) insertBanner();
       else removeBanner();
     }
+
     function observeRateStatusChanges() {
       const button = document.querySelector(buttonSelector);
       if (!button) return;
@@ -708,68 +701,151 @@
       });
     }
 
+    function createLegendChip(text, bg) {
+      const chip = document.createElement('span');
+      chip.textContent = text;
+      chip.style.display = 'inline-block';
+      chip.style.backgroundColor = bg;
+      chip.style.color = '#111';
+      chip.style.padding = '4px 10px';
+      chip.style.borderRadius = '999px';
+      chip.style.fontSize = '13px';
+      chip.style.lineHeight = '1.2';
+      chip.style.whiteSpace = 'nowrap';
+      chip.style.boxShadow = '0 1px 4px rgba(0,0,0,.08)';
+      return chip;
+    }
+
     function createLegendElement(type = "default") {
       const legend = document.createElement("div");
-      legend.style.marginTop = "5px";
-      legend.style.fontSize = "14px";
       legend.dataset.legend = "true";
-      let html = `
-        <span style="background-color: gold; padding: 2px 6px; border-radius: 4px; margin-left: 20px; margin-right: 5px;">Evaluations</span>
-        <span style="background-color: lightgreen; padding: 2px 6px; border-radius: 4px; margin-right: 5px;">First Time/Surgery</span>
-        <span style="background-color: lightcoral; padding: 2px 6px; border-radius: 4px; margin-right: 5px;">Airport</span>
-      `;
+      legend.dataset.legendType = type;
+      legend.style.display = 'flex';
+      legend.style.flexWrap = 'wrap';
+      legend.style.justifyContent = 'center';
+      legend.style.alignItems = 'center';
+      legend.style.gap = '8px';
+      legend.style.width = '100%';
+      legend.style.margin = '0 auto';
+      legend.style.padding = '6px 8px';
+      legend.style.boxSizing = 'border-box';
+      legend.style.textAlign = 'center';
+
+      legend.appendChild(createLegendChip('Evaluations', 'gold'));
+      legend.appendChild(createLegendChip('First Time/Surgery', 'lightgreen'));
+      legend.appendChild(createLegendChip('Airport', 'lightcoral'));
+
       if (type === "default") {
-        html += `
-          <span style="background-color: lightblue; padding: 2px 6px; border-radius: 4px; margin-right: 5px;">Pending Rate Approval</span>
-          <span style="background-color: plum; padding: 2px 6px; border-radius: 4px; margin-right: 5px;">Rates Approved</span>
-        `;
+        legend.appendChild(createLegendChip('Pending Rate Approval', 'lightblue'));
+        legend.appendChild(createLegendChip('Rates Approved', 'plum'));
       }
       if (type === "-confirm") {
-        html += `<span style="background-color: #FFDAB9; padding: 2px 6px; border-radius: 4px;">Pickup/Appt Time Passed</span>`;
+        legend.appendChild(createLegendChip('Pickup/Appt Time Passed', '#FFDAB9'));
       }
-      legend.innerHTML = html;
+
       return legend;
     }
+
+    function createLegendWrapper(legend) {
+      const wrapper = document.createElement('div');
+      wrapper.dataset.legendWrapper = 'true';
+      wrapper.dataset.legendType = legend.dataset.legendType || '';
+      wrapper.style.display = 'block';
+      wrapper.style.width = '100%';
+      wrapper.style.marginTop = '6px';
+      wrapper.style.marginBottom = '2px';
+      wrapper.style.textAlign = 'center';
+      wrapper.style.boxSizing = 'border-box';
+      wrapper.appendChild(legend);
+      return wrapper;
+    }
+
     function getMainRoot() {
       return document.querySelector('[data-id="fullPageContentRoot"]')
           || document.querySelector('[data-lp-id="fullPageContentRoot"]')
           || document.body;
     }
+
+    function getSectionContainer(node) {
+      if (!node) return null;
+      return node.closest('[role="region"]')
+          || node.closest('[data-id]')
+          || node.closest('[data-lp-id]')
+          || node.closest('section')
+          || node.closest('div[role="presentation"]')
+          || node.parentElement
+          || null;
+    }
+
+    function sectionHasLegend(section, type) {
+      if (!section) return false;
+      return !!section.querySelector(`[data-legend-wrapper="true"][data-legend-type="${CSS.escape(type)}"]`);
+    }
+
+    function appendLegendOncePerSection(anchorNode, type) {
+      const section = getSectionContainer(anchorNode);
+      if (!section || isInSearchUI(section)) return;
+
+      if (sectionHasLegend(section, type)) return;
+
+      const legend = createLegendElement(type);
+      const wrapper = createLegendWrapper(legend);
+
+      let insertAfter =
+        section.querySelector('span[id*="_text-value"]') ||
+        section.querySelector('button[aria-label]') ||
+        section.firstElementChild;
+
+      if (insertAfter && insertAfter.parentNode === section) {
+        section.insertBefore(wrapper, insertAfter.nextSibling);
+      } else {
+        section.appendChild(wrapper);
+      }
+    }
+
     function addLegend() {
       const root = getMainRoot();
       removeLegendsInsideSearch();
-      root.querySelectorAll('[data-legend="true"]').forEach(el => el.remove());
+
+      root.querySelectorAll('[data-legend="true"], [data-legend-wrapper="true"]').forEach(el => el.remove());
+
       const targetSpans = root.querySelectorAll('span[id*="_text-value"]');
       targetSpans.forEach(span => {
         if (!span || isInSearchUI(span)) return;
         const label = (span.textContent || '').toLowerCase();
+
         if ((label.includes("unassigned transportation") ||
              label.includes("same day confirmations") ||
              label.includes("same day (oncall)")) &&
             !label.includes("delete")) {
           const type = (label.includes("-confirm") || label.includes("same day confirmations") || label.includes("same day (oncall)"))
-            ? "-confirm" : "default";
-          const legend = createLegendElement(type);
-          span.parentElement?.appendChild(legend);
+            ? "-confirm"
+            : "default";
+
+          appendLegendOncePerSection(span, type);
         }
       });
+
       const buttons = root.querySelectorAll('button[aria-label*="~Transport"], button[aria-label*="UBER"], button[aria-label*="Prev Vendor Search"], button[aria-label]');
       buttons.forEach(button => {
         if (!button || isInSearchUI(button)) return;
+
         const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase();
         const labelText = (button.querySelector('.ms-Button-label')?.textContent || '').toLowerCase();
+
         if (ariaLabel.includes("delete") || labelText.includes("delete")) return;
+
         const isConfirm = labelText.includes("-confirm")
                        || labelText.includes("same day confirmations")
                        || labelText.includes("same day (oncall)");
+
         if (ariaLabel.includes("unassigned transport") ||
             ariaLabel.includes("~transport") ||
             ariaLabel.includes("uber") ||
             ariaLabel.includes("prev vendor search") ||
             isConfirm) {
           const type = isConfirm ? "-confirm" : "default";
-          const legend = createLegendElement(type);
-          button.parentElement?.insertBefore(legend, button.nextSibling);
+          appendLegendOncePerSection(button, type);
         }
       });
     }
@@ -782,22 +858,24 @@
         headerTitle.style.padding = "0px";
       }
     }
-function styleNotificationWrapper() {
-  const notificationElements = document.querySelectorAll('[id*="notificationWrapper"], [id*="message"]');
 
-  notificationElements.forEach(element => {
-    const text = (element.textContent || element.innerText || '').trim();
+    function styleNotificationWrapper() {
+      const notificationElements = document.querySelectorAll('[id*="notificationWrapper"], [id*="message"]');
 
-    element.style.fontWeight = 'bold';
-    element.style.fontSize = '18px';
+      notificationElements.forEach(element => {
+        const text = (element.textContent || element.innerText || '').trim();
 
-    if (text.includes('~~')) {
-      element.style.backgroundColor = 'yellow';
-    } else {
-      element.style.backgroundColor = 'lightgreen';
+        element.style.fontWeight = 'bold';
+        element.style.fontSize = '18px';
+
+        if (text.includes('~~')) {
+          element.style.backgroundColor = 'yellow';
+        } else {
+          element.style.backgroundColor = 'lightgreen';
+        }
+      });
     }
-  });
-}
+
     function observeNotifications() {
       const observer = new MutationObserver(styleNotificationWrapper);
       observer.observe(document.body, { childList: true, subtree: true });
@@ -821,6 +899,7 @@ function styleNotificationWrapper() {
       banner.style.borderRadius = "5px";
       if (header) header.parentNode.insertBefore(banner, header.nextSibling);
     }
+
     function insertVipBannerIfNeeded() {
       const titleText = document.title;
       const header = document.querySelector(headerSelector);
@@ -844,44 +923,10 @@ function styleNotificationWrapper() {
     }
 
     function isInSearchUIWrapper() {
-      document.querySelectorAll('[data-legend="true"]').forEach(el => {
+      document.querySelectorAll('[data-legend="true"], [data-legend-wrapper="true"]').forEach(el => {
         if (isInSearchUI(el)) el.remove();
       });
     }
-
-    let debounceTimer;
-    const globalObserver = new MutationObserver(() => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        checkStatusAndInsertBanner();
-        highlightAllRowsGlobal();
-        addLegend();
-        adjustSpacing();
-        styleNotificationWrapper();
-        observeRateStatusChanges();
-        insertJbaBannerIfNeeded();
-        insertVipBannerIfNeeded();
-        isInSearchUIWrapper();
-      }, 200);
-    });
-    globalObserver.observe(document.body, { childList: true, subtree: true });
-
-    let attempts = 0;
-    const tryInit = setInterval(() => {
-      checkStatusAndInsertBanner();
-      highlightAllRowsGlobal();
-      addLegend();
-      adjustSpacing();
-      styleNotificationWrapper();
-      observeRateStatusChanges();
-      insertJbaBannerIfNeeded();
-      insertVipBannerIfNeeded();
-      isInSearchUIWrapper();
-      attempts++;
-      if (attempts > 20) clearInterval(tryInit);
-    }, 500);
-
-    observeNotifications();
 
     function waitForMoniqueInIframe(retries = 20, delay = 1000) {
       const iframe = document.querySelector('#WebResource_RecipientSelector');
@@ -943,6 +988,133 @@ function styleNotificationWrapper() {
       }
     }
 
+    function removeAuthElementsFromDoc(doc) {
+      if (!doc) return 0;
+
+      let removedCount = 0;
+
+      const selectors = [
+        '[data-id="gtt_attachauthemail"]',
+        '[data-control-name="gtt_attachauthemail"]',
+        '[data-id="gtt_authorizationdocument"]',
+        '[data-control-name="gtt_authorizationdocument"]',
+        '[data-id="gtt_authorizationrequired"]',
+        '[data-control-name="gtt_authorizationrequired"]',
+
+        '[data-id="gtt_attachauthemail.fieldControl_container"]',
+        '[data-id="gtt_authorizationdocument.fieldControl_container"]',
+        '[data-id="gtt_authorizationrequired.fieldControl-pcf-container-id"]',
+
+        '[data-id="gtt_attachauthemail-FieldSectionItemContainer"]',
+        '[data-id="gtt_authorizationdocument-FieldSectionItemContainer"]',
+        '[data-id="gtt_authorizationrequired-FieldSectionItemContainer"]'
+      ];
+
+      const seen = new Set();
+
+      selectors.forEach(sel => {
+        doc.querySelectorAll(sel).forEach(el => {
+          let target =
+            el.closest('[data-id="gtt_attachauthemail"]') ||
+            el.closest('[data-control-name="gtt_attachauthemail"]') ||
+            el.closest('[data-id="gtt_authorizationdocument"]') ||
+            el.closest('[data-control-name="gtt_authorizationdocument"]') ||
+            el.closest('[data-id="gtt_authorizationrequired"]') ||
+            el.closest('[data-control-name="gtt_authorizationrequired"]') ||
+            el;
+
+          const outerRow = target.parentElement?.closest('div[role="presentation"].pa-bz');
+          if (outerRow) target = outerRow;
+
+          if (target && target.parentNode && !seen.has(target)) {
+            seen.add(target);
+            target.remove();
+            removedCount++;
+          }
+        });
+      });
+
+      return removedCount;
+    }
+
+    function removeAuthElementsEverywhere() {
+      let total = 0;
+
+      total += removeAuthElementsFromDoc(document);
+
+      const iframe = document.querySelector('#WebResource_RecipientSelector');
+      if (iframe) {
+        try {
+          const idoc = iframe.contentDocument || iframe.contentWindow?.document;
+          total += removeAuthElementsFromDoc(idoc);
+        } catch (e) {}
+      }
+
+      return total;
+    }
+
+    function startAuthElementRemoval() {
+      removeAuthElementsEverywhere();
+      setTimeout(removeAuthElementsEverywhere, 500);
+      setTimeout(removeAuthElementsEverywhere, 1500);
+      setTimeout(removeAuthElementsEverywhere, 3000);
+
+      const mo = new MutationObserver(() => {
+        removeAuthElementsEverywhere();
+      });
+
+      const startObserver = () => {
+        if (!document.body) {
+          setTimeout(startObserver, 100);
+          return;
+        }
+        mo.observe(document.body, { childList: true, subtree: true });
+      };
+      startObserver();
+
+      setInterval(removeAuthElementsEverywhere, 2000);
+    }
+
+    let debounceTimer;
+    const globalObserver = new MutationObserver(() => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        checkStatusAndInsertBanner();
+        highlightAllRowsGlobal();
+        addLegend();
+        adjustSpacing();
+        styleNotificationWrapper();
+        observeRateStatusChanges();
+        insertJbaBannerIfNeeded();
+        insertVipBannerIfNeeded();
+        isInSearchUIWrapper();
+      }, 200);
+    });
+    globalObserver.observe(document.body, { childList: true, subtree: true });
+
+    let attempts = 0;
+    const tryInit = setInterval(() => {
+      checkStatusAndInsertBanner();
+      highlightAllRowsGlobal();
+      addLegend();
+      adjustSpacing();
+      styleNotificationWrapper();
+      observeRateStatusChanges();
+      insertJbaBannerIfNeeded();
+      insertVipBannerIfNeeded();
+      isInSearchUIWrapper();
+      attempts++;
+      if (attempts > 20) clearInterval(tryInit);
+    }, 500);
+
+    observeNotifications();
+    startAuthElementRemoval();
+
+    if (document.title.includes('Email:')) {
+      waitForMoniqueInIframe();
+      waitForAUTHEMAIL();
+    }
+
     const titleObserver = new MutationObserver(() => {
       if (document.title.includes("Email:")) {
         waitForMoniqueInIframe();
@@ -951,9 +1123,5 @@ function styleNotificationWrapper() {
     });
     const titleNode = document.querySelector("title");
     if (titleNode) titleObserver.observe(titleNode, { childList: true });
-    if (document.title.includes('Email:')) {
-        waitForMoniqueInIframe();
-        waitForAUTHEMAIL();
-    }
   }
 })();
