@@ -102,6 +102,7 @@
 
     function domPrecedes(a, b) { return !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING); }
 
+    // NEW: determine if two boxes visually share a row using vertical overlap
     function sameVisualRow(a, b, minOverlapRatio = 0.35) {
       const top = Math.max(a.rect.top, b.rect.top);
       const bottom = Math.min(a.rect.bottom, b.rect.bottom);
@@ -114,6 +115,7 @@
       let nodes = Array.from(container.querySelectorAll(TEXT_SELECTORS)).filter(isVisible);
       nodes = nodes.filter(n => !n.closest('#mtoy-inline-copy') && !n.closest('#mtoy-copy-toast'));
 
+      // keep leaf-most nodes (avoid parent+child dupes)
       const set = new Set(nodes);
       nodes = nodes.filter(n => !Array.from(set).some(m => m !== n && n.contains(m)));
 
@@ -126,22 +128,28 @@
       if (!items.length) return '';
 
       items.sort((a, b) => {
+        // First: by visual row (top→bottom) using overlap, not just top distance
         if (!sameVisualRow(a, b)) {
           const topDelta = a.rect.top - b.rect.top;
           if (topDelta !== 0) return topDelta;
+          // rare exact tie: fall back to left→right
           const leftDelta = a.rect.left - b.rect.left;
           if (leftDelta !== 0) return leftDelta;
         } else {
+          // Within the same visual row:
           const aCity = CITY_RE.test(a.text), bCity = CITY_RE.test(b.text);
           if (aCity && bCity) {
+            // Two city/state/ZIPs → keep left→right on the row
             const dx = a.rect.left - b.rect.left;
             if (dx !== 0) return dx;
           }
+          // Default: DOM order to keep label→value semantics
           if (a.el !== b.el) return domPrecedes(a.el, b.el) ? -1 : 1;
         }
         return 0;
       });
 
+      // Keep duplicates on purpose (e.g., same city for pickup & drop)
       const out = [];
       for (const it of items) out.push(it.text);
       return out.join('\n');
@@ -174,7 +182,7 @@
       const anchor = findDateAnchorIn(overlay);
       if (!anchor) { if (existing) existing.remove(); return; }
 
-      if (existing && existing.nextElementSibling === anchor) return;
+      if (existing && existing.nextElementSibling === anchor) return; // already in place
       if (existing) existing.remove();
 
       const btn = document.createElement('button');
@@ -210,7 +218,7 @@
         }
       });
 
-      anchor.parentNode.insertBefore(btn, anchor);
+      anchor.parentNode.insertBefore(btn, anchor); // sits right above the date
     }
 
     (async () => {
@@ -222,13 +230,14 @@
       setInterval(tick, 800);
     })();
 
-    return;
+    return; // don’t run the Dynamics code in Power Apps frames
   }
 
   /* =====================================================================================
      PART B — UI ENHANCER (Dynamics, Boomerang, Apps Script)
      ===================================================================================== */
 
+  /* Early out: only run enhancer on Dynamics/Boomerang/Apps Script */
   if (!(isDynamics || onBoomerang || onAppsScript)) return;
 
   /* ============================== BOOMERANG/APPS SCRIPT ============================== */
@@ -574,7 +583,7 @@
               apply(idoc);
             }
           }
-        } catch {}
+        } catch { /* cross-origin; also matched separately if same-origin */ }
       };
       ifr.addEventListener('load', tryWire);
       tryWire();
@@ -585,6 +594,7 @@
     } else {
       apply(document);
     }
+    // Do not `return`; we may also be on Dynamics—handled below via isDynamics
   }
 
   /* =================================== DYNAMICS SECTION =================================== */
@@ -772,24 +782,22 @@
         headerTitle.style.padding = "0px";
       }
     }
+function styleNotificationWrapper() {
+  const notificationElements = document.querySelectorAll('[id*="notificationWrapper"], [id*="message"]');
 
-    function styleNotificationWrapper() {
-      const notificationElements = document.querySelectorAll('[id*="notificationWrapper"], [id*="message"]');
+  notificationElements.forEach(element => {
+    const text = (element.textContent || element.innerText || '').trim();
 
-      notificationElements.forEach(element => {
-        const text = (element.textContent || element.innerText || '').trim();
+    element.style.fontWeight = 'bold';
+    element.style.fontSize = '18px';
 
-        element.style.fontWeight = 'bold';
-        element.style.fontSize = '18px';
-
-        if (text.includes('~~')) {
-          element.style.backgroundColor = 'yellow';
-        } else {
-          element.style.backgroundColor = 'lightgreen';
-        }
-      });
+    if (text.includes('~~')) {
+      element.style.backgroundColor = 'yellow';
+    } else {
+      element.style.backgroundColor = 'lightgreen';
     }
-
+  });
+}
     function observeNotifications() {
       const observer = new MutationObserver(styleNotificationWrapper);
       observer.observe(document.body, { childList: true, subtree: true });
@@ -813,7 +821,6 @@
       banner.style.borderRadius = "5px";
       if (header) header.parentNode.insertBefore(banner, header.nextSibling);
     }
-
     function insertVipBannerIfNeeded() {
       const titleText = document.title;
       const header = document.querySelector(headerSelector);
@@ -841,6 +848,40 @@
         if (isInSearchUI(el)) el.remove();
       });
     }
+
+    let debounceTimer;
+    const globalObserver = new MutationObserver(() => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        checkStatusAndInsertBanner();
+        highlightAllRowsGlobal();
+        addLegend();
+        adjustSpacing();
+        styleNotificationWrapper();
+        observeRateStatusChanges();
+        insertJbaBannerIfNeeded();
+        insertVipBannerIfNeeded();
+        isInSearchUIWrapper();
+      }, 200);
+    });
+    globalObserver.observe(document.body, { childList: true, subtree: true });
+
+    let attempts = 0;
+    const tryInit = setInterval(() => {
+      checkStatusAndInsertBanner();
+      highlightAllRowsGlobal();
+      addLegend();
+      adjustSpacing();
+      styleNotificationWrapper();
+      observeRateStatusChanges();
+      insertJbaBannerIfNeeded();
+      insertVipBannerIfNeeded();
+      isInSearchUIWrapper();
+      attempts++;
+      if (attempts > 20) clearInterval(tryInit);
+    }, 500);
+
+    observeNotifications();
 
     function waitForMoniqueInIframe(retries = 20, delay = 1000) {
       const iframe = document.querySelector('#WebResource_RecipientSelector');
@@ -902,133 +943,6 @@
       }
     }
 
-    function removeAuthElementsFromDoc(doc) {
-      if (!doc) return 0;
-
-      let removedCount = 0;
-
-      const selectors = [
-        '[data-id="gtt_attachauthemail"]',
-        '[data-control-name="gtt_attachauthemail"]',
-        '[data-id="gtt_authorizationdocument"]',
-        '[data-control-name="gtt_authorizationdocument"]',
-        '[data-id="gtt_authorizationrequired"]',
-        '[data-control-name="gtt_authorizationrequired"]',
-
-        '[data-id="gtt_attachauthemail.fieldControl_container"]',
-        '[data-id="gtt_authorizationdocument.fieldControl_container"]',
-        '[data-id="gtt_authorizationrequired.fieldControl-pcf-container-id"]',
-
-        '[data-id="gtt_attachauthemail-FieldSectionItemContainer"]',
-        '[data-id="gtt_authorizationdocument-FieldSectionItemContainer"]',
-        '[data-id="gtt_authorizationrequired-FieldSectionItemContainer"]'
-          ];
-
-      const seen = new Set();
-
-      selectors.forEach(sel => {
-        doc.querySelectorAll(sel).forEach(el => {
-          let target =
-            el.closest('[data-id="gtt_attachauthemail"]') ||
-            el.closest('[data-control-name="gtt_attachauthemail"]') ||
-            el.closest('[data-id="gtt_authorizationdocument"]') ||
-            el.closest('[data-control-name="gtt_authorizationdocument"]') ||
-            el.closest('[data-id="gtt_authorizationrequired"]') ||
-            el.closest('[data-control-name="gtt_authorizationrequired"]') ||
-            el;
-
-          const outerRow = target.parentElement?.closest('div[role="presentation"].pa-bz');
-          if (outerRow) target = outerRow;
-
-          if (target && target.parentNode && !seen.has(target)) {
-            seen.add(target);
-            target.remove();
-            removedCount++;
-          }
-        });
-      });
-
-      return removedCount;
-    }
-
-    function removeAuthElementsEverywhere() {
-      let total = 0;
-
-      total += removeAuthElementsFromDoc(document);
-
-      const iframe = document.querySelector('#WebResource_RecipientSelector');
-      if (iframe) {
-        try {
-          const idoc = iframe.contentDocument || iframe.contentWindow?.document;
-          total += removeAuthElementsFromDoc(idoc);
-        } catch (e) {}
-      }
-
-      return total;
-    }
-
-    function startAuthElementRemoval() {
-      removeAuthElementsEverywhere();
-      setTimeout(removeAuthElementsEverywhere, 500);
-      setTimeout(removeAuthElementsEverywhere, 1500);
-      setTimeout(removeAuthElementsEverywhere, 3000);
-
-      const mo = new MutationObserver(() => {
-        removeAuthElementsEverywhere();
-      });
-
-      const startObserver = () => {
-        if (!document.body) {
-          setTimeout(startObserver, 100);
-          return;
-        }
-        mo.observe(document.body, { childList: true, subtree: true });
-      };
-      startObserver();
-
-      setInterval(removeAuthElementsEverywhere, 2000);
-    }
-
-    let debounceTimer;
-    const globalObserver = new MutationObserver(() => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        checkStatusAndInsertBanner();
-        highlightAllRowsGlobal();
-        addLegend();
-        adjustSpacing();
-        styleNotificationWrapper();
-        observeRateStatusChanges();
-        insertJbaBannerIfNeeded();
-        insertVipBannerIfNeeded();
-        isInSearchUIWrapper();
-      }, 200);
-    });
-    globalObserver.observe(document.body, { childList: true, subtree: true });
-
-    let attempts = 0;
-    const tryInit = setInterval(() => {
-      checkStatusAndInsertBanner();
-      highlightAllRowsGlobal();
-      addLegend();
-      adjustSpacing();
-      styleNotificationWrapper();
-      observeRateStatusChanges();
-      insertJbaBannerIfNeeded();
-      insertVipBannerIfNeeded();
-      isInSearchUIWrapper();
-      attempts++;
-      if (attempts > 20) clearInterval(tryInit);
-    }, 500);
-
-    observeNotifications();
-    startAuthElementRemoval();
-
-    if (document.title.includes('Email:')) {
-      waitForMoniqueInIframe();
-      waitForAUTHEMAIL();
-    }
-
     const titleObserver = new MutationObserver(() => {
       if (document.title.includes("Email:")) {
         waitForMoniqueInIframe();
@@ -1037,5 +951,9 @@
     });
     const titleNode = document.querySelector("title");
     if (titleNode) titleObserver.observe(titleNode, { childList: true });
+    if (document.title.includes('Email:')) {
+        waitForMoniqueInIframe();
+        waitForAUTHEMAIL();
+    }
   }
 })();
