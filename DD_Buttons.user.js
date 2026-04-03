@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.42
+// @version      4.1.43
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1521,7 +1521,8 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
         "Homelink Rate Request",
         "Wait time request",
         "Request Demographics",
-        "Other"
+        "Other",
+        "QUOTE"
     ];
 
 const is4474 = headerTitle.startsWith("4474-");
@@ -2060,6 +2061,8 @@ function selectCorrectRadioButton(selectedOption) {
         labelToFind = "Request for Additional Information";
     } else if (selectedOption === "L-Orchid-CareWorks") {
         labelToFind = "L-Orchid-CareWorks";
+    } else if (selectedOption === "QUOTE") {
+            labelToFind = "Quote request";
     } else if (selectedOption === "Other") {
         labelToFind = "";
     }
