@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.2.21
+// @version      1.2.22
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill behavior (iframe-safe). Time fields + key fields always unlocked; company/email soft-prefill; unlock-all-on-submit. Also adds a yellow Copy button in PowerApps Leg Info overlay that preserves on-screen order (including duplicate lines like city/state).
@@ -701,7 +701,6 @@
       });
     }
 
-
     function createLegendChip(text, bg) {
       const chip = document.createElement('span');
       chip.textContent = text;
@@ -723,14 +722,18 @@
       legend.dataset.legendType = type;
       legend.style.display = 'flex';
       legend.style.flexWrap = 'wrap';
-      legend.style.justifyContent = 'left';
-      legend.style.alignItems = 'left';
+      legend.style.justifyContent = 'center';
+      legend.style.alignItems = 'center';
       legend.style.gap = '8px';
       legend.style.width = '100%';
+      legend.style.minWidth = '100%';
+      legend.style.maxWidth = '100%';
       legend.style.margin = '0 auto';
-      legend.style.padding = '2px 0';
+      legend.style.padding = '6px 8px';
       legend.style.boxSizing = 'border-box';
-      legend.style.textAlign = 'left';
+      legend.style.textAlign = 'center';
+      legend.style.flexBasis = '100%';
+      legend.style.flexShrink = '0';
 
       legend.appendChild(createLegendChip('Evaluations', 'gold'));
       legend.appendChild(createLegendChip('First Time/Surgery', 'lightgreen'));
@@ -747,14 +750,61 @@
       return legend;
     }
 
-    function removeExistingLegendArtifacts() {
-      document.querySelectorAll(
-        '#mtoy-legend-section, #mtoy-legend-bar, [data-legend="true"], [data-legend-wrapper="true"], [data-legend-host="true"]'
-      ).forEach(el => {
-        if (!el.closest || !isInSearchUI(el)) return;
-        el.remove();
-      });
-    }
+function createLegendWrapper(legend) {
+  const wrapper = document.createElement('div');
+  wrapper.dataset.legendWrapper = 'true';
+  wrapper.dataset.legendType = legend.dataset.legendType || '';
+
+  wrapper.style.display = 'block';
+  wrapper.style.width = '100%';
+  wrapper.style.minWidth = '100%';
+  wrapper.style.maxWidth = '100%';
+  wrapper.style.flex = '0 0 100%';
+  wrapper.style.marginTop = '8px';
+  wrapper.style.marginBottom = '4px';
+  wrapper.style.padding = '0';
+  wrapper.style.boxSizing = 'border-box';
+  wrapper.style.overflow = 'visible';
+  wrapper.style.textAlign = 'center';
+
+  legend.style.width = '100%';
+  legend.style.minWidth = '100%';
+  legend.style.maxWidth = '100%';
+  legend.style.flex = '0 0 100%';
+  legend.style.boxSizing = 'border-box';
+
+  wrapper.appendChild(legend);
+  return wrapper;
+}
+
+function getLegendHost(section) {
+  if (!section) return null;
+
+  let host = section.querySelector(':scope > [data-legend-host="true"]');
+  if (host) return host;
+
+  host = document.createElement('div');
+  host.dataset.legendHost = 'true';
+  host.style.display = 'block';
+  host.style.width = '100%';
+  host.style.minWidth = '100%';
+  host.style.maxWidth = '100%';
+  host.style.flex = '0 0 100%';
+  host.style.order = '9999';
+  host.style.margin = '0';
+  host.style.padding = '0';
+  host.style.boxSizing = 'border-box';
+  host.style.overflow = 'visible';
+  host.style.pointerEvents = 'auto';
+
+  section.appendChild(host);
+  return host;
+}
+
+function sectionHasLegend(section, type) {
+  if (!section) return false;
+  return !!section.querySelector(`[data-legend-wrapper="true"][data-legend-type="${CSS.escape(type)}"]`);
+}
 
     function getMainRoot() {
       return document.querySelector('[data-id="fullPageContentRoot"]')
@@ -762,134 +812,121 @@
           || document.body;
     }
 
-    function detectLegendType() {
-      const fullText = (
-        (document.title || '') + '\n' +
-        (document.body?.innerText || '')
-      ).toLowerCase();
+function getSectionContainerForText(node) {
+  if (!node) return null;
 
-      if (
-        fullText.includes('same day confirmations') ||
-        fullText.includes('same day (oncall)') ||
-        fullText.includes('-confirm')
-      ) return '-confirm';
+  return node.closest('[role="group"]')
+      || node.closest('[role="region"]')
+      || node.closest('div[data-id]')
+      || node.closest('div[data-lp-id]')
+      || node.closest('section')
+      || node.closest('div[role="presentation"]')
+      || node.parentElement
+      || null;
+}
 
-      if (
-        fullText.includes('unassigned transportation') ||
-        fullText.includes('unassigned transport') ||
-        fullText.includes('prev vendor search') ||
-        fullText.includes('uber') ||
-        fullText.includes('~transport')
-      ) return 'default';
+function getSectionContainerForButton(node) {
+  if (!node) return null;
 
-      return null;
-    }
+  return node.closest('li')
+      || node.closest('.ms-CommandBarItem')
+      || node.closest('[role="toolbar"]')
+      || node.closest('.ms-CommandBar')
+      || node.closest('div[role="presentation"]')
+      || node.parentElement
+      || null;
+}
 
-    function findCommandBarElement() {
-      return document.querySelector('[data-lp-id="commandbar-Dashboard:null"]')
-          || document.querySelector('[data-id="commandBar_0"]')
-          || document.querySelector('[data-lp-id^="commandbar-HomePageGrid:"]')
-          || document.querySelector('ul[data-id="CommandBar"]');
-    }
-
-    function getCommandBarShell() {
-      const bar = findCommandBarElement();
-      if (!bar) return null;
-
-      let node = bar;
-      while (node && node !== document.body) {
-        const hasCommandBar = !!node.querySelector?.('[data-id="CommandBar"], [data-id="commandBar_0"], [data-lp-id="commandbar-Dashboard:null"], [data-lp-id^="commandbar-HomePageGrid:"]');
-        const hasShare = !!node.querySelector?.('#collaborationShareButton_0, button[aria-label="Share"]');
-        if (hasCommandBar && hasShare) return node;
-        node = node.parentElement;
-      }
-
-      node = bar;
-      while (node && node !== document.body) {
-        const parent = node.parentElement;
-        if (!parent) break;
-        const children = Array.from(parent.children || []).filter(el => el.nodeType === 1);
-        const hasCommandBar = !!parent.querySelector?.('[data-id="CommandBar"], [data-id="commandBar_0"], [data-lp-id="commandbar-Dashboard:null"], [data-lp-id^="commandbar-HomePageGrid:"]');
-        if (hasCommandBar && children.length >= 2) return parent;
-        node = parent;
-      }
-
-      return bar.parentElement || bar;
-    }
-
-    function ensureLegendSection() {
-      const shell = getCommandBarShell();
-      if (!shell || !shell.parentNode || isInSearchUI(shell)) return null;
-
-      let section = document.getElementById('mtoy-legend-section');
-      if (!section) {
-        section = document.createElement('div');
-        section.id = 'mtoy-legend-section';
-        section.dataset.legendSection = 'true';
-        section.setAttribute('role', 'presentation');
-        section.style.display = 'block';
-        section.style.width = 'calc(100% - 16px)';
-        section.style.margin = '6px 8px 10px 8px';
-        section.style.padding = '10px 14px';
-        section.style.boxSizing = 'border-box';
-        section.style.background = '#fff';
-        section.style.border = '1px solid rgba(0,0,0,.08)';
-        section.style.borderRadius = '10px';
-        section.style.boxShadow = '0 1px 2px rgba(0,0,0,.04)';
-        section.style.clear = 'both';
-      }
-
-      if (section.previousElementSibling !== shell || section.parentNode !== shell.parentNode) {
-        if (section.parentNode) section.remove();
-        shell.parentNode.insertBefore(section, shell.nextSibling);
-      }
-
-      return section;
-    }
-
-    function getLegendBar() {
-      const section = ensureLegendSection();
+    function getStableLegendAnchor(section) {
       if (!section) return null;
 
-      let bar = document.getElementById('mtoy-legend-bar');
-      if (!bar) {
-        bar = document.createElement('div');
-        bar.id = 'mtoy-legend-bar';
-        bar.dataset.legendBar = 'true';
-        bar.style.display = 'flex';
-        bar.style.flexWrap = 'wrap';
-        bar.style.justifyContent = 'left';
-        bar.style.alignItems = 'left';
-        bar.style.gap = '8px';
-        bar.style.width = '100%';
-        bar.style.boxSizing = 'border-box';
-        bar.style.margin = '0';
-        bar.style.padding = '0';
-        section.appendChild(bar);
-      } else if (bar.parentNode !== section) {
-        bar.remove();
-        section.appendChild(bar);
-      }
-
-      return bar;
+      return section.closest('[role="tabpanel"]')
+          || section.closest('[data-id*="tab"]')
+          || section.closest('[data-lp-id*="tab"]')
+          || section.parentElement
+          || section;
     }
 
+    function getLegendOutsideKey(section, type) {
+      if (!section) return '';
+      const anchor = getStableLegendAnchor(section);
+      const base =
+        anchor?.getAttribute?.('data-id') ||
+        anchor?.getAttribute?.('data-lp-id') ||
+        anchor?.id ||
+        anchor?.getAttribute?.('aria-label') ||
+        anchor?.textContent?.trim()?.slice(0, 80) ||
+        'legend-anchor';
+      return `${type}::${base}`;
+    }
+
+    function hasLegendOutside(section, type) {
+      const key = getLegendOutsideKey(section, type);
+      if (!key) return false;
+      return !!document.querySelector(`[data-legend-outside-key="${CSS.escape(key)}"]`);
+    }
+
+function appendLegendOncePerSection(anchorNode, type, mode = 'text') {
+  const section = mode === 'button'
+    ? getSectionContainerForButton(anchorNode)
+    : getSectionContainerForText(anchorNode);
+
+  if (!section || isInSearchUI(section)) return;
+  if (sectionHasLegend(section, type)) return;
+
+  const host = getLegendHost(section);
+  if (!host) return;
+
+  const legend = createLegendElement(type);
+  const wrapper = createLegendWrapper(legend);
+  host.appendChild(wrapper);
+}
+
     function addLegend() {
-      removeExistingLegendArtifacts();
+      const root = getMainRoot();
+      removeLegendsInsideSearch();
 
-      const type = detectLegendType();
-      const existingSection = document.getElementById('mtoy-legend-section');
+      root.querySelectorAll('[data-legend="true"], [data-legend-wrapper="true"]').forEach(el => el.remove());
 
-      if (!type) {
-        if (existingSection) existingSection.remove();
-        return;
-      }
+      const targetSpans = root.querySelectorAll('span[id*="_text-value"]');
+      targetSpans.forEach(span => {
+        if (!span || isInSearchUI(span)) return;
+        const label = (span.textContent || '').toLowerCase();
 
-      const bar = getLegendBar();
-      if (!bar) return;
+        if ((label.includes("unassigned transportation") ||
+             label.includes("same day confirmations") ||
+             label.includes("same day (oncall)")) &&
+            !label.includes("delete")) {
+          const type = (label.includes("-confirm") || label.includes("same day confirmations") || label.includes("same day (oncall)"))
+            ? "-confirm"
+            : "default";
 
-      bar.innerHTML = '';
-      bar.appendChild(createLegendElement(type));
+          appendLegendOncePerSection(span, type, 'text');
+        }
+      });
+
+      const buttons = root.querySelectorAll('button[aria-label*="~Transport"], button[aria-label*="UBER"], button[aria-label*="Prev Vendor Search"], button[aria-label]');
+      buttons.forEach(button => {
+        if (!button || isInSearchUI(button)) return;
+
+        const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase();
+        const labelText = (button.querySelector('.ms-Button-label')?.textContent || '').toLowerCase();
+
+        if (ariaLabel.includes("delete") || labelText.includes("delete")) return;
+
+        const isConfirm = labelText.includes("-confirm")
+                       || labelText.includes("same day confirmations")
+                       || labelText.includes("same day (oncall)");
+
+        if (ariaLabel.includes("unassigned transport") ||
+            ariaLabel.includes("~transport") ||
+            ariaLabel.includes("uber") ||
+            ariaLabel.includes("prev vendor search") ||
+            isConfirm) {
+          const type = isConfirm ? "-confirm" : "default";
+          appendLegendOncePerSection(button, type, 'button');
+        }
+      });
     }
 
     function adjustSpacing() {
@@ -1167,3 +1204,4 @@
     if (titleNode) titleObserver.observe(titleNode, { childList: true });
   }
 })();
+
