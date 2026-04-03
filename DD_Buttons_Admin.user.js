@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.42
+// @version      4.1.43
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1508,7 +1508,8 @@ ${loadFeeLine}
             "Homelink Rate Request",
             "Wait time request",
             "Request Demographics",
-            "Other"
+            "Other",
+            "QUOTE"
         ];
 
 const is4474 = headerTitle.startsWith("4474-");
@@ -2003,6 +2004,8 @@ if (headerTitle.startsWith("212-")) {
             labelToFind = "Request for Additional Information";
         } else if (selectedOption === "L-Orchid-CareWorks") {
             labelToFind = "L-Orchid-CareWorks";
+        } else if (selectedOption === "QUOTE") {
+            labelToFind = "Quote request";
         } else if (selectedOption === "Other") {
             labelToFind = "";
         }
