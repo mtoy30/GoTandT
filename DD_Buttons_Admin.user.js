@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.48
+// @version      4.1.49
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -2225,42 +2225,30 @@ if (headerTitle.startsWith("212-")) {
 
 
     function detectCombinedMarginModes() {
-        const names = new Set();
+        let hasTransport = false;
+        let hasInterpretation = false;
+
         document.querySelectorAll('div[row-index], [role="row"]').forEach((row) => {
             const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
-            const rawName = (productCell?.innerText || productCell?.textContent || "").trim();
-            if (rawName) names.add(rawName);
+            const serviceTypeCell = row.querySelector('[col-id="gtt_servicetype"]');
+
+            const productText = (productCell?.innerText || productCell?.textContent || "").trim().toLowerCase();
+            const serviceTypeText = (serviceTypeCell?.innerText || serviceTypeCell?.textContent || "").trim().toLowerCase();
+
+            if (
+                productText.includes("transport") ||
+                serviceTypeText.includes("transport")
+            ) {
+                hasTransport = true;
+            }
+
+            if (
+                productText.includes("interpretation") ||
+                serviceTypeText.includes("interpretation")
+            ) {
+                hasInterpretation = true;
+            }
         });
-
-        const hasTransport = [
-            "Transport Ambulatory",
-            "Transport Wheelchair",
-            "Transport Stretcher, ALS & BLS",
-            "Miscellaneous Dead Miles",
-            "Load Fee",
-            "One Way Surcharge",
-            "Weekend Holiday",
-            "After Hours Fee",
-            "Additional Passenger",
-            "Rush Fee",
-            "Wheelchair Rental",
-            "Airport Pickup Fee",
-            "Wait Time",
-            "No Show"
-        ].some(name => names.has(name));
-
-        const hasInterpretation = [
-            "Certified Interpretation",
-            "Standard Interpretation",
-            "Legal Interpretation",
-            "Interpretation Travel Mileage",
-            "Interpretation Travel Time",
-            "Rush Fee",
-            "Weekend Holiday",
-            "Tolls",
-            "Parking",
-            "No Show"
-        ].some(name => names.has(name));
 
         return { hasTransport, hasInterpretation };
     }
