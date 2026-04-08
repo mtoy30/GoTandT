@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.2.24.5
+// @version      1.2.24.6
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill behavior (iframe-safe). Time fields + key fields always unlocked; company/email soft-prefill; unlock-all-on-submit. Also adds a yellow Copy button in PowerApps Leg Info overlay that preserves on-screen order (including duplicate lines like city/state).
@@ -764,7 +764,6 @@
       chip.style.lineHeight = '1.2';
       chip.style.whiteSpace = 'nowrap';
       chip.style.boxShadow = '0 1px 4px rgba(0,0,0,.08)';
-      chip.style.flex = '0 0 auto';
       return chip;
     }
 
@@ -774,17 +773,14 @@
       legend.dataset.legendType = type;
       legend.style.display = 'flex';
       legend.style.flexWrap = 'wrap';
-      legend.style.justifyContent = 'center';
-      legend.style.alignItems = 'center';
+      legend.style.justifyContent = 'left';
+      legend.style.alignItems = 'left';
       legend.style.gap = '8px';
       legend.style.width = '100%';
-      legend.style.maxWidth = '100%';
-      legend.style.minWidth = '0';
-      legend.style.flex = '0 0 100%';
       legend.style.margin = '0 auto';
       legend.style.padding = '2px 0';
       legend.style.boxSizing = 'border-box';
-      legend.style.textAlign = 'center';
+      legend.style.textAlign = 'left';
 
       legend.appendChild(createLegendChip('Evaluations', 'gold'));
       legend.appendChild(createLegendChip('First Time/Surgery', 'lightgreen'));
@@ -874,87 +870,9 @@
       return bar.parentElement || bar;
     }
 
-    function getToolbarBlock() {
-      const shell = getCommandBarShell();
-      if (!shell) return null;
-
-      let node = shell;
-      while (node && node !== document.body) {
-        const rect = node.getBoundingClientRect?.();
-        const hasShare = !!node.querySelector?.('#collaborationShareButton_0, button[aria-label="Share"]');
-        const hasFilter = !!node.querySelector?.('input[placeholder*="Filter"], input[aria-label*="Filter"], button[aria-label*="Edit filters"]');
-        const hasCommandBar = !!node.querySelector?.(
-          '[data-id="CommandBar"], [data-id="commandBar_0"], [data-lp-id="commandbar-Dashboard:null"], [data-lp-id^="commandbar-HomePageGrid:"]'
-        );
-
-        if (hasCommandBar && hasShare && rect && rect.height > 40) {
-          return node;
-        }
-
-        if (hasCommandBar && hasFilter && rect && rect.height > 40) {
-          return node;
-        }
-
-        node = node.parentElement;
-      }
-
-      return shell.parentElement || shell;
-    }
-
-    function getViewHeaderBlock() {
-      const viewSelector = document.querySelector('button[data-id^="ViewSelector_"]');
-      if (!viewSelector) return null;
-
-      let node = viewSelector;
-      while (node && node !== document.body) {
-        const hasViewSelector = !!node.querySelector?.('button[data-id^="ViewSelector_"]');
-        const hasEditColumns = !!node.querySelector?.('#columnEditor-btn, button[aria-label="Edit columns"]');
-        const hasEditFilters = !!node.querySelector?.('#open-advanced-filter, button[aria-label="Edit filters"]');
-        const hasQuickFind = !!node.querySelector?.('[data-id="data-set-quickFind-container"], input[placeholder*="Filter by keyword"], input[aria-label*="Filter by keyword"]');
-
-        if (hasViewSelector && (hasEditColumns || hasEditFilters || hasQuickFind)) {
-          return node;
-        }
-        node = node.parentElement;
-      }
-
-      return viewSelector.closest('h1')?.parentElement?.parentElement || viewSelector.closest('h1')?.parentElement || viewSelector;
-    }
-
-    function getLegendAnchor() {
-      const headerBlock = getViewHeaderBlock();
-      if (headerBlock && headerBlock.parentNode && !isInSearchUI(headerBlock)) {
-        return { mode: 'before', node: headerBlock };
-      }
-
-      const toolbarBlock = getToolbarBlock();
-      if (toolbarBlock && toolbarBlock.parentNode && !isInSearchUI(toolbarBlock)) {
-        return { mode: 'after', node: toolbarBlock };
-      }
-
-      return null;
-    }
-
     function ensureLegendSection() {
-      const anchor = getLegendAnchor();
-      if (!anchor || !anchor.node || !anchor.node.parentNode) return null;
-
-      let host = document.getElementById('mtoy-legend-host');
-      if (!host) {
-        host = document.createElement('div');
-        host.id = 'mtoy-legend-host';
-        host.dataset.legendHost = 'true';
-        host.setAttribute('role', 'presentation');
-        host.style.display = 'block';
-        host.style.width = '100%';
-        host.style.boxSizing = 'border-box';
-        host.style.margin = '0';
-        host.style.padding = '0 8px';
-        host.style.clear = 'both';
-        host.style.flex = '0 0 100%';
-        host.style.maxWidth = '100%';
-        host.style.minWidth = '100%';
-      }
+      const shell = getCommandBarShell();
+      if (!shell || !shell.parentNode || isInSearchUI(shell)) return null;
 
       let section = document.getElementById('mtoy-legend-section');
       if (!section) {
@@ -963,8 +881,8 @@
         section.dataset.legendSection = 'true';
         section.setAttribute('role', 'presentation');
         section.style.display = 'block';
-        section.style.width = '100%';
-        section.style.margin = '6px 0 10px 0';
+        section.style.width = 'calc(100% - 16px)';
+        section.style.margin = '6px 8px 10px 8px';
         section.style.padding = '10px 14px';
         section.style.boxSizing = 'border-box';
         section.style.background = '#fff';
@@ -974,25 +892,9 @@
         section.style.clear = 'both';
       }
 
-      if (section.parentNode !== host) {
+      if (section.previousElementSibling !== shell || section.parentNode !== shell.parentNode) {
         if (section.parentNode) section.remove();
-        host.appendChild(section);
-      }
-
-      const parent = anchor.node.parentNode;
-      const shouldMove = (
-        host.parentNode !== parent ||
-        (anchor.mode === 'before' && host.nextElementSibling !== anchor.node) ||
-        (anchor.mode === 'after' && host.previousElementSibling !== anchor.node)
-      );
-
-      if (shouldMove) {
-        if (host.parentNode) host.remove();
-        if (anchor.mode === 'before') {
-          parent.insertBefore(host, anchor.node);
-        } else {
-          parent.insertBefore(host, anchor.node.nextSibling);
-        }
+        shell.parentNode.insertBefore(section, shell.nextSibling);
       }
 
       return section;
@@ -1009,12 +911,10 @@
         bar.dataset.legendBar = 'true';
         bar.style.display = 'flex';
         bar.style.flexWrap = 'wrap';
-        bar.style.justifyContent = 'flex-start';
-        bar.style.alignItems = 'center';
+        bar.style.justifyContent = 'left';
+        bar.style.alignItems = 'left';
         bar.style.gap = '8px';
         bar.style.width = '100%';
-        bar.style.maxWidth = '100%';
-        bar.style.minWidth = '0';
         bar.style.boxSizing = 'border-box';
         bar.style.margin = '0';
         bar.style.padding = '0';
