@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.43
+// @version      4.1.48
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -11,7 +11,6 @@
 // @grant        GM_setClipboard
 // @grant        GM_registerMenuCommand
 // ==/UserScript==
-//Moved to GitHub for 3.2.5+
 
 (function() {
     'use strict';
@@ -24,6 +23,19 @@
         width: 20px;
         height: 20px;
         accent-color: #3b82f6;
+       }
+       #tl-interpretation-calc-box input[type="number"],
+       #tl-interpretation-calc-box input[type="text"] {
+        box-sizing: border-box;
+       }
+       #tl-interpretation-calc-box input[type="number"]::-webkit-outer-spin-button,
+       #tl-interpretation-calc-box input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+       }
+       #tl-interpretation-calc-box input[type="number"] {
+        -moz-appearance: textfield;
+        appearance: textfield;
        }
     `;
     document.head.appendChild(style);
@@ -2211,6 +2223,1060 @@ if (headerTitle.startsWith("212-")) {
         }
     }
 
+
+    function detectCombinedMarginModes() {
+        const names = new Set();
+        document.querySelectorAll('div[row-index], [role="row"]').forEach((row) => {
+            const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+            const rawName = (productCell?.innerText || productCell?.textContent || "").trim();
+            if (rawName) names.add(rawName);
+        });
+
+        const hasTransport = [
+            "Transport Ambulatory",
+            "Transport Wheelchair",
+            "Transport Stretcher, ALS & BLS",
+            "Miscellaneous Dead Miles",
+            "Load Fee",
+            "One Way Surcharge",
+            "Weekend Holiday",
+            "After Hours Fee",
+            "Additional Passenger",
+            "Rush Fee",
+            "Wheelchair Rental",
+            "Airport Pickup Fee",
+            "Wait Time",
+            "No Show"
+        ].some(name => names.has(name));
+
+        const hasInterpretation = [
+            "Certified Interpretation",
+            "Standard Interpretation",
+            "Legal Interpretation",
+            "Interpretation Travel Mileage",
+            "Interpretation Travel Time",
+            "Rush Fee",
+            "Weekend Holiday",
+            "Tolls",
+            "Parking",
+            "No Show"
+        ].some(name => names.has(name));
+
+        return { hasTransport, hasInterpretation };
+    }
+
+    function showCombinedMarginChooser() {
+        const existing = document.getElementById("combinedMarginChooser");
+        if (existing) existing.remove();
+
+        const chooser = document.createElement("div");
+        chooser.id = "combinedMarginChooser";
+        chooser.style.position = "fixed";
+        chooser.style.top = "30%";
+        chooser.style.left = "50%";
+        chooser.style.transform = "translate(-50%, -50%)";
+        chooser.style.background = "#fff";
+        chooser.style.padding = "16px";
+        chooser.style.border = "2px solid #000";
+        chooser.style.borderRadius = "10px";
+        chooser.style.zIndex = "10001";
+        chooser.style.minWidth = "320px";
+        chooser.style.boxShadow = "0 10px 24px rgba(0,0,0,0.2)";
+
+        const title = document.createElement("div");
+        title.innerText = "Select margin calculator";
+        title.style.fontWeight = "bold";
+        title.style.fontSize = "18px";
+        title.style.marginBottom = "12px";
+
+        const transportBtn = createModernButton("Transport", "#22c55e", "#4ade80", () => {
+            chooser.remove();
+            showCalculatorBox();
+        });
+        transportBtn.style.marginLeft = "0";
+
+        const interpretationBtn = createModernButton("Interpretation", "#3b82f6", "#60a5fa", () => {
+            chooser.remove();
+            openInterpretationCalculator();
+        });
+
+        const closeBtn = createModernButton("Close", "#ef4444", "#f87171", () => chooser.remove());
+        closeBtn.style.marginLeft = "0";
+        closeBtn.style.marginTop = "10px";
+
+        chooser.appendChild(title);
+        chooser.appendChild(transportBtn);
+        chooser.appendChild(interpretationBtn);
+        chooser.appendChild(document.createElement("br"));
+        chooser.appendChild(closeBtn);
+        document.body.appendChild(chooser);
+    }
+
+    function openCombinedMarginSelector() {
+        const tabSelectors = [
+            'li[role="tab"][title="Billed"]',
+            'li[role="tab"][title="Billing"]',
+            'button[role="tab"][title="Billed"]',
+            'button[role="tab"][title="Billing"]'
+        ];
+
+        const billedTab = tabSelectors
+            .map(selector => document.querySelector(selector))
+            .find(Boolean);
+
+        const openAfterBillingLoads = (maxAttempts = 14, delay = 500) => {
+            let attempts = 0;
+
+            const check = () => {
+                attempts += 1;
+                const modes = detectCombinedMarginModes();
+
+                if (modes.hasTransport && modes.hasInterpretation) {
+                    showCombinedMarginChooser();
+                    return;
+                }
+                if (modes.hasTransport) {
+                    showCalculatorBox();
+                    return;
+                }
+                if (modes.hasInterpretation) {
+                    openInterpretationCalculator();
+                    return;
+                }
+
+                if (attempts >= maxAttempts) {
+                    showMessage("No transport or interpretation lines found.", false);
+                    return;
+                }
+
+                setTimeout(check, delay);
+            };
+
+            setTimeout(check, 250);
+        };
+
+        if (billedTab) {
+            billedTab.click();
+            openAfterBillingLoads();
+            return;
+        }
+
+        openAfterBillingLoads(1, 0);
+    }
+
+
+  function tlParseMoney(text) {
+    const cleaned = String(text || "").replace(/[^0-9.-]+/g, "").trim();
+    const value = parseFloat(cleaned);
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function tlParseQty(text) {
+    const cleaned = String(text || "").replace(/[^0-9.-]+/g, "").trim();
+    const value = parseFloat(cleaned);
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function tlGetGridRows() {
+    return Array.from(document.querySelectorAll('div[row-index], [role="row"]'));
+  }
+
+  function tlGetGridData() {
+    const billedProducts = [
+      "Certified Interpretation",
+      "Standard Interpretation",
+      "Legal Interpretation",
+      "Rush Fee",
+      "Weekend Holiday",
+      "Interpretation Travel Mileage",
+      "Interpretation Travel Time",
+      "Tolls",
+      "Parking"
+    ];
+
+    const productMap = new Map();
+    let billedTotal = 0;
+
+    tlGetGridRows().forEach((row) => {
+      const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+      if (!productCell) return;
+
+      const rawName = (productCell.innerText || productCell.textContent || "").trim();
+      if (!rawName) return;
+
+      const qtyCell = row.querySelector('[col-id="gtt_quantity"]');
+      const priceCell = row.querySelector('[col-id="gtt_price"]');
+      const totalCell = row.querySelector('[col-id="gtt_total"]');
+
+      const qty = tlParseQty(qtyCell ? qtyCell.innerText : "");
+      const price = tlParseMoney(priceCell ? priceCell.innerText : "");
+      const total = tlParseMoney(totalCell ? totalCell.innerText : "");
+
+      const existing = productMap.get(rawName) || { qty: 0, price: 0, total: 0, rows: 0 };
+      existing.qty += qty;
+      existing.total += total;
+      existing.rows += 1;
+      if (price > 0) existing.price = price;
+      productMap.set(rawName, existing);
+
+      if (billedProducts.includes(rawName)) {
+        billedTotal += total;
+      }
+    });
+
+    return { productMap, billedTotal };
+  }
+
+  function tlCalculateInterpreterMargin(state) {
+    const mode = state.flatRadio.checked ? "flat" : "rates";
+
+    const flatProviderRate = parseFloat(state.flatProviderRateInput.value) || 0;
+    const perHour = parseFloat(state.perHourInput.value) || 0;
+    const minHours = parseFloat(state.minHoursInput.value) || 0;
+    const miles = parseFloat(state.milesInput.value) || 0;
+    const mileageRate = parseFloat(state.mileageRateInput.value) || 0;
+
+    const paid = mode === "flat"
+      ? flatProviderRate
+      : (perHour * minHours) + (miles * mileageRate);
+
+    const { billedTotal, productMap } = tlGetGridData();
+
+    const breakdown = [];
+    const orderedBilledLines = [
+      "Certified Interpretation",
+      "Standard Interpretation",
+      "Legal Interpretation",
+      "Rush Fee",
+      "Weekend Holiday",
+      "Interpretation Travel Mileage",
+      "Interpretation Travel Time",
+      "Tolls",
+      "Parking"
+    ];
+
+    orderedBilledLines.forEach((name) => {
+      const item = productMap.get(name);
+      if (!item) return;
+
+      if (["Certified Interpretation", "Standard Interpretation", "Legal Interpretation", "Interpretation Travel Mileage", "Interpretation Travel Time"].includes(name)) {
+        breakdown.push(`${name}: ${item.qty} x $${item.price.toFixed(2)} = $${item.total.toFixed(2)}`);
+      } else {
+        breakdown.push(`${name}: $${item.total.toFixed(2)}`);
+      }
+    });
+
+    if (paid <= 0) {
+      state.result.innerHTML = `<span>Please enter a valid paid amount.</span>`;
+      state.result.style.color = "black";
+      state.targetLabel.innerHTML = "";
+      state.breakdown.innerHTML = breakdown.length
+        ? `<div style="margin-top:10px;font-weight:bold;">Billed Breakdown</div><div>${breakdown.join("<br>")}</div>`
+        : "<div style='margin-top:10px;'>No billed interpretation lines found.</div>";
+      state.higherResult.innerHTML = "";
+      return;
+    }
+
+    if (billedTotal <= 0) {
+      state.result.innerHTML = `<span>Could not find any billed interpretation total.</span>`;
+      state.result.style.color = "black";
+      state.targetLabel.innerHTML = "";
+      state.breakdown.innerHTML = "<div style='margin-top:10px;'>No billed interpretation lines found.</div>";
+      state.higherResult.innerHTML = "";
+      return;
+    }
+
+    const margin = 100 - ((paid / billedTotal) * 100);
+    let marginColor = "green";
+    if (margin < 45) marginColor = "red";
+    else if (margin < 50) marginColor = "goldenrod";
+
+    const approvalNote = margin < 45
+      ? `<br><span style="color:red;font-weight:bold;">Seek Management Approval</span>`
+      : "";
+
+    const target = billedTotal * 0.5;
+
+    const paidLines = mode === "flat"
+      ? [`Flat Provider Rate: $${flatProviderRate.toFixed(2)}`]
+      : [
+          `Per Hour: $${perHour.toFixed(2)} x ${minHours.toFixed(2)} = $${(perHour * minHours).toFixed(2)}`,
+          `Mileage: ${miles.toFixed(2)} x $${mileageRate.toFixed(2)} = $${(miles * mileageRate).toFixed(2)}`
+        ];
+
+    state.result.innerHTML = `
+      ${paidLines.map(line => `<span>${line}</span>`).join("")}
+      <span>Total Paid: $${paid.toFixed(2)}</span>
+      <span>Total Billed: $${billedTotal.toFixed(2)}</span>
+      <span style="color:${marginColor};font-weight:bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
+    `;
+
+    state.targetLabel.innerHTML = `<span>Target to pay this or less (50% margin): $${target.toFixed(2)}</span>`;
+    state.breakdown.innerHTML = breakdown.length
+      ? `<div style="margin-top:10px;font-weight:bold;">Billed Breakdown</div><div>${breakdown.join("<br>")}</div>`
+      : "<div style='margin-top:10px;'>No billed interpretation lines found.</div>";
+
+    tlCalculateHigherRatesMargin(state, paid);
+  }
+
+  function tlCalculateHigherRatesMargin(state, paidAmount) {
+    const { productMap } = tlGetGridData();
+    const fields = state.higherRateFields;
+
+    const quantityProducts = new Set([
+      "Certified Interpretation",
+      "Standard Interpretation",
+      "Legal Interpretation",
+      "Interpretation Travel Mileage",
+      "Interpretation Travel Time"
+    ]);
+
+    let higherTotal = 0;
+    const lines = [];
+
+    state.higherRateOrder.forEach((name) => {
+      const input = fields[name];
+      if (!input) return;
+
+      const raw = String(input.value || "").trim();
+      if (!raw) return;
+
+      const entered = parseFloat(raw);
+      if (!Number.isFinite(entered)) return;
+
+      const item = productMap.get(name);
+      if (quantityProducts.has(name)) {
+        const qty = item ? item.qty : 0;
+        const lineTotal = qty * entered;
+        higherTotal += lineTotal;
+        lines.push(`${name}: ${qty.toFixed(2)} x $${entered.toFixed(2)} = $${lineTotal.toFixed(2)}`);
+      } else {
+        higherTotal += entered;
+        lines.push(`${name}: $${entered.toFixed(2)}`);
+      }
+    });
+
+    if (higherTotal <= 0) {
+      state.higherResult.innerHTML = "";
+      return;
+    }
+
+    const higherMargin = 100 - ((paidAmount / higherTotal) * 100);
+    let higherMarginColor = "green";
+    if (higherMargin < 45) higherMarginColor = "red";
+    else if (higherMargin < 50) higherMarginColor = "goldenrod";
+
+    const higherApprovalNote = higherMargin < 45
+      ? `<br><span style="color:red;font-weight:bold;">Seek Management Approval</span>`
+      : "";
+
+    state.higherResult.innerHTML = `
+      <div style="margin-top:10px;font-weight:bold;">Higher Rates Calculator</div>
+      <span>Total Using Higher Rates: $${higherTotal.toFixed(2)}</span>
+      <span style="color:${higherMarginColor};font-weight:bold;">Margin: ${higherMargin.toFixed(2)}%</span>${higherApprovalNote}
+      ${lines.length ? `<div style="margin-top:8px;">${lines.join("<br>")}</div>` : ""}
+    `;
+  }
+
+  function tlGetRequestRatesParts(state) {
+    const { productMap } = tlGetGridData();
+    const fields = state.higherRateFields;
+    const quantityProducts = new Set([
+      "Certified Interpretation",
+      "Standard Interpretation",
+      "Legal Interpretation",
+      "Interpretation Travel Mileage",
+      "Interpretation Travel Time"
+    ]);
+
+    const parts = [];
+
+    state.higherRateOrder.forEach((name) => {
+      const input = fields[name];
+      if (!input) return;
+
+      const raw = String(input.value || "").trim();
+      if (!raw) return;
+
+      const entered = parseFloat(raw);
+      if (!Number.isFinite(entered)) return;
+
+      if (quantityProducts.has(name)) {
+        const qty = productMap.get(name)?.qty || 0;
+        parts.push(`$${entered.toFixed(2)} ${name}${qty ? ` x ${qty}` : ""}`);
+      } else {
+        parts.push(`$${entered.toFixed(2)} ${name}`);
+      }
+    });
+
+    return parts.join(", ");
+  }
+
+  function tlCopyHigherRatesRequest(state, prefixText) {
+    const finalParts = tlGetRequestRatesParts(state);
+
+    if (!finalParts) {
+      showMessage("Please enter at least one higher-rates value.", false);
+      return;
+    }
+
+    const finalText = `${prefixText} ${finalParts}`;
+    GM_setClipboard(finalText);
+    showMessage(`Copied: "${finalText}"`, true);
+  }
+
+  function openInterpretationCalculator() {
+    const tabSelectors = [
+      'li[role="tab"][title="Billed"]',
+      'li[role="tab"][title="Billing"]',
+      'button[role="tab"][title="Billed"]',
+      'button[role="tab"][title="Billing"]'
+    ];
+
+    const billedTab = tabSelectors
+      .map(selector => document.querySelector(selector))
+      .find(Boolean);
+
+    const hasLoadedBillingData = () => {
+      const { productMap, billedTotal } = tlGetGridData();
+      if (billedTotal > 0) return true;
+
+      const triggerProducts = [
+        "Certified Interpretation",
+        "Standard Interpretation",
+        "Legal Interpretation",
+        "Interpretation Travel Mileage",
+        "Interpretation Travel Time",
+        "Rush Fee",
+        "Weekend Holiday",
+        "No Show",
+        "Tolls",
+        "Parking"
+      ];
+
+      return triggerProducts.some((name) => productMap.has(name));
+    };
+
+    const waitForBillingDataThenOpen = (maxAttempts = 12, delay = 500) => {
+      let attempts = 0;
+
+      const check = () => {
+        attempts += 1;
+
+        if (hasLoadedBillingData() || attempts >= maxAttempts) {
+          showTLInterpretationCalculator();
+          return;
+        }
+
+        setTimeout(check, delay);
+      };
+
+      setTimeout(check, 250);
+    };
+
+    if (billedTab) {
+      billedTab.click();
+      waitForBillingDataThenOpen();
+      return;
+    }
+
+    showTLInterpretationCalculator();
+  }
+
+  function showTLInterpretationCalculator() {
+    const existing = document.getElementById("tl-interpretation-calc-box");
+    if (existing) existing.remove();
+
+    const box = document.createElement("div");
+    box.id = "tl-interpretation-calc-box";
+    Object.assign(box.style, {
+      position: "fixed",
+      top: "6%",
+      left: "78%",
+      transform: "translateX(-50%)",
+      background: "#fff",
+      padding: "20px",
+      border: "2px solid #000",
+      borderRadius: "10px",
+      zIndex: "10000",
+      minWidth: "560px",
+      maxWidth: "560px",
+      height: "820px",
+      overflowY: "auto",
+      color: "#000",
+      boxShadow: "0 10px 24px rgba(0,0,0,0.2)"
+    });
+
+    const closeButton = document.createElement("button");
+    closeButton.innerText = "X";
+    Object.assign(closeButton.style, {
+      position: "absolute",
+      top: "5px",
+      right: "10px",
+      border: "none",
+      background: "transparent",
+      color: "#000",
+      fontSize: "20px",
+      fontWeight: "bold",
+      cursor: "pointer"
+    });
+    closeButton.onclick = () => box.remove();
+
+    const header = document.createElement("div");
+    header.innerText = "Interpretation Margin Calculator";
+    header.style.fontWeight = "bold";
+    header.style.fontSize = "22px";
+    header.style.marginBottom = "12px";
+
+    const modeLabel = document.createElement("div");
+    modeLabel.innerText = "Select Payment Type:";
+    modeLabel.style.marginBottom = "8px";
+    modeLabel.style.fontWeight = "bold";
+
+    const flatRadio = document.createElement("input");
+    flatRadio.type = "radio";
+    flatRadio.name = "tlInterpretationRateType";
+    flatRadio.value = "flat";
+    flatRadio.id = "tlInterpretationRateFlat";
+    flatRadio.checked = true;
+
+    const flatLabel = document.createElement("label");
+    flatLabel.htmlFor = "tlInterpretationRateFlat";
+    flatLabel.innerText = "Flat Fee";
+    flatLabel.style.marginRight = "22px";
+    flatLabel.style.marginLeft = "6px";
+
+    const ratesRadio = document.createElement("input");
+    ratesRadio.type = "radio";
+    ratesRadio.name = "tlInterpretationRateType";
+    ratesRadio.value = "rates";
+    ratesRadio.id = "tlInterpretationRateRates";
+
+    const ratesLabel = document.createElement("label");
+    ratesLabel.htmlFor = "tlInterpretationRateRates";
+    ratesLabel.innerText = "Rates";
+    ratesLabel.style.marginLeft = "6px";
+
+    const flatSection = document.createElement("div");
+    flatSection.style.marginTop = "16px";
+
+    const flatProviderRateLabel = document.createElement("label");
+    flatProviderRateLabel.innerText = "Enter Provider Rate:";
+    flatProviderRateLabel.style.fontWeight = "bold";
+
+    const flatProviderRateInput = document.createElement("input");
+    flatProviderRateInput.type = "number";
+    flatProviderRateInput.step = "0.01";
+    flatProviderRateInput.style.width = "100%";
+    flatProviderRateInput.style.marginTop = "8px";
+    flatProviderRateInput.style.marginBottom = "4px";
+    flatProviderRateInput.style.padding = "8px";
+
+    flatSection.appendChild(flatProviderRateLabel);
+    flatSection.appendChild(flatProviderRateInput);
+
+    const ratesSection = document.createElement("div");
+    ratesSection.style.display = "none";
+    ratesSection.style.marginTop = "16px";
+
+    const ratesGrid = document.createElement("div");
+    ratesGrid.style.display = "grid";
+    ratesGrid.style.gridTemplateColumns = "1fr 1fr";
+    ratesGrid.style.columnGap = "14px";
+    ratesGrid.style.rowGap = "12px";
+    ratesGrid.style.alignItems = "start";
+    ratesSection.appendChild(ratesGrid);
+
+    function buildField(labelText) {
+      const wrap = document.createElement("div");
+      const label = document.createElement("label");
+      label.innerText = labelText;
+      label.style.fontWeight = "bold";
+      label.style.display = "block";
+      const input = document.createElement("input");
+      input.type = "number";
+      input.step = "0.01";
+      input.style.width = "100%";
+      input.style.marginTop = "8px";
+      input.style.padding = "8px";
+      wrap.appendChild(label);
+      wrap.appendChild(input);
+      ratesGrid.appendChild(wrap);
+      return input;
+    }
+
+    const perHourInput = buildField("Per Hour:");
+    const minHoursInput = buildField("Min Hours:");
+    const milesInput = buildField("Miles:");
+    const mileageRateInput = buildField("Mileage Rate:");
+
+    const result = document.createElement("div");
+    result.style.marginTop = "12px";
+    result.style.fontWeight = "bold";
+    result.style.whiteSpace = "pre-line";
+    result.style.display = "flex";
+    result.style.flexDirection = "column";
+    result.style.gap = "4px";
+
+    const targetLabel = document.createElement("div");
+    targetLabel.style.marginTop = "10px";
+    targetLabel.style.fontWeight = "bold";
+
+    const higherHeader = document.createElement("div");
+    higherHeader.innerText = "Higher Rates Calculator";
+    higherHeader.style.marginTop = "18px";
+    higherHeader.style.marginBottom = "8px";
+    higherHeader.style.fontWeight = "bold";
+    higherHeader.style.fontSize = "20px";
+
+    const higherInputsWrapper = document.createElement("div");
+    higherInputsWrapper.style.display = "flex";
+    higherInputsWrapper.style.flexWrap = "wrap";
+    higherInputsWrapper.style.columnGap = "10px";
+    higherInputsWrapper.style.rowGap = "12px";
+
+    const higherResult = document.createElement("div");
+    higherResult.style.marginTop = "12px";
+    higherResult.style.fontWeight = "bold";
+    higherResult.style.whiteSpace = "pre-line";
+    higherResult.style.display = "flex";
+    higherResult.style.flexDirection = "column";
+    higherResult.style.gap = "4px";
+
+    const { productMap } = tlGetGridData();
+
+    const higherRateOrder = [
+      "Certified Interpretation",
+      "Standard Interpretation",
+      "Legal Interpretation",
+      "Rush Fee",
+      "Weekend Holiday",
+      "Interpretation Travel Mileage",
+      "Interpretation Travel Time",
+      "No Show"
+    ];
+
+    const interpretationTypes = [
+      "Certified Interpretation",
+      "Standard Interpretation",
+      "Legal Interpretation"
+    ];
+    const chosenInterpretationType = interpretationTypes.find((name) => productMap.has(name)) || null;
+
+    const higherRateFields = {};
+
+    function createHigherRateField(name, hasQty) {
+      const wrap = document.createElement("div");
+      wrap.style.flex = "1 1 48%";
+      wrap.style.border = "1px solid #cfcfcf";
+      wrap.style.borderRadius = "10px";
+      wrap.style.padding = "10px";
+      wrap.style.background = "#fafafa";
+
+      const label = document.createElement("label");
+      label.innerText = name;
+      label.style.fontWeight = "bold";
+      label.style.display = "block";
+      label.style.marginBottom = "8px";
+
+      wrap.appendChild(label);
+
+      let amountInput = null;
+      let qtyInput = null;
+
+      if (hasQty) {
+        const row = document.createElement("div");
+        row.style.display = "grid";
+        row.style.gridTemplateColumns = "1fr 1fr";
+        row.style.columnGap = "10px";
+        row.style.alignItems = "start";
+
+        const amountWrap = document.createElement("div");
+        const amountLabel = document.createElement("div");
+        amountLabel.innerText = "Price:";
+        amountLabel.style.fontSize = "12px";
+        amountLabel.style.fontWeight = "bold";
+        amountLabel.style.marginBottom = "4px";
+
+        amountInput = document.createElement("input");
+        amountInput.type = "number";
+        amountInput.step = "0.01";
+        amountInput.style.width = "100%";
+        amountInput.style.padding = "8px";
+
+        amountWrap.appendChild(amountLabel);
+        amountWrap.appendChild(amountInput);
+
+        const qtyWrap = document.createElement("div");
+        const qtyLabel = document.createElement("div");
+        qtyLabel.innerText = "Qty:";
+        qtyLabel.style.fontSize = "12px";
+        qtyLabel.style.fontWeight = "bold";
+        qtyLabel.style.marginBottom = "4px";
+
+        qtyInput = document.createElement("input");
+        qtyInput.type = "number";
+        qtyInput.step = "0.01";
+        qtyInput.style.width = "100%";
+        qtyInput.style.padding = "8px";
+
+        qtyWrap.appendChild(qtyLabel);
+        qtyWrap.appendChild(qtyInput);
+
+        row.appendChild(amountWrap);
+        row.appendChild(qtyWrap);
+        wrap.appendChild(row);
+      } else {
+        const amountLabel = document.createElement("div");
+        amountLabel.innerText = "Price:";
+        amountLabel.style.fontSize = "12px";
+        amountLabel.style.fontWeight = "bold";
+        amountLabel.style.marginBottom = "4px";
+
+        amountInput = document.createElement("input");
+        amountInput.type = "number";
+        amountInput.step = "0.01";
+        amountInput.style.width = "100%";
+        amountInput.style.padding = "8px";
+
+        wrap.appendChild(amountLabel);
+        wrap.appendChild(amountInput);
+      }
+
+      higherInputsWrapper.appendChild(wrap);
+      higherRateFields[name] = { wrap, amountInput, qtyInput, hasQty };
+    }
+
+    if (chosenInterpretationType) {
+      createHigherRateField(chosenInterpretationType, true);
+    }
+    if (productMap.has("Rush Fee")) {
+      createHigherRateField("Rush Fee", false);
+    }
+    if (productMap.has("Weekend Holiday")) {
+      createHigherRateField("Weekend Holiday", false);
+    }
+    createHigherRateField("Interpretation Travel Mileage", true);
+    createHigherRateField("Interpretation Travel Time", true);
+    createHigherRateField("No Show", false);
+
+    function tlCalculateHigherRatesMargin(paidAmount) {
+      let higherTotal = 0;
+      const lines = [];
+
+      higherRateOrder.forEach((name) => {
+        const field = higherRateFields[name];
+        if (!field) return;
+
+        const amount = parseFloat(String(field.amountInput?.value || "").trim()) || 0;
+        const qty = parseFloat(String(field.qtyInput?.value || "").trim()) || 0;
+
+        if (name === "No Show") {
+          if (amount <= 0) return;
+          lines.push(`No Show/Late Cancel: $${amount.toFixed(2)}`);
+          return;
+        }
+
+        if (field.hasQty) {
+          if (amount <= 0 || qty <= 0) return;
+          const lineTotal = amount * qty;
+          higherTotal += lineTotal;
+          lines.push(`${name}: ${qty.toFixed(2)} x $${amount.toFixed(2)} = $${lineTotal.toFixed(2)}`);
+        } else {
+          if (amount <= 0) return;
+          higherTotal += amount;
+          lines.push(`${name}: $${amount.toFixed(2)}`);
+        }
+      });
+
+      if (higherTotal <= 0) {
+        higherResult.innerHTML = "";
+        return;
+      }
+
+      const higherMargin = 100 - ((paidAmount / higherTotal) * 100);
+      let higherMarginColor = "green";
+      if (higherMargin < 45) higherMarginColor = "red";
+      else if (higherMargin < 50) higherMarginColor = "goldenrod";
+
+      const higherApprovalNote = higherMargin < 45
+        ? `<br><span style="color:red;font-weight:bold;">Seek Management Approval</span>`
+        : "";
+
+      higherResult.innerHTML = `
+        <div style="margin-top:10px;font-weight:bold;">Higher Rates Calculator</div>
+        <span>Total Using Higher Rates: $${higherTotal.toFixed(2)}</span>
+        <span style="color:${higherMarginColor};font-weight:bold;">Margin: ${higherMargin.toFixed(2)}%</span>${higherApprovalNote}
+        ${lines.length ? `<div style="margin-top:8px;">${lines.join("<br>")}</div>` : ""}
+      `;
+    }
+
+    function tlGetRequestRatesParts() {
+      const parts = [];
+
+      higherRateOrder.forEach((name) => {
+        const field = higherRateFields[name];
+        if (!field) return;
+
+        const amount = parseFloat(String(field.amountInput?.value || "").trim()) || 0;
+        const qty = parseFloat(String(field.qtyInput?.value || "").trim()) || 0;
+
+        if (name === "Certified Interpretation" || name === "Standard Interpretation" || name === "Legal Interpretation") {
+          if (amount <= 0 || qty <= 0) return;
+          parts.push(`$${amount.toFixed(2)}/hour x ${qty}`);
+          return;
+        }
+
+        if (name === "Interpretation Travel Mileage") {
+          if (amount <= 0 || qty <= 0) return;
+          parts.push(`${qty} Travel Miles x $${amount.toFixed(2)}`);
+          return;
+        }
+
+        if (name === "Interpretation Travel Time") {
+          if (amount <= 0 || qty <= 0) return;
+          parts.push(`$${amount.toFixed(2)} Travel Time x ${qty}`);
+          return;
+        }
+
+        if (name === "No Show") {
+          if (amount <= 0) return;
+          parts.push(`$${amount.toFixed(2)} No Show/Late Cancel`);
+          return;
+        }
+
+        if (field.hasQty) {
+          if (amount <= 0 || qty <= 0) return;
+          parts.push(`$${amount.toFixed(2)} ${name} x ${qty}`);
+        } else {
+          if (amount <= 0) return;
+          parts.push(`$${amount.toFixed(2)} ${name}`);
+        }
+      });
+
+      return parts.join(", ");
+    }
+
+    function tlCopyHigherRatesRequest(prefixText) {
+      const finalParts = tlGetRequestRatesParts();
+
+      if (!finalParts) {
+        showMessage("Please enter at least one higher-rates value.", false);
+        return;
+      }
+
+      const finalText = `${prefixText} ${finalParts}`;
+      GM_setClipboard(finalText);
+      showMessage(`Copied: "${finalText}"`, true);
+    }
+
+    function recalc() {
+      const mode = flatRadio.checked ? "flat" : "rates";
+
+      const flatProviderRate = parseFloat(flatProviderRateInput.value) || 0;
+      const perHour = parseFloat(perHourInput.value) || 0;
+      const minHours = parseFloat(minHoursInput.value) || 0;
+      const miles = parseFloat(milesInput.value) || 0;
+      const mileageRate = parseFloat(mileageRateInput.value) || 0;
+
+      const paid = mode === "flat"
+        ? flatProviderRate
+        : (perHour * minHours) + (miles * mileageRate);
+
+      const { billedTotal, productMap: latestProductMap } = tlGetGridData();
+      const breakdownLines = [];
+      const billedOrder = [
+        "Certified Interpretation",
+        "Standard Interpretation",
+        "Legal Interpretation",
+        "Rush Fee",
+        "Weekend Holiday",
+        "Interpretation Travel Mileage",
+        "Interpretation Travel Time",
+        "Tolls",
+        "Parking"
+      ];
+
+      billedOrder.forEach((name) => {
+        const item = latestProductMap.get(name);
+        if (!item) return;
+
+        if ([
+          "Certified Interpretation",
+          "Standard Interpretation",
+          "Legal Interpretation",
+          "Interpretation Travel Mileage",
+          "Interpretation Travel Time"
+        ].includes(name)) {
+          breakdownLines.push(`${name}: ${item.qty} x $${item.price.toFixed(2)} = $${item.total.toFixed(2)}`);
+        } else {
+          breakdownLines.push(`${name}: $${item.total.toFixed(2)}`);
+        }
+      });
+
+      if (paid <= 0) {
+        result.innerHTML = `<span>Please enter a valid paid amount.</span>`;
+        targetLabel.innerHTML = "";
+
+        higherResult.innerHTML = "";
+        return;
+      }
+
+      if (billedTotal <= 0) {
+        result.innerHTML = `<span>Could not find any billed interpretation total.</span>`;
+        targetLabel.innerHTML = "";
+
+        higherResult.innerHTML = "";
+        return;
+      }
+
+      const margin = 100 - ((paid / billedTotal) * 100);
+      let marginColor = "green";
+      if (margin < 45) marginColor = "red";
+      else if (margin < 50) marginColor = "goldenrod";
+
+      const approvalNote = margin < 45
+        ? `<br><span style="color:red;font-weight:bold;">Seek Management Approval</span>`
+        : "";
+
+      const target = billedTotal * 0.5;
+
+      const paidLines = mode === "flat"
+        ? [`Flat Provider Rate: $${flatProviderRate.toFixed(2)}`]
+        : [
+            `Per Hour: $${perHour.toFixed(2)} x ${minHours.toFixed(2)} = $${(perHour * minHours).toFixed(2)}`,
+            `Mileage: ${miles.toFixed(2)} x $${mileageRate.toFixed(2)} = $${(miles * mileageRate).toFixed(2)}`
+          ];
+
+      result.innerHTML = `
+        ${paidLines.map(line => `<span>${line}</span>`).join("")}
+        <span>Total Paid: $${paid.toFixed(2)}</span>
+        <span>Total Billed: $${billedTotal.toFixed(2)}</span>
+        <span style="color:${marginColor};font-weight:bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
+      `;
+
+      targetLabel.innerHTML = `<span>Target to pay this or less: $${target.toFixed(2)}</span>`;
+
+
+      tlCalculateHigherRatesMargin(paid);
+    }
+
+    const requestRatesButton = createModernButton("Request Rates", "#22c55e", "#4ade80", () => {
+      tlCopyHigherRatesRequest("Request rates");
+    });
+    requestRatesButton.style.marginLeft = "0";
+    requestRatesButton.style.marginTop = "12px";
+
+    const applyRatesButton = createModernButton("Apply & Staff", "#a855f7", "#c084fc", () => {
+      tlCopyHigherRatesRequest("Apply rates");
+    });
+    applyRatesButton.style.marginTop = "12px";
+
+    const resetButton = createModernButton("Reset", "#ef4444", "#f87171", () => {
+      flatRadio.checked = true;
+      ratesRadio.checked = false;
+      flatSection.style.display = "block";
+      ratesSection.style.display = "none";
+      flatProviderRateInput.value = "";
+      perHourInput.value = "";
+      minHoursInput.value = "";
+      milesInput.value = "";
+      mileageRateInput.value = "";
+      Object.values(higherRateFields).forEach((field) => {
+        if (field.amountInput) field.amountInput.value = "";
+        if (field.qtyInput) field.qtyInput.value = "";
+      });
+      result.innerHTML = "";
+      targetLabel.innerHTML = "";
+
+      higherResult.innerHTML = "";
+    });
+    resetButton.style.marginTop = "12px";
+
+    const allNumberInputs = [flatProviderRateInput, perHourInput, minHoursInput, milesInput, mileageRateInput];
+    Object.values(higherRateFields).forEach((field) => {
+      if (field.amountInput) allNumberInputs.push(field.amountInput);
+      if (field.qtyInput) allNumberInputs.push(field.qtyInput);
+    });
+
+    allNumberInputs.forEach((input) => {
+      input.addEventListener("input", recalc);
+      input.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        input.blur();
+      }, { passive: false });
+    });
+
+    flatRadio.addEventListener("change", () => {
+      flatSection.style.display = "block";
+      ratesSection.style.display = "none";
+      recalc();
+    });
+
+    ratesRadio.addEventListener("change", () => {
+      flatSection.style.display = "none";
+      ratesSection.style.display = "block";
+      recalc();
+    });
+
+    const buttonRow = document.createElement("div");
+    buttonRow.style.display = "flex";
+    buttonRow.style.alignItems = "center";
+    buttonRow.style.flexWrap = "wrap";
+    buttonRow.appendChild(requestRatesButton);
+    buttonRow.appendChild(applyRatesButton);
+    buttonRow.appendChild(resetButton);
+
+    box.appendChild(closeButton);
+    box.appendChild(header);
+    box.appendChild(modeLabel);
+    box.appendChild(flatRadio);
+    box.appendChild(flatLabel);
+    box.appendChild(ratesRadio);
+    box.appendChild(ratesLabel);
+    box.appendChild(flatSection);
+    box.appendChild(ratesSection);
+    box.appendChild(result);
+    box.appendChild(targetLabel);
+    box.appendChild(higherHeader);
+    box.appendChild(higherInputsWrapper);
+    box.appendChild(higherResult);
+    box.appendChild(buttonRow);
+    document.body.appendChild(box);
+
+    let isDragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    box.addEventListener("mousedown", function (e) {
+      const isInteractive = ["INPUT", "TEXTAREA", "BUTTON", "LABEL"].includes(e.target.tagName);
+      if (isInteractive) return;
+
+      if (e.offsetY < 40) {
+        isDragging = true;
+        offsetX = e.clientX - box.getBoundingClientRect().left;
+        offsetY = e.clientY - box.getBoundingClientRect().top;
+        box.style.cursor = "move";
+      }
+    });
+
+    document.addEventListener("mousemove", function (e) {
+      if (!isDragging) return;
+      box.style.left = `${e.clientX - offsetX}px`;
+      box.style.top = `${e.clientY - offsetY}px`;
+      box.style.transform = "";
+    });
+
+    document.addEventListener("mouseup", function () {
+      if (!isDragging) return;
+      isDragging = false;
+      box.style.cursor = "default";
+    });
+
+    recalc();
+  }
+
+
     function createButtons() {
         const searchBox = document.querySelector('#searchBoxLiveRegion');
 
@@ -2229,7 +3295,7 @@ if (headerTitle.startsWith("212-")) {
             const button1 = createModernButton('Payer Emails', '#3b82f6', '#60a5fa', copyBoth);
             const button2 = createModernButton('Copy Name/SP Tab', '#3b82f6', '#60a5fa', copyClaimantName);
             const button3 = createModernButton('ClaimantID', '#3b82f6', '#60a5fa', extractAndCopyTitle);
-            const button4 = createModernButton('Margin', '#22c55e', '#4ade80', showCalculatorBox);
+            const button4 = createModernButton('Margin', '#22c55e', '#4ade80', openCombinedMarginSelector);
 
             buttonContainer.appendChild(button3);
             buttonContainer.appendChild(button2);
