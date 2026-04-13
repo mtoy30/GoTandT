@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.49
+// @version      4.1.50
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -92,6 +92,27 @@
             popup.style.opacity = '0';
             setTimeout(() => popup.remove(), 500);
         }, 2000);
+    }
+
+    function showCenteredOverlayMessage(message, isSuccess = true, duration = 1200) {
+        const popup = document.createElement('div');
+        popup.textContent = message;
+        popup.style.position = 'fixed';
+        popup.style.top = '50%';
+        popup.style.left = '50%';
+        popup.style.transform = 'translate(-50%, -50%)';
+        popup.style.background = isSuccess ? 'rgba(0,0,0,0.8)' : 'rgba(220,53,69,0.92)';
+        popup.style.color = '#fff';
+        popup.style.padding = '15px 25px';
+        popup.style.borderRadius = '8px';
+        popup.style.zIndex = '10001';
+        popup.style.fontSize = '18px';
+        popup.style.fontWeight = 'bold';
+        popup.style.textAlign = 'center';
+        popup.style.maxWidth = '80%';
+        popup.style.wordWrap = 'break-word';
+        document.body.appendChild(popup);
+        setTimeout(() => popup.remove(), duration);
     }
 
     function showCalculatorBox() {
@@ -2604,13 +2625,13 @@ if (headerTitle.startsWith("212-")) {
     const finalParts = tlGetRequestRatesParts(state);
 
     if (!finalParts) {
-      showMessage("Please enter at least one higher-rates value.", false);
+      showCenteredOverlayMessage("Please enter at least one higher-rates value.", false, 1400);
       return;
     }
 
     const finalText = `${prefixText} ${finalParts}`;
     GM_setClipboard(finalText);
-    showMessage(`Copied: "${finalText}"`, true);
+    showCenteredOverlayMessage(`Copied: "${finalText}"`, true, 1500);
   }
 
   function openInterpretationCalculator() {
@@ -2694,6 +2715,18 @@ if (headerTitle.startsWith("212-")) {
       color: "#000",
       boxShadow: "0 10px 24px rgba(0,0,0,0.2)"
     });
+
+      const interpretationLowMarginButton = createModernButton(
+  "Low Margin OK",
+  "#3b82f6",
+  "#60a5fa",
+  () => {
+    const textToCopy = "Management aware of Interpretation low margin. Ok to staff";
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      showCenteredOverlayMessage(`"${textToCopy}" copied!`, true, 1000);
+    });
+  }
+);
 
     const closeButton = document.createElement("button");
     closeButton.innerText = "X";
@@ -3229,6 +3262,7 @@ if (headerTitle.startsWith("212-")) {
     box.appendChild(higherHeader);
     box.appendChild(higherInputsWrapper);
     box.appendChild(higherResult);
+    box.appendChild(interpretationLowMarginButton);
     box.appendChild(buttonRow);
     document.body.appendChild(box);
 
