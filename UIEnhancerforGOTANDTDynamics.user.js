@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.2.24.6
+// @version      1.2.24.7
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill behavior (iframe-safe). Time fields + key fields always unlocked; company/email soft-prefill; unlock-all-on-submit. Also adds a yellow Copy button in PowerApps Leg Info overlay that preserves on-screen order (including duplicate lines like city/state).
@@ -995,7 +995,7 @@
       if (!titleText.includes("7327-") || !providerDiv || document.getElementById("jba-banner")) return;
       const banner = document.createElement("div");
       banner.id = "jba-banner";
-      banner.textContent = "JBA file please ensure a quote is not needed before staffing";
+      banner.textContent = "JBA file usually needs QUOTE please provide full breakdown and totals";
       banner.style.backgroundColor = "#f8d7da";
       banner.style.color = "#721c24";
       banner.style.padding = "6px";
