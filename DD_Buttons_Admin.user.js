@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.50
+// @version      4.1.51
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1475,7 +1475,11 @@ ${loadFeeLine}
             .find(el => el.textContent.trim().length > 0);
 
         var titleElement = document.querySelector('[id^="formHeaderTitle"]');
-        var startDateInput = document.querySelector('input[aria-label="Date of Start Date"]');
+        var startDateInput =
+            document.querySelector('input[aria-label="Start Date"]') ||
+            document.querySelector('input[aria-label="Date of Start Date"]') ||
+            document.querySelector('input[placeholder="---"][role="combobox"]');
+
         var startDateValue = startDateInput ? startDateInput.value.trim() : "";
 
         if (element1 && element2) {
