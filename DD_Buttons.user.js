@@ -2052,7 +2052,7 @@ function showCareIqPassengerCcPopup() {
     const box = document.createElement('div');
     box.id = 'mtoy-careiq-passenger-cc-popup';
     box.innerHTML = `
-        <div style="font-weight:700; margin-bottom:6px;">Passenger found</div>
+        <div style="font-weight:700; margin-bottom:6px;">Additional Passenger fee found</div>
         <div>Please make sure to CC <b>revisions@gotandt.com</b></div>
         <button id="mtoy-careiq-passenger-cc-ok" type="button" style="
             margin-top:10px;
