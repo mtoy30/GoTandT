@@ -2038,6 +2038,111 @@ function clickDeleteReferralOutboxIfPresent(timeout = 5000) {
     });
 }
 
+/* =================== CAREIQ PASSENGER CC WARNING =================== */
+
+let mtoyCareIqPassengerShown = false;
+
+function showCareIqPassengerCcPopup() {
+    if (!window.mtoyCareIqPassengerWatchEnabled) return;
+    if (mtoyCareIqPassengerShown) return;
+    if (document.getElementById('mtoy-careiq-passenger-cc-popup')) return;
+
+    mtoyCareIqPassengerShown = true;
+
+    const box = document.createElement('div');
+    box.id = 'mtoy-careiq-passenger-cc-popup';
+    box.innerHTML = `
+        <div style="font-weight:700; margin-bottom:6px;">Passenger found</div>
+        <div>Please make sure to CC <b>revisions@gotandt.com</b></div>
+        <button id="mtoy-careiq-passenger-cc-ok" type="button" style="
+            margin-top:10px;
+            padding:6px 12px;
+            border-radius:8px;
+            border:1px solid rgba(0,0,0,.25);
+            background:#fff;
+            cursor:pointer;
+            font-weight:600;
+        ">OK</button>
+    `;
+
+    box.style.cssText = `
+        position: fixed;
+        left: 50%;
+        top: 120px;
+        transform: translateX(-50%);
+        z-index: 2147483647;
+        background: #fff3cd;
+        color: #111;
+        border: 2px solid #ff9800;
+        border-radius: 12px;
+        padding: 14px 18px;
+        box-shadow: 0 8px 28px rgba(0,0,0,.30);
+        font: 14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial;
+        text-align: center;
+        min-width: 310px;
+    `;
+
+    document.body.appendChild(box);
+    box.querySelector('#mtoy-careiq-passenger-cc-ok').onclick = () => box.remove();
+}
+
+function scanCareIqPassengerInDocument(doc) {
+    try {
+        if (!doc || !doc.body) return;
+
+        const editable = doc.querySelector(
+            'body[contenteditable="true"], [contenteditable="true"], .cke_editable'
+        );
+
+        if (editable) {
+            const txt = (editable.innerText || editable.textContent || '').toLowerCase();
+
+            if (txt.includes('passenger')) {
+                showCareIqPassengerCcPopup();
+            }
+
+            if (editable.dataset.mtoyCareIqPassengerWatch !== '1') {
+                editable.dataset.mtoyCareIqPassengerWatch = '1';
+
+                const check = () => scanCareIqPassengerInDocument(doc);
+
+                new MutationObserver(check).observe(editable, {
+                    childList: true,
+                    subtree: true,
+                    characterData: true
+                });
+
+                editable.addEventListener('input', check, true);
+                editable.addEventListener('keyup', check, true);
+                editable.addEventListener('paste', () => setTimeout(check, 100), true);
+            }
+        }
+
+        doc.querySelectorAll('iframe').forEach(ifr => {
+            try {
+                const childDoc = ifr.contentDocument || ifr.contentWindow?.document;
+                if (childDoc) scanCareIqPassengerInDocument(childDoc);
+            } catch {}
+        });
+
+    } catch {}
+}
+
+function startCareIqPassengerWatch() {
+    window.mtoyCareIqPassengerWatchEnabled = true;
+    mtoyCareIqPassengerShown = false;
+
+    let tries = 0;
+    const timer = setInterval(() => {
+        tries++;
+        scanCareIqPassengerInDocument(document);
+
+        if (mtoyCareIqPassengerShown || tries > 120) {
+            clearInterval(timer);
+        }
+    }, 1000);
+}
+    
 // Function to select the correct radio button
 function selectCorrectRadioButton(selectedOption) {
     showProcessingMessage();
@@ -2053,6 +2158,7 @@ function selectCorrectRadioButton(selectedOption) {
         labelToFind = "Request for Higher Rates";
     } else if (selectedOption === "CareIQ Rate Request") {
         labelToFind = "CIQ Higher Rate Request";
+        startCareIqPassengerWatch();
     } else if (selectedOption === "Homelink Rate Request") {
         labelToFind = "Homelink – Request for Higher Rates";
     } else if (selectedOption === "JBS Request for Higher Rates") {
