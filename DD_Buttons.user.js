@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.52
+// @version      4.1.53
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1522,6 +1522,7 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
         "Staffed Revised at Approved Rates",
         "Standard Rate Request",
         "CareIQ Rate Request",
+        "Convergence Higher Rate Request",
         "Homelink Rate Request",
         "Wait time request",
         "Request Demographics",
@@ -1569,6 +1570,7 @@ if (headerTitle.startsWith("212-")) {
     exclusions = [
         "Standard Rate Request",
         "CareIQ Rate Request",
+        "Convergence Higher Rate Request",
         "JBS Request for Higher Rates",
         "CareWorks Rate Request",
         "Staffed UBER Health",
@@ -1578,6 +1580,7 @@ if (headerTitle.startsWith("212-")) {
     exclusions = [
         "Standard Rate Request",
         "CareIQ Rate Request",
+        "Convergence Higher Rate Request",
         "CareWorks Rate Request",
         "Homelink Rate Request",
         "Staffed UBER Health",
@@ -1587,13 +1590,25 @@ if (headerTitle.startsWith("212-")) {
     exclusions = [
         "Standard Rate Request",
         "CareIQ Rate Request",
+        "Convergence Higher Rate Request",
         "Homelink Rate Request",
         "JBS Request for Higher Rates"
+    ];
+} else if (headerTitle.startsWith("8814-")) {
+    exclusions = [
+        "Standard Rate Request",
+        "CareIQ Rate Request",
+        "JBS Request for Higher Rates",
+        "CareWorks Rate Request",
+        "Homelink Rate Request",
+        "Staffed UBER Health",
+        "Staffed Revised at Approved Rates"
     ];
 } else if (headerTitle.startsWith("133-")) {
     exclusions = [
         "Standard Rate Request",
         "Homelink Rate Request",
+        "Convergence Higher Rate Request",
         "JBS Request for Higher Rates",
         "CareWorks Rate Request",
         "Staffed UBER Health",
@@ -1605,6 +1620,7 @@ if (headerTitle.startsWith("212-")) {
         "CareIQ Rate Request",
         "CareWorks Rate Request",
         "Homelink Rate Request",
+        "Convergence Higher Rate Request",
         "Staffed UBER Health",
         "Staffed Revised at Approved Rates"
     ];
@@ -2142,7 +2158,49 @@ function startCareIqPassengerWatch() {
         }
     }, 1000);
 }
-    
+
+function showTemplateReminderPopup(message) {
+    const existing = document.getElementById('mtoy-template-reminder-popup');
+    if (existing) existing.remove();
+
+    const box = document.createElement('div');
+    box.id = 'mtoy-template-reminder-popup';
+    box.innerHTML = `
+        <div style="font-weight:700; margin-bottom:6px;">Email Reminder</div>
+        <div>${message}</div>
+        <button id="mtoy-template-reminder-ok" type="button" style="
+            margin-top:10px;
+            padding:6px 12px;
+            border-radius:8px;
+            border:1px solid rgba(0,0,0,.25);
+            background:#fff;
+            cursor:pointer;
+            font-weight:600;
+        ">OK</button>
+    `;
+
+    box.style.cssText = `
+        position: fixed;
+        left: 50%;
+        top: 120px;
+        transform: translateX(-50%);
+        z-index: 2147483647;
+        background: #fff3cd;
+        color: #111;
+        border: 2px solid #ff9800;
+        border-radius: 12px;
+        padding: 14px 18px;
+        box-shadow: 0 8px 28px rgba(0,0,0,.30);
+        font: 14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial;
+        text-align: center;
+        min-width: 360px;
+        max-width: 620px;
+    `;
+
+    document.body.appendChild(box);
+    box.querySelector('#mtoy-template-reminder-ok').onclick = () => box.remove();
+}
+
 // Function to select the correct radio button
 function selectCorrectRadioButton(selectedOption) {
     showProcessingMessage();
@@ -2163,14 +2221,20 @@ function selectCorrectRadioButton(selectedOption) {
         labelToFind = "Homelink – Request for Higher Rates";
     } else if (selectedOption === "JBS Request for Higher Rates") {
         labelToFind = "JBS Request for Higher Rates (Default Rates)";
+        showTemplateReminderPopup("Please send email to <b>AboveContractedRateRequest@sedgwick.com</b>");
     } else if (selectedOption === "Wait time request") {
         labelToFind = "Wait Time Request";
     } else if (selectedOption === "CareWorks Rate Request") {
         labelToFind = "CareWorks - Request for Higher Rates";
+        showTemplateReminderPopup("Please send email to <b>AboveContractedRateRequest@sedgwick.com</b>");
+    } else if (selectedOption === "Convergence Higher Rate Request") {
+        labelToFind = "Convergence Higher Rate Request";
+        showTemplateReminderPopup("Please always CC <b>kfimbres@convergencecare.com</b>");
     } else if (selectedOption === "Request Demographics") {
         labelToFind = "Request for Additional Information";
     } else if (selectedOption === "L-Orchid-CareWorks") {
         labelToFind = "L-Orchid-CareWorks";
+        showTemplateReminderPopup("Please send email only to the rep that sent the order and to <b>Chandra.Thurman@careworks.com; savannah.lussier@careworks.com</b>");
     } else if (selectedOption === "QUOTE") {
             labelToFind = "Quote request";
     } else if (selectedOption === "Other") {
