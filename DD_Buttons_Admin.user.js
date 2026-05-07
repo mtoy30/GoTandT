@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.54
+// @version      4.1.55
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -147,8 +147,8 @@
         box.style.border = "2px solid #000";
         box.style.borderRadius = "10px";
         box.style.zIndex = "10000";
-        box.style.minWidth = "500px";
-        box.style.maxWidth = "500px";
+        box.style.minWidth = "520px";
+        box.style.maxWidth = "520px";
         box.style.color = "black";
         box.style.height = "800px";
         box.style.overflowY = "auto";
