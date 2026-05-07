@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.53
+// @version      4.1.54
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -493,9 +493,24 @@ function getTransportPreviewAmount() {
             });
         };
 
+        function getResultMargin() {
+            const resultText = result.innerText || result.textContent || "";
+            const marginMatch = resultText.match(/Margin:\s*([0-9.]+)%/);
+            return marginMatch ? marginMatch[1] : null;
+        }
+
         const lowMarginButton = createModernButton("Low Margin OK", "#3b82f6", "#60a5fa");
         lowMarginButton.onclick = () => {
-            const textToCopy = "Management aware of Transportation low margin. Ok to staff";
+            if (!input.value || input.value.trim() === "") {
+                showCenteredOverlayMessage("Enter a Provider Rate first to calculate margin.", false, 2000);
+                return;
+            }
+            const marginDisplay = getResultMargin();
+            if (!marginDisplay) {
+                showCenteredOverlayMessage("No margin calculated yet. Enter a Provider Rate first.", false, 2000);
+                return;
+            }
+            const textToCopy = `Management aware of Transportation low margin. Ok to staff approx. Margin ${marginDisplay}%`;
             navigator.clipboard.writeText(textToCopy).then(() => {
                 const copiedMsg = document.createElement("div");
                 copiedMsg.innerText = `"${textToCopy}" copied!`;
@@ -514,7 +529,44 @@ function getTransportPreviewAmount() {
                 copiedMsg.style.maxWidth = "80%";
                 copiedMsg.style.wordWrap = "break-word";
                 document.body.appendChild(copiedMsg);
-                setTimeout(() => copiedMsg.remove(), 1000);
+                setTimeout(() => copiedMsg.remove(), 1500);
+            });
+        };
+
+        const uberLMButton = createModernButton("UBER LM", "#f59e0b", "#fbbf24");
+        uberLMButton.onclick = () => {
+            if (!input.value || input.value.trim() === "") {
+                showCenteredOverlayMessage("Enter a Provider Rate first to calculate margin.", false, 2000);
+                return;
+            }
+            const resultText = result.innerText || result.textContent || "";
+            const paidMatch = resultText.match(/Total Paid:\s*\$([0-9.,]+)/);
+            const marginDisplay = getResultMargin();
+            if (!paidMatch || !marginDisplay) {
+                showCenteredOverlayMessage("No margin calculated yet. Enter a Provider Rate first.", false, 2000);
+                return;
+            }
+            const paidDisplay = paidMatch[1];
+            const textToCopy = `Management aware of Transportation low margin. Ok to staff with UBER based on round trip $${paidDisplay} approx margin ${marginDisplay}%`;
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const copiedMsg = document.createElement("div");
+                copiedMsg.innerText = `"${textToCopy}" copied!`;
+                copiedMsg.style.position = "fixed";
+                copiedMsg.style.top = "50%";
+                copiedMsg.style.left = "50%";
+                copiedMsg.style.transform = "translate(-50%, -50%)";
+                copiedMsg.style.background = "rgba(0,0,0,0.8)";
+                copiedMsg.style.color = "#fff";
+                copiedMsg.style.padding = "15px 25px";
+                copiedMsg.style.borderRadius = "8px";
+                copiedMsg.style.zIndex = "10001";
+                copiedMsg.style.fontSize = "18px";
+                copiedMsg.style.fontWeight = "bold";
+                copiedMsg.style.textAlign = "center";
+                copiedMsg.style.maxWidth = "80%";
+                copiedMsg.style.wordWrap = "break-word";
+                document.body.appendChild(copiedMsg);
+                setTimeout(() => copiedMsg.remove(), 1500);
             });
         };
 
@@ -1372,6 +1424,7 @@ ${loadFeeLine}
         box.appendChild(higherInputsWrapper);
         box.appendChild(higherResult);
         box.appendChild(lowMarginButton);
+        box.appendChild(uberLMButton);
         box.appendChild(waittimeButton);
         box.appendChild(WaitStaffButton);
         box.appendChild(boomerangButton);
