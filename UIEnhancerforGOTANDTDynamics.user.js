@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.0.0
+// @version      1.3.5.0
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay.
@@ -570,9 +570,10 @@
      PART C — BOOMERANG AUTOFILL (clipboard → GM storage → userCodeAppPanel → form)
      ===================================================================================== */
 
-  const BTAF_GM_KEY = 'btaf_ride_data';
-  const BTAF_GM_TS  = 'btaf_ride_timestamp';
-  const btafSleep   = ms => new Promise(r => setTimeout(r, ms));
+  const BTAF_GM_KEY        = 'btaf_ride_data';
+  const BTAF_GM_TS         = 'btaf_ride_timestamp';
+  const BTAF_GM_VISIBILITY = 'btaf_visible_ts';  // written only by the visible tab
+  const btafSleep          = ms => new Promise(r => setTimeout(r, ms));
 
   // ── Main page: inject "Paste Ride Data" button ───────────────────────────────
   if (onBoomerang) {
@@ -603,8 +604,13 @@
     }
 
     async function btafSendData(data) {
+      const now = Date.now();
+      // Stamp this tab's visibility time — only the tab where you clicked
+      // the button (which must be visible/active) writes this.
+      // userCodeAppPanel frames use this to know which tab is the active one.
+      await GM_setValue(BTAF_GM_VISIBILITY, now.toString());
       await GM_setValue(BTAF_GM_KEY, JSON.stringify(data));
-      await GM_setValue(BTAF_GM_TS, Date.now().toString());
+      await GM_setValue(BTAF_GM_TS, now.toString());
       showBtafToast('📨 Data sent — filling fields now…', '#1565c0');
     }
 
@@ -813,7 +819,11 @@
         if (btn) btn.click();
       }
 
-      try { await GM_deleteValue(BTAF_GM_KEY); await GM_deleteValue(BTAF_GM_TS); } catch {}
+      try {
+        await GM_deleteValue(BTAF_GM_KEY);
+        await GM_deleteValue(BTAF_GM_TS);
+        await GM_deleteValue(BTAF_GM_VISIBILITY);
+      } catch {}
     }
 
     const BTAF_FRAME_LOAD_TS = Date.now();
@@ -826,13 +836,30 @@
           if (raw) {
             const ts  = parseInt(await GM_getValue(BTAF_GM_TS, '0'), 10);
             const age = Date.now() - ts;
+
             if (ts > BTAF_FRAME_LOAD_TS && age < 300000) {
+              // KEY CHECK: only act if this tab is currently visible.
+              // document.hidden in an iframe mirrors the top-level tab visibility.
+              // Active tab = document.hidden is false.
+              // Background tabs = document.hidden is true → skip.
+              if (document.hidden) {
+                // This tab is in the background — don't act, keep polling
+                // in case user switches to this tab and re-triggers
+                await btafSleep(200);
+                continue;
+              }
+
               _btafTriggered = true;
+              await GM_deleteValue(BTAF_GM_KEY);
+              await GM_deleteValue(BTAF_GM_TS);
+              await GM_deleteValue(BTAF_GM_VISIBILITY);
               btafRunAutofill(JSON.parse(raw));
               return;
+
             } else if (age >= 300000) {
               await GM_deleteValue(BTAF_GM_KEY);
               await GM_deleteValue(BTAF_GM_TS);
+              await GM_deleteValue(BTAF_GM_VISIBILITY);
             }
           }
         } catch {}
