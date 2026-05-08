@@ -1,20 +1,24 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.2.24.7
+// @version      1.3.0.0
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
-// @description  Dynamics UI tweaks; Boomerang form autofill behavior (iframe-safe). Time fields + key fields always unlocked; company/email soft-prefill; unlock-all-on-submit. Also adds a yellow Copy button in PowerApps Leg Info overlay that preserves on-screen order (including duplicate lines like city/state).
+// @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay.
 // @author       Michael Toy
 // @match        https://*.powerapps.com/*
 // @match        https://*.powerplatform.com/*
 // @match        https://gotandt.crm.dynamics.com/*
 // @match        https://gttqap2.crm.dynamics.com/*
-// @match        https://boomerangtransport.net/ride-input-request/*
+// @match        https://boomerangtransport.net/ride-input-request*
 // @match        https://*.googleusercontent.com/*
 // @match        https://script.google.com/*
 // @match        https://script.googleusercontent.com/*
+// @include      /^https:\/\/[^/]+-script\.googleusercontent\.com\/.*/
 // @grant        GM_setClipboard
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_deleteValue
 // @run-at       document-start
 // ==/UserScript==
 
@@ -22,16 +26,20 @@
   'use strict';
 
   const host = location.hostname;
-  const isPowerApps = /\.powerapps\.com$/i.test(host) || /\.powerplatform\.com$/i.test(host);
-  const isDynamics  = /(?:^|\.)gotandt\.crm\.dynamics\.com$/i.test(host) || /(?:^|\.)gttqap2\.crm\.dynamics\.com$/i.test(host);
-  const onBoomerang = host === 'boomerangtransport.net';
-  const onAppsScript =
-    /(?:^|\.)googleusercontent\.com$/i.test(host) ||
-    host === 'script.google.com' ||
-    host === 'script.googleusercontent.com';
+  const path = location.pathname;
+
+  const isPowerApps      = /\.powerapps\.com$/i.test(host) || /\.powerplatform\.com$/i.test(host);
+  const isDynamics       = /(?:^|\.)gotandt\.crm\.dynamics\.com$/i.test(host) || /(?:^|\.)gttqap2\.crm\.dynamics\.com$/i.test(host);
+  const onBoomerang      = host === 'boomerangtransport.net';
+  const onAppsScript     = /(?:^|\.)googleusercontent\.com$/i.test(host) || host === 'script.google.com' || host === 'script.googleusercontent.com';
+
+  // Boomerang autofill frame detection
+  const isGoogleScript     = host === 'script.google.com';
+  const isGoogleContent    = host.endsWith('script.googleusercontent.com');
+  const isUserCodeAppPanel = isGoogleContent && path.includes('userCodeAppPanel');
 
   /* =====================================================================================
-     PART A — POWER APPS: “Copy” button above the date inside Leg Info overlay
+     PART A — POWER APPS: "Copy" button above the date inside Leg Info overlay
      ===================================================================================== */
   if (isPowerApps) {
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -256,18 +264,9 @@
     const UNLOCK_WINDOW_MS = 30000;
 
     const YOURNAME_OPTIONS = [
-      'Alexandra Cirlan',
-      'Ashley Oliver',
-      'Christian Antunez',
-      'Christina Armstrong',
-      'Damaris Olmeda',
-      'David Hobbs',
-      'Jeremy Rivera',
-      'Kevin Roberts',
-      'Michael Toy',
-      'Naomi Picklesimer',
-      'Tonyjay Matias',
-      'Yuri Nichols'
+      'Alexandra Cirlan','Ashley Oliver','Christian Antunez','Christina Armstrong',
+      'Damaris Olmeda','David Hobbs','Jeremy Rivera','Kevin Roberts',
+      'Michael Toy','Naomi Picklesimer','Tonyjay Matias','Yuri Nichols'
     ];
 
     function isTimeField(el) {
@@ -387,9 +386,7 @@
 
       if (el.tagName === 'FORM') {
         el.setAttribute('autocomplete','off');
-        el.addEventListener('submit', () => {
-          unlockAllInForm(el);
-        }, { capture: true });
+        el.addEventListener('submit', () => { unlockAllInForm(el); }, { capture: true });
       }
 
       if (el.matches?.('input, textarea, select')) {
@@ -403,7 +400,6 @@
         el.setAttribute('autocorrect','off');
         el.setAttribute('autocapitalize','off');
         el.setAttribute('spellcheck','false');
-
         el.dataset._lastSnapshot = el.value ?? '';
 
         if (isAlwaysUnlockField(el)) {
@@ -413,10 +409,8 @@
             const hint = getAutocompleteHint(el);
             if (hint) el.setAttribute('autocomplete', hint);
           }
-
           el.removeAttribute('aria-autocomplete');
           alwaysUnlock(el);
-
           const defVal = getSoftPrefill(el);
           if (defVal && (el.value ?? '').trim() === '') {
             el.value = defVal;
@@ -424,15 +418,12 @@
             el.dispatchEvent(new Event('change', {bubbles:true}));
             el.dataset._lastSnapshot = el.value ?? '';
           }
-
           if ((el.id === 'yourCompany') || (el.getAttribute('name') === 'yourCompany')) {
             attachCompanyDatalist(el);
           }
-
           const keepUnlocked = () => { el.readOnly = false; el.removeAttribute('readonly'); };
           el.addEventListener('focus', keepUnlocked, true);
           el.addEventListener('blur',  () => { el.dataset._lastSnapshot = el.value ?? ''; }, true);
-
           el.dataset._guardApplied = '1';
           return;
         }
@@ -496,30 +487,24 @@
     }
 
     function wireUnlockOnSubmitClicks(doc) {
-      const clickUnlock = (e) => {
+      doc.addEventListener('click', (e) => {
         const t = e.target;
         if (!t) return;
         if (t.matches && (t.matches('button[type="submit"], input[type="submit"]') || /submit/i.test(t.getAttribute?.('type') || ''))) {
           const form = t.form || doc.querySelector('form');
           unlockAllInFormScope(form || doc);
         }
-      };
-      doc.addEventListener('click', clickUnlock, true);
+      }, true);
     }
 
     function wireUnlockForAppsScriptSubmit(doc) {
-      const onPreSubmit = (e) => {
-        const btn = e.target && e.target.closest
-          ? e.target.closest('#buttonSubmit, .submit-button')
-          : null;
+      doc.addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest ? e.target.closest('#buttonSubmit, .submit-button') : null;
         if (!btn) return;
         const container = btn.parentElement || doc;
         unlockAllInFormScope(container);
-        container.querySelectorAll('input, textarea, select').forEach(f => {
-          try { f.blur && f.blur(); } catch {}
-        });
-      };
-      doc.addEventListener('click', onPreSubmit, true);
+        container.querySelectorAll('input, textarea, select').forEach(f => { try { f.blur && f.blur(); } catch {} });
+      }, true);
       doc.addEventListener('keydown', (e) => {
         if (!e) return;
         const active = doc.activeElement;
@@ -529,16 +514,13 @@
         if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 32) {
           const container = active.parentElement || doc;
           unlockAllInFormScope(container);
-          container.querySelectorAll('input, textarea, select').forEach(f => {
-            try { f.blur && f.blur(); } catch {}
-          });
+          container.querySelectorAll('input, textarea, select').forEach(f => { try { f.blur && f.blur(); } catch {} });
         }
       }, true);
     }
 
     function apply(doc) {
       doc.querySelectorAll('form, input, textarea, select').forEach(mark);
-
       const mo = new doc.defaultView.MutationObserver(muts => {
         for (const m of muts) {
           if (m.type === 'childList') {
@@ -555,9 +537,7 @@
         }
       });
       mo.observe(doc.documentElement, { childList: true, subtree: true, attributes: true });
-
       doc.querySelectorAll('iframe').forEach(handleFrame);
-
       wireUnlockOnSubmitClicks(doc);
       wireUnlockForAppsScriptSubmit(doc);
     }
@@ -586,6 +566,281 @@
     }
   }
 
+  /* =====================================================================================
+     PART C — BOOMERANG AUTOFILL (clipboard → GM storage → userCodeAppPanel → form)
+     ===================================================================================== */
+
+  const BTAF_GM_KEY = 'btaf_ride_data';
+  const BTAF_GM_TS  = 'btaf_ride_timestamp';
+  const btafSleep   = ms => new Promise(r => setTimeout(r, ms));
+
+  // ── Main page: inject "Paste Ride Data" button ───────────────────────────────
+  if (onBoomerang) {
+
+    function showBtafToast(msg, color) {
+      color = color || '#2e7d32';
+      let t = document.getElementById('btaf-toast');
+      if (!t) {
+        t = document.createElement('div');
+        t.id = 'btaf-toast';
+        Object.assign(t.style, {
+          position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
+          padding: '12px 22px', borderRadius: '8px', fontSize: '14px',
+          fontWeight: 'bold', color: '#fff', zIndex: '2147483647',
+          maxWidth: '520px', boxShadow: '0 4px 14px rgba(0,0,0,.35)',
+          transition: 'opacity .4s ease',
+          fontFamily: 'system-ui,-apple-system,Segoe UI,Roboto,Arial',
+          lineHeight: '1.5', whiteSpace: 'pre-wrap', pointerEvents: 'none',
+          textAlign: 'center',
+        });
+        document.body.appendChild(t);
+      }
+      t.style.background = color;
+      t.style.opacity    = '1';
+      t.textContent      = msg;
+      clearTimeout(t._timer);
+      t._timer = setTimeout(() => { t.style.opacity = '0'; }, 5000);
+    }
+
+    async function btafSendData(data) {
+      await GM_setValue(BTAF_GM_KEY, JSON.stringify(data));
+      await GM_setValue(BTAF_GM_TS, Date.now().toString());
+      showBtafToast('📨 Data sent — filling fields now…', '#1565c0');
+    }
+
+    function showBtafModal() {
+      const old = document.getElementById('btaf-modal');
+      if (old) old.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'btaf-modal';
+      Object.assign(overlay.style, {
+        position: 'fixed', inset: '0', zIndex: '2147483645',
+        background: 'rgba(0,0,0,0.55)', display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+      });
+
+      const box = document.createElement('div');
+      Object.assign(box.style, {
+        background: '#fff', borderRadius: '12px', padding: '28px 32px',
+        boxShadow: '0 8px 32px rgba(0,0,0,.35)', maxWidth: '440px', width: '90%',
+        fontFamily: 'system-ui,-apple-system,Segoe UI,Roboto,Arial', textAlign: 'center',
+      });
+
+      const title = document.createElement('div');
+      title.textContent = '📋 Paste Ride Data';
+      Object.assign(title.style, { fontSize: '18px', fontWeight: 'bold', marginBottom: '8px', color: '#333' });
+
+      const hint = document.createElement('div');
+      hint.textContent = 'Press Ctrl+V to paste your Excel data, then click Paste & Fill.';
+      Object.assign(hint.style, { fontSize: '13px', color: '#555', marginBottom: '14px' });
+
+      const ta = document.createElement('textarea');
+      ta.placeholder = 'Paste JSON here (Ctrl+V)…';
+      Object.assign(ta.style, {
+        width: '100%', height: '90px', borderRadius: '6px', padding: '8px',
+        border: '1.5px solid #ccc', fontSize: '12px', fontFamily: 'monospace',
+        resize: 'none', boxSizing: 'border-box', marginBottom: '12px', color: '#222',
+      });
+
+      const btnRow = document.createElement('div');
+      Object.assign(btnRow.style, { display: 'flex', gap: '10px', justifyContent: 'center', marginBottom: '8px' });
+
+      const pasteBtn = document.createElement('button');
+      pasteBtn.textContent = '✅ Paste & Fill';
+      Object.assign(pasteBtn.style, {
+        background: '#f57c00', color: '#fff', border: 'none',
+        padding: '10px 22px', borderRadius: '7px', fontSize: '14px',
+        fontWeight: 'bold', cursor: 'pointer',
+      });
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'Cancel';
+      Object.assign(cancelBtn.style, {
+        background: '#eee', color: '#333', border: 'none',
+        padding: '10px 18px', borderRadius: '7px', fontSize: '14px', cursor: 'pointer',
+      });
+
+      const errMsg = document.createElement('div');
+      Object.assign(errMsg.style, { color: '#c62828', fontSize: '12px', minHeight: '16px', textAlign: 'left' });
+
+      function attempt(text) {
+        text = (text || '').trim();
+        if (!text) { errMsg.textContent = 'Nothing pasted — press Ctrl+V first.'; return; }
+        let data;
+        try { data = JSON.parse(text); }
+        catch { errMsg.textContent = '⚠️ Not valid JSON. Check your VBA macro output.'; return; }
+        overlay.remove();
+        btafSendData(data);
+      }
+
+      pasteBtn.addEventListener('click', () => attempt(ta.value));
+      ta.addEventListener('keydown', e => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); attempt(ta.value); } });
+      ta.addEventListener('paste', () => setTimeout(() => { if (ta.value.trim().startsWith('{')) attempt(ta.value); }, 80));
+      cancelBtn.addEventListener('click', () => overlay.remove());
+      overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+      btnRow.appendChild(pasteBtn);
+      btnRow.appendChild(cancelBtn);
+      box.appendChild(title);
+      box.appendChild(hint);
+      box.appendChild(ta);
+      box.appendChild(btnRow);
+      box.appendChild(errMsg);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+      setTimeout(() => ta.focus(), 80);
+    }
+
+    function injectBtafButton() {
+      if (document.getElementById('btaf-btn')) return;
+      const btn = document.createElement('button');
+      btn.id = 'btaf-btn';
+      btn.textContent = '📋 Paste Ride Data';
+      Object.assign(btn.style, {
+        position: 'fixed', bottom: '20px', right: '20px', zIndex: '2147483646',
+        background: '#f57c00', color: '#fff', border: 'none',
+        padding: '12px 20px', borderRadius: '8px', fontSize: '15px',
+        fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,.35)',
+        fontFamily: 'system-ui,-apple-system,Segoe UI,Roboto,Arial',
+      });
+      btn.addEventListener('mouseenter', () => { btn.style.background = '#e65100'; });
+      btn.addEventListener('mouseleave', () => { btn.style.background = '#f57c00'; });
+      btn.addEventListener('click', async () => {
+        btn.disabled    = true;
+        btn.textContent = '⏳ Reading…';
+        try {
+          const raw = await navigator.clipboard.readText();
+          if (!raw || !raw.trim()) {
+            showBtafToast('⚠️ Clipboard is empty. Run your VBA macro first.', '#e65100');
+          } else {
+            let data;
+            try { data = JSON.parse(raw.trim()); }
+            catch { showBtafToast('⚠️ Clipboard is not valid JSON. Run your VBA macro first.', '#e65100'); data = null; }
+            if (data) await btafSendData(data);
+          }
+        } catch {
+          // Clipboard API blocked — fall back to paste modal
+          showBtafModal();
+        }
+        btn.disabled    = false;
+        btn.textContent = '📋 Paste Ride Data';
+      });
+      document.body.appendChild(btn);
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectBtafButton);
+    else injectBtafButton();
+  }
+
+  // ── userCodeAppPanel: reach into userHtmlIFrame and fill the form ─────────────
+  if (isUserCodeAppPanel) {
+
+    const BTAF_FIELDS = [
+      { key: 'date',            id: 'rideDate',      label: 'Ride Date'        },
+      { key: 'pickupTime',      id: 'pickupTime',    label: 'Pickup Time'      },
+      { key: 'appointmentTime', id: 'apptTime',      label: 'Appointment Time' },
+      { key: 'pickupAddress',   id: 'pickupAddress', label: 'Pickup Address'   },
+      { key: 'destination1',    id: 'destAddress1',  label: 'Destination 1'    },
+      { key: 'destination2',    id: 'destAddress2',  label: 'Destination 2', optional: true },
+    ];
+
+    function findFormDoc() {
+      if (document.getElementById('rideDate')) return document;
+      for (const ifr of document.querySelectorAll('iframe')) {
+        try {
+          const d = ifr.contentDocument || ifr.contentWindow?.document;
+          if (d && d.getElementById('rideDate')) return d;
+        } catch {}
+      }
+      return null;
+    }
+
+    function waitForFormDoc(timeoutMs) {
+      return new Promise(resolve => {
+        const check = () => { const d = findFormDoc(); if (d) { resolve(d); return true; } return false; };
+        if (check()) return;
+        const obs  = new MutationObserver(() => { if (check()) { obs.disconnect(); clearInterval(poll); } });
+        const poll = setInterval(() => { if (check()) { obs.disconnect(); clearInterval(poll); } }, 300);
+        obs.observe(document.documentElement || document, { childList: true, subtree: true });
+        setTimeout(() => { obs.disconnect(); clearInterval(poll); resolve(null); }, timeoutMs || 30000);
+      });
+    }
+
+    async function btafSetField(el, doc, value) {
+      const win = doc.defaultView || window;
+      el.dispatchEvent(new win.MouseEvent('pointerdown',  { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new win.FocusEvent('focus',         { bubbles: true }));
+      el.dispatchEvent(new win.KeyboardEvent('keydown',    { bubbles: true, cancelable: true, key: 'a' }));
+      await btafSleep(80);
+      el.readOnly = false;
+      el.removeAttribute('readonly');
+      const proto = el.tagName === 'TEXTAREA' ? win.HTMLTextAreaElement.prototype : win.HTMLInputElement.prototype;
+      const desc  = Object.getOwnPropertyDescriptor(proto, 'value');
+      if (desc && desc.set) desc.set.call(el, value);
+      else el.value = value;
+      el.dispatchEvent(new win.Event('input',  { bubbles: true }));
+      el.dispatchEvent(new win.Event('change', { bubbles: true }));
+      await btafSleep(80);
+      el.dispatchEvent(new win.FocusEvent('blur', { bubbles: true }));
+      await btafSleep(40);
+      return el.value === value;
+    }
+
+    async function btafRunAutofill(data) {
+      const formDoc = await waitForFormDoc(30000);
+      if (!formDoc) return;
+
+      await btafSleep(200);
+      const filled = [], missed = [];
+
+      for (const field of BTAF_FIELDS) {
+        const val = data[field.key];
+        if (!val && field.optional) continue;
+        if (!val) { missed.push(field.label); continue; }
+        const el = formDoc.getElementById(field.id);
+        if (!el) { missed.push(field.label); continue; }
+        const ok = await btafSetField(el, formDoc, val);
+        if (ok || el.value.trim() !== '') filled.push(field.label);
+        else missed.push(field.label);
+        await btafSleep(150);
+      }
+
+      if (missed.length === 0) {
+        await btafSleep(500);
+        const btn = Array.from(formDoc.querySelectorAll('button, input[type="submit"], a'))
+          .find(el => /check\s*availability/i.test(el.textContent || el.value || ''));
+        if (btn) btn.click();
+      }
+
+      try { await GM_deleteValue(BTAF_GM_KEY); await GM_deleteValue(BTAF_GM_TS); } catch {}
+    }
+
+    const BTAF_FRAME_LOAD_TS = Date.now();
+    let _btafTriggered = false;
+
+    (async () => {
+      while (!_btafTriggered) {
+        try {
+          const raw = await GM_getValue(BTAF_GM_KEY, null);
+          if (raw) {
+            const ts  = parseInt(await GM_getValue(BTAF_GM_TS, '0'), 10);
+            const age = Date.now() - ts;
+            if (ts > BTAF_FRAME_LOAD_TS && age < 300000) {
+              _btafTriggered = true;
+              btafRunAutofill(JSON.parse(raw));
+              return;
+            } else if (age >= 300000) {
+              await GM_deleteValue(BTAF_GM_KEY);
+              await GM_deleteValue(BTAF_GM_TS);
+            }
+          }
+        } catch {}
+        await btafSleep(200);
+      }
+    })();
+  }
+
   /* =================================== DYNAMICS SECTION =================================== */
   if (isDynamics) {
     const statusText     = "Pending - RATE Authorization Requested";
@@ -608,12 +863,6 @@
         a = a.parentElement;
       }
       return false;
-    }
-
-    function removeLegendsInsideSearch() {
-      document.querySelectorAll('[data-legend="true"], [data-legend-wrapper="true"]').forEach(el => {
-        if (isInSearchUI(el)) el.remove();
-      });
     }
 
     function insertBanner() {
@@ -653,16 +902,11 @@
 
     function highlightAllRowsGlobal() {
       const vipTerms = [
-        "defense medical exam -  always vip !!",
-        "defense medical exam -  always vip!!",
-        "dr.'s visit: 2nd opinion -  always vip!!",
-        "dr.'s visit: ime:  always vip !!",
-        "pqme -   always vip!!",
-        "pqme - panel qualified medical examination - always vip!!",
-        "qme - qualified medical exam) vip!!",
-        "ame - agreed medical evaluation",
-        "evaluation",
-        "fce - long appt.!!!!!"
+        "defense medical exam -  always vip !!","defense medical exam -  always vip!!",
+        "dr.'s visit: 2nd opinion -  always vip!!","dr.'s visit: ime:  always vip !!",
+        "pqme -   always vip!!","pqme - panel qualified medical examination - always vip!!",
+        "qme - qualified medical exam) vip!!","ame - agreed medical evaluation",
+        "evaluation","fce - long appt!!!!!"
       ];
       const rows = document.querySelectorAll('div[role="row"]');
       const now = new Date();
@@ -701,8 +945,6 @@
       });
     }
 
-
-
     function isVisibleElement(el) {
       if (!el) return false;
       const cs = getComputedStyle(el);
@@ -721,34 +963,24 @@
         ...document.querySelectorAll('[aria-modal="true"]'),
         ...document.querySelectorAll('.ms-Panel, .ms-Layer')
       ];
-
       for (const el of candidates) {
         if (!isVisibleElement(el)) continue;
         const txt = (el.innerText || el.textContent || '').toLowerCase();
-        if (
-          (txt.includes('you have') && txt.includes('notification')) ||
-          txt.includes('select to view') ||
-          txt.includes('claimant:') ||
-          txt.includes('payer:')
-        ) {
+        if ((txt.includes('you have') && txt.includes('notification')) ||
+            txt.includes('select to view') || txt.includes('claimant:') || txt.includes('payer:')) {
           return true;
         }
       }
       return false;
     }
 
-
     function isSupportedLegendPage() {
       const hasDashboardBar = !!document.querySelector('[data-lp-id="commandbar-Dashboard:null"]');
-      const hasGridBar =
-        !!document.querySelector('[data-id="commandBar_0"]') ||
-        !!document.querySelector('[data-lp-id^="commandbar-HomePageGrid:"]');
-
-      const hasFormHeader =
-        !!document.querySelector('[id^="formHeaderTitle_"]') ||
-        !!document.querySelector('[data-lp-id="form-header-title"]') ||
-        !!document.querySelector('[data-id="form-header-title"]');
-
+      const hasGridBar = !!document.querySelector('[data-id="commandBar_0"]') ||
+                         !!document.querySelector('[data-lp-id^="commandbar-HomePageGrid:"]');
+      const hasFormHeader = !!document.querySelector('[id^="formHeaderTitle_"]') ||
+                            !!document.querySelector('[data-lp-id="form-header-title"]') ||
+                            !!document.querySelector('[data-id="form-header-title"]');
       return (hasDashboardBar || hasGridBar) && !hasFormHeader;
     }
 
@@ -781,11 +1013,9 @@
       legend.style.padding = '2px 0';
       legend.style.boxSizing = 'border-box';
       legend.style.textAlign = 'left';
-
       legend.appendChild(createLegendChip('Evaluations', 'gold'));
       legend.appendChild(createLegendChip('First Time/Surgery', 'lightgreen'));
       legend.appendChild(createLegendChip('Airport', 'lightcoral'));
-
       if (type === "default") {
         legend.appendChild(createLegendChip('Pending Rate Approval', 'lightblue'));
         legend.appendChild(createLegendChip('Rates Approved', 'plum'));
@@ -793,7 +1023,6 @@
       if (type === "-confirm") {
         legend.appendChild(createLegendChip('Pickup/Appt Time Passed', '#FFDAB9'));
       }
-
       return legend;
     }
 
@@ -801,41 +1030,11 @@
       document.querySelectorAll(
         '#mtoy-legend-section, #mtoy-legend-bar, [data-legend="true"], [data-legend-wrapper="true"], [data-legend-host="true"]'
       ).forEach(el => {
-        const inBadArea =
-          isInSearchUI(el) ||
+        const inBadArea = isInSearchUI(el) ||
           !!el.closest('.ms-Panel, .ms-Layer, [role="dialog"], [aria-modal="true"]') ||
           !!el.closest('[id*="notificationWrapper"]');
         if (inBadArea) el.remove();
       });
-    }
-
-    function getMainRoot() {
-      return document.querySelector('[data-id="fullPageContentRoot"]')
-          || document.querySelector('[data-lp-id="fullPageContentRoot"]')
-          || document.body;
-    }
-
-    function detectLegendType() {
-      const fullText = (
-        (document.title || '') + '\n' +
-        (document.body?.innerText || '')
-      ).toLowerCase();
-
-      if (
-        fullText.includes('same day confirmations') ||
-        fullText.includes('same day (oncall)') ||
-        fullText.includes('-confirm')
-      ) return '-confirm';
-
-      if (
-        fullText.includes('unassigned transportation') ||
-        fullText.includes('unassigned transport') ||
-        fullText.includes('prev vendor search') ||
-        fullText.includes('uber') ||
-        fullText.includes('~transport')
-      ) return 'default';
-
-      return null;
     }
 
     function findCommandBarElement() {
@@ -848,7 +1047,6 @@
     function getCommandBarShell() {
       const bar = findCommandBarElement();
       if (!bar) return null;
-
       let node = bar;
       while (node && node !== document.body) {
         const hasCommandBar = !!node.querySelector?.('[data-id="CommandBar"], [data-id="commandBar_0"], [data-lp-id="commandbar-Dashboard:null"], [data-lp-id^="commandbar-HomePageGrid:"]');
@@ -856,7 +1054,6 @@
         if (hasCommandBar && hasShare) return node;
         node = node.parentElement;
       }
-
       node = bar;
       while (node && node !== document.body) {
         const parent = node.parentElement;
@@ -866,14 +1063,12 @@
         if (hasCommandBar && children.length >= 2) return parent;
         node = parent;
       }
-
       return bar.parentElement || bar;
     }
 
     function ensureLegendSection() {
       const shell = getCommandBarShell();
       if (!shell || !shell.parentNode || isInSearchUI(shell)) return null;
-
       let section = document.getElementById('mtoy-legend-section');
       if (!section) {
         section = document.createElement('div');
@@ -891,19 +1086,16 @@
         section.style.boxShadow = '0 1px 2px rgba(0,0,0,.04)';
         section.style.clear = 'both';
       }
-
       if (section.previousElementSibling !== shell || section.parentNode !== shell.parentNode) {
         if (section.parentNode) section.remove();
         shell.parentNode.insertBefore(section, shell.nextSibling);
       }
-
       return section;
     }
 
     function getLegendBar() {
       const section = ensureLegendSection();
       if (!section) return null;
-
       let bar = document.getElementById('mtoy-legend-bar');
       if (!bar) {
         bar = document.createElement('div');
@@ -923,37 +1115,28 @@
         bar.remove();
         section.appendChild(bar);
       }
-
       return bar;
     }
 
     function addLegend() {
       removeExistingLegendArtifacts();
-
       const existingSection = document.getElementById('mtoy-legend-section');
-
-      if (isNotificationPanelOpen()) {
-        if (existingSection) existingSection.remove();
-        return;
-      }
-
-      if (!isSupportedLegendPage()) {
-        if (existingSection) existingSection.remove();
-        return;
-      }
-
+      if (isNotificationPanelOpen()) { if (existingSection) existingSection.remove(); return; }
+      if (!isSupportedLegendPage()) { if (existingSection) existingSection.remove(); return; }
       const type = detectLegendType();
-
-      if (!type) {
-        if (existingSection) existingSection.remove();
-        return;
-      }
-
+      if (!type) { if (existingSection) existingSection.remove(); return; }
       const bar = getLegendBar();
       if (!bar) return;
-
       bar.innerHTML = '';
       bar.appendChild(createLegendElement(type));
+    }
+
+    function detectLegendType() {
+      const fullText = ((document.title || '') + '\n' + (document.body?.innerText || '')).toLowerCase();
+      if (fullText.includes('same day confirmations') || fullText.includes('same day (oncall)') || fullText.includes('-confirm')) return '-confirm';
+      if (fullText.includes('unassigned transportation') || fullText.includes('unassigned transport') ||
+          fullText.includes('prev vendor search') || fullText.includes('uber') || fullText.includes('~transport')) return 'default';
+      return null;
     }
 
     function adjustSpacing() {
@@ -966,19 +1149,11 @@
     }
 
     function styleNotificationWrapper() {
-      const notificationElements = document.querySelectorAll('[id*="notificationWrapper"], [id*="message"]');
-
-      notificationElements.forEach(element => {
+      document.querySelectorAll('[id*="notificationWrapper"], [id*="message"]').forEach(element => {
         const text = (element.textContent || element.innerText || '').trim();
-
         element.style.fontWeight = 'bold';
         element.style.fontSize = '18px';
-
-        if (text.includes('~~')) {
-          element.style.backgroundColor = 'yellow';
-        } else {
-          element.style.backgroundColor = 'lightgreen';
-        }
+        element.style.backgroundColor = text.includes('~~') ? 'yellow' : 'lightgreen';
       });
     }
 
@@ -1011,7 +1186,7 @@
       const header = document.querySelector(headerSelector);
       const vipIds = [
         "4474-65549","4474-48338","4474-48380","202-46904","202-50715",
-        "4474-64737","10837-61025","4474-66551","4474-63533", "10530-68938"
+        "4474-64737","10837-61025","4474-66551","4474-63533","10530-68938"
       ];
       if (!vipIds.some(id => titleText.includes(id))) return;
       if (document.getElementById("vip-banner")) return;
@@ -1036,18 +1211,10 @@
 
     function waitForMoniqueInIframe(retries = 20, delay = 1000) {
       const iframe = document.querySelector('#WebResource_RecipientSelector');
-      if (!iframe) {
-        if (retries > 0) setTimeout(() => waitForMoniqueInIframe(retries - 1, delay), delay);
-        return;
-      }
+      if (!iframe) { if (retries > 0) setTimeout(() => waitForMoniqueInIframe(retries - 1, delay), delay); return; }
       const doc = iframe.contentDocument || iframe.contentWindow.document;
-      if (!doc || !doc.body) {
-        if (retries > 0) setTimeout(() => waitForMoniqueInIframe(retries - 1, delay), delay);
-        return;
-      }
-      const td = [...doc.querySelectorAll("td")].find(td =>
-        td.textContent.trim().includes("Monique Jones")
-      );
+      if (!doc || !doc.body) { if (retries > 0) setTimeout(() => waitForMoniqueInIframe(retries - 1, delay), delay); return; }
+      const td = [...doc.querySelectorAll("td")].find(td => td.textContent.trim().includes("Monique Jones"));
       if (td && !td.querySelector(".monique-message")) {
         td.style.fontSize = "12px";
         td.style.fontWeight = "bold";
@@ -1066,18 +1233,10 @@
 
     function waitForAUTHEMAIL(retries = 20, delay = 1000) {
       const iframe = document.querySelector('#WebResource_RecipientSelector');
-      if (!iframe) {
-        if (retries > 0) setTimeout(() => waitForAUTHEMAIL(retries - 1, delay), delay);
-        return;
-      }
+      if (!iframe) { if (retries > 0) setTimeout(() => waitForAUTHEMAIL(retries - 1, delay), delay); return; }
       const doc = iframe.contentDocument || iframe.contentWindow.document;
-      if (!doc || !doc.body) {
-        if (retries > 0) setTimeout(() => waitForAUTHEMAIL(retries - 1, delay), delay);
-        return;
-      }
-      const td = [...doc.querySelectorAll("td")].find(td =>
-        td.textContent.trim().includes("AUTH EMAIL")
-      );
+      if (!doc || !doc.body) { if (retries > 0) setTimeout(() => waitForAUTHEMAIL(retries - 1, delay), delay); return; }
+      const td = [...doc.querySelectorAll("td")].find(td => td.textContent.trim().includes("AUTH EMAIL"));
       if (td && !td.querySelector(".auth-message")) {
         td.style.fontSize = "12px";
         td.style.fontWeight = "bold";
@@ -1096,28 +1255,19 @@
 
     function removeAuthElementsFromDoc(doc) {
       if (!doc) return 0;
-
       let removedCount = 0;
-
       const selectors = [
-        '[data-id="gtt_attachauthemail"]',
-        '[data-control-name="gtt_attachauthemail"]',
-        '[data-id="gtt_authorizationdocument"]',
-        '[data-control-name="gtt_authorizationdocument"]',
-        '[data-id="gtt_authorizationrequired"]',
-        '[data-control-name="gtt_authorizationrequired"]',
-
+        '[data-id="gtt_attachauthemail"]','[data-control-name="gtt_attachauthemail"]',
+        '[data-id="gtt_authorizationdocument"]','[data-control-name="gtt_authorizationdocument"]',
+        '[data-id="gtt_authorizationrequired"]','[data-control-name="gtt_authorizationrequired"]',
         '[data-id="gtt_attachauthemail.fieldControl_container"]',
         '[data-id="gtt_authorizationdocument.fieldControl_container"]',
         '[data-id="gtt_authorizationrequired.fieldControl-pcf-container-id"]',
-
         '[data-id="gtt_attachauthemail-FieldSectionItemContainer"]',
         '[data-id="gtt_authorizationdocument-FieldSectionItemContainer"]',
         '[data-id="gtt_authorizationrequired-FieldSectionItemContainer"]'
       ];
-
       const seen = new Set();
-
       selectors.forEach(sel => {
         doc.querySelectorAll(sel).forEach(el => {
           let target =
@@ -1128,10 +1278,8 @@
             el.closest('[data-id="gtt_authorizationrequired"]') ||
             el.closest('[data-control-name="gtt_authorizationrequired"]') ||
             el;
-
           const outerRow = target.parentElement?.closest('div[role="presentation"].pa-bz');
           if (outerRow) target = outerRow;
-
           if (target && target.parentNode && !seen.has(target)) {
             seen.add(target);
             target.remove();
@@ -1139,23 +1287,18 @@
           }
         });
       });
-
       return removedCount;
     }
 
     function removeAuthElementsEverywhere() {
-      let total = 0;
-
-      total += removeAuthElementsFromDoc(document);
-
+      let total = removeAuthElementsFromDoc(document);
       const iframe = document.querySelector('#WebResource_RecipientSelector');
       if (iframe) {
         try {
           const idoc = iframe.contentDocument || iframe.contentWindow?.document;
           total += removeAuthElementsFromDoc(idoc);
-        } catch (e) {}
+        } catch {}
       }
-
       return total;
     }
 
@@ -1164,20 +1307,12 @@
       setTimeout(removeAuthElementsEverywhere, 500);
       setTimeout(removeAuthElementsEverywhere, 1500);
       setTimeout(removeAuthElementsEverywhere, 3000);
-
-      const mo = new MutationObserver(() => {
-        removeAuthElementsEverywhere();
-      });
-
+      const mo = new MutationObserver(() => { removeAuthElementsEverywhere(); });
       const startObserver = () => {
-        if (!document.body) {
-          setTimeout(startObserver, 100);
-          return;
-        }
+        if (!document.body) { setTimeout(startObserver, 100); return; }
         mo.observe(document.body, { childList: true, subtree: true });
       };
       startObserver();
-
       setInterval(removeAuthElementsEverywhere, 2000);
     }
 
@@ -1230,4 +1365,5 @@
     const titleNode = document.querySelector("title");
     if (titleNode) titleObserver.observe(titleNode, { childList: true });
   }
+
 })();
