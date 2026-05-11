@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.55
+// @version      4.1.56
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -495,7 +495,7 @@ function getTransportPreviewAmount() {
 
         function getResultMargin() {
             const resultText = result.innerText || result.textContent || "";
-            const marginMatch = resultText.match(/Margin:\s*([0-9.]+)%/);
+            const marginMatch = resultText.match(/Margin:\s*(-?[0-9.]+)%/);
             return marginMatch ? marginMatch[1] : null;
         }
 
