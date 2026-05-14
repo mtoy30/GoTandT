@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.5.1
+// @version      1.3.6.0
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay.
@@ -922,7 +922,10 @@
 
     function observeRateStatusChanges() {
       const button = document.querySelector(buttonSelector);
-      if (!button) return;
+      // Guard: only attach one observer per element — previously this was called
+      // on every globalObserver tick, stacking up duplicate observers over time.
+      if (!button || button._rateObserverAttached) return;
+      button._rateObserverAttached = true;
       const observer = new MutationObserver(() => checkStatusAndInsertBanner());
       observer.observe(button, { childList: true, subtree: true, characterData: true });
     }
@@ -1158,11 +1161,45 @@
       bar.appendChild(createLegendElement(type));
     }
 
+    // Cache the legend type so we never read document.body.innerText inside a
+    // MutationObserver callback.  body.innerText forces a full layout recalc on
+    // every call — on a large Dynamics page that was the main reason the page
+    // appeared to stall and required a refresh.
+    // We re-evaluate only when document.title changes (Dynamics always updates
+    // the title when navigating to a new view) or when explicitly invalidated.
+    let _legendTypeCache = undefined;
+    let _legendTypeTitleKey = null;
     function detectLegendType() {
-      const fullText = ((document.title || '') + '\n' + (document.body?.innerText || '')).toLowerCase();
-      if (fullText.includes('same day confirmations') || fullText.includes('same day (oncall)') || fullText.includes('-confirm')) return '-confirm';
-      if (fullText.includes('unassigned transportation') || fullText.includes('unassigned transport') ||
-          fullText.includes('prev vendor search') || fullText.includes('uber') || fullText.includes('~transport')) return 'default';
+      const titleNow = document.title || '';
+      if (_legendTypeTitleKey === titleNow && _legendTypeCache !== undefined) {
+        return _legendTypeCache;
+      }
+      _legendTypeTitleKey = titleNow;
+      // Use only the title for the fast checks; fall back to a targeted
+      // querySelector for the body-text checks so we never read innerText.
+      const titleLower = titleNow.toLowerCase();
+      if (titleLower.includes('same day confirmations') || titleLower.includes('same day (oncall)') || titleLower.includes('-confirm')) {
+        _legendTypeCache = '-confirm'; return _legendTypeCache;
+      }
+      if (titleLower.includes('unassigned transportation') || titleLower.includes('unassigned transport') ||
+          titleLower.includes('prev vendor search') || titleLower.includes('uber') || titleLower.includes('~transport')) {
+        _legendTypeCache = 'default'; return _legendTypeCache;
+      }
+      // Title didn't match — do a single targeted body check using textContent
+      // (cheap) on a narrow selector instead of the entire body.innerText (expensive).
+      const gridTitle = document.querySelector(
+        '[data-lp-id^="commandbar-HomePageGrid:"] [aria-label], [data-id="ViewSelector"] [aria-label], ' +
+        '[data-id="viewTitle"], h1[class*="title"], [data-id="commandBar_0"] [aria-label]'
+      );
+      const bodySnippet = (gridTitle?.textContent || '').toLowerCase();
+      if (bodySnippet.includes('same day confirmations') || bodySnippet.includes('same day (oncall)') || bodySnippet.includes('-confirm')) {
+        _legendTypeCache = '-confirm'; return _legendTypeCache;
+      }
+      if (bodySnippet.includes('unassigned transportation') || bodySnippet.includes('unassigned transport') ||
+          bodySnippet.includes('prev vendor search') || bodySnippet.includes('uber') || bodySnippet.includes('~transport')) {
+        _legendTypeCache = 'default'; return _legendTypeCache;
+      }
+      _legendTypeCache = null;
       return null;
     }
 
@@ -1185,7 +1222,14 @@
     }
 
     function observeNotifications() {
-      const observer = new MutationObserver(styleNotificationWrapper);
+      // Debounced — styleNotificationWrapper was previously called on every
+      // single DOM mutation with no delay, running in parallel with globalObserver
+      // and adding to the load-time pressure.
+      let notifTimer;
+      const observer = new MutationObserver(() => {
+        clearTimeout(notifTimer);
+        notifTimer = setTimeout(styleNotificationWrapper, 400);
+      });
       observer.observe(document.body, { childList: true, subtree: true });
     }
 
@@ -1384,6 +1428,7 @@
     }
 
     const titleObserver = new MutationObserver(() => {
+      _legendTypeTitleKey = null; // invalidate legend cache on title change
       if (document.title.includes("Email:")) {
         waitForMoniqueInIframe();
         waitForAUTHEMAIL();
