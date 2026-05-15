@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.56
+// @version      4.1.57
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -14,6 +14,13 @@
 
 (function() {
     'use strict';
+
+    // ─── Guard: wait for document.head and document.body before doing anything.
+    // This script has no @run-at directive so Tampermonkey may execute it before
+    // the parser has created <head> or <body>.  Calling document.head.appendChild
+    // when document.head is null throws synchronously and stops the rest of the
+    // script, which leaves Dynamics in a half-loaded state that requires a refresh.
+    function init() {
 
     let processingTimeoutId = null;
 
@@ -3589,12 +3596,15 @@ function showTemplateReminderPopup(message) {
 
     createButtons();
 
+    // ─── SPA navigation: re-inject buttons whenever Dynamics navigates.
+    // window 'load' only fires once on the initial page load — it never fires
+    // again on SPA navigations (which is how Dynamics moves between views).
+    // Using a MutationObserver on document.body catches every navigation.
     function waitForSearchBox() {
         const observer = new MutationObserver(() => {
             const searchBox = document.querySelector('#searchBoxLiveRegion');
-            if (searchBox) {
+            if (searchBox && !document.getElementById('custom-button-container')) {
                 createButtons();
-                observer.disconnect();
             }
         });
 
@@ -3604,7 +3614,15 @@ function showTemplateReminderPopup(message) {
         });
     }
 
-    window.addEventListener('load', () => {
-        waitForSearchBox();
-    });
+    waitForSearchBox();
+
+    } // end init()
+
+    // ─── Entry point: guarantee document.head and document.body exist first.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+
 })();
