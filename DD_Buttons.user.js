@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.54
+// @version      4.1.55
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -14,6 +14,12 @@
 
 (function() {
     'use strict';
+
+    // ─── Guard: wait for document.head and document.body before doing anything.
+    // Without @run-at, Tampermonkey may run this script before document.head exists.
+    // document.head.appendChild(style) throws synchronously if head is null, which
+    // stops the rest of the script and leaves Dynamics in a half-loaded state.
+    function init() {
 
     // One-shot timeout so the processing message never hangs
     let processingTimeoutId = null;
@@ -2546,16 +2552,18 @@ function addTooltip(button, message) {
 }
 
 // Call the createButtons function to initialize the buttons
-createButtons();
+    createButtons();
 
-
-    // Function to continuously observe the DOM for the search box to appear
+    // ─── SPA navigation: re-inject buttons on every Dynamics navigation.
+    // window 'load' only fires once on initial page load, never on SPA navigations.
+    // observer.disconnect() after the first inject meant buttons disappeared after
+    // navigating to a different record. This persistent observer re-injects whenever
+    // #searchBoxLiveRegion reappears without a button container already present.
     function waitForSearchBox() {
         const observer = new MutationObserver(() => {
             const searchBox = document.querySelector('#searchBoxLiveRegion');
-            if (searchBox) {
+            if (searchBox && !document.getElementById('custom-button-container')) {
                 createButtons();
-                observer.disconnect(); // Stop observing once the buttons are created
             }
         });
 
@@ -2565,8 +2573,15 @@ createButtons();
         });
     }
 
-    // Start observing the DOM for the search box and notification elements
-    window.addEventListener('load', () => {
-        waitForSearchBox();
-    });
+    waitForSearchBox();
+
+    } // end init()
+
+    // ─── Entry point: guarantee document.head and document.body exist first.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+
 })();
