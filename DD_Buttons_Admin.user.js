@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.57
+// @version      4.1.58
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1995,7 +1995,7 @@ if (headerTitle.startsWith("212-")) {
     function clickInsertSignatureButton(retries = 25, delay = 1000) {
         return new Promise((resolve, reject) => {
             function tryClick() {
-                const buttons = Array.from(document.querySelectorAll('button[aria-label="Insert Signature"]')).filter(btn => {
+                const buttons = Array.from(document.querySelectorAll('button[aria-label^="Insert Signature"]')).filter(btn => {
                     const style = window.getComputedStyle(btn);
                     return (
                         btn.offsetParent !== null &&
