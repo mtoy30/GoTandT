@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.6.1
+// @version      1.3.6.2
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay.
@@ -1343,6 +1343,18 @@
       setInterval(removeAuthElementsEverywhere, 2000);
     }
 
+    // ─── Entry point: wait for Dynamics to render a reliable landmark before injecting.
+    // A fixed delay isn't reliable — Dynamics can take anywhere from 1s to 10s+ depending
+    // on load. We watch for #searchBoxLiveRegion (the nav search bar) which is one of the
+    // first stable elements Dynamics renders. Only then do we wire up observers and run the
+    // first pass of all enhancer functions.
+    // DYNAMICS_INIT_DELAY = minimum wait (ms) before we start checking — gives Dynamics a
+    //   head-start. Raise if things still inject too early on slow connections.
+    // DYNAMICS_WAIT_CAP = hard give-up timeout (ms) — we run anyway after this.
+    const DYNAMICS_INIT_DELAY = 4000; // ← adjust minimum wait here if needed (ms)
+    const DYNAMICS_WAIT_CAP   = 30000; // ← hard give-up timeout (ms) — rarely needs changing
+
+    function startDynamicsEnhancer() {
     let debounceTimer;
     const globalObserver = new MutationObserver(() => {
       clearTimeout(debounceTimer);
@@ -1391,6 +1403,21 @@
     });
     const titleNode = document.querySelector("title");
     if (titleNode) titleObserver.observe(titleNode, { childList: true });
+    }
+
+    function waitForDynamicsLandmark() {
+      if (document.querySelector('#searchBoxLiveRegion')) { startDynamicsEnhancer(); return; }
+      let done = false;
+      const capTimer = setTimeout(() => { if (!done) { done = true; obs.disconnect(); startDynamicsEnhancer(); } }, DYNAMICS_WAIT_CAP - DYNAMICS_INIT_DELAY);
+      const obs = new MutationObserver(() => {
+        if (document.querySelector('#searchBoxLiveRegion')) {
+          if (!done) { done = true; clearTimeout(capTimer); obs.disconnect(); startDynamicsEnhancer(); }
+        }
+      });
+      obs.observe(document.documentElement, { childList: true, subtree: true });
+    }
+
+    setTimeout(waitForDynamicsLandmark, DYNAMICS_INIT_DELAY);
   }
 
 })();
