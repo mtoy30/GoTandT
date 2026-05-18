@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.58
+// @version      4.1.59
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -15,11 +15,6 @@
 (function() {
     'use strict';
 
-    // ─── Guard: wait for document.head and document.body before doing anything.
-    // This script has no @run-at directive so Tampermonkey may execute it before
-    // the parser has created <head> or <body>.  Calling document.head.appendChild
-    // when document.head is null throws synchronously and stops the rest of the
-    // script, which leaves Dynamics in a half-loaded state that requires a refresh.
     function init() {
 
     let processingTimeoutId = null;
@@ -3618,11 +3613,32 @@ function showTemplateReminderPopup(message) {
 
     } // end init()
 
-    // ─── Entry point: guarantee document.head and document.body exist first.
+    // ─── Entry point: wait for Dynamics to render #searchBoxLiveRegion before injecting.
+    // A fixed delay isn't reliable — Dynamics can take anywhere from 1s to 10s+ depending
+    // on load. Instead we watch for the landmark element that the buttons attach to.
+    // DYNAMICS_INIT_DELAY is the minimum wait (ms) before we even start checking, giving
+    // Dynamics a head-start before the observer fires. Raise this if buttons still inject
+    // too early on slow connections. DYNAMICS_WAIT_CAP is the hard timeout (ms) after which
+    // we give up waiting and run init anyway (catches edge cases where the landmark never appears).
+    const DYNAMICS_INIT_DELAY = 4000; // ← adjust minimum wait here if needed (ms)
+    const DYNAMICS_WAIT_CAP   = 30000; // ← hard give-up timeout (ms) — rarely needs changing
+
+    function waitForLandmarkThenInit() {
+        if (document.querySelector('#searchBoxLiveRegion')) { init(); return; }
+        let done = false;
+        const capTimer = setTimeout(() => { if (!done) { done = true; obs.disconnect(); init(); } }, DYNAMICS_WAIT_CAP - DYNAMICS_INIT_DELAY);
+        const obs = new MutationObserver(() => {
+            if (document.querySelector('#searchBoxLiveRegion')) {
+                if (!done) { done = true; clearTimeout(capTimer); obs.disconnect(); init(); }
+            }
+        });
+        obs.observe(document.documentElement, { childList: true, subtree: true });
+    }
+
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', () => setTimeout(waitForLandmarkThenInit, DYNAMICS_INIT_DELAY));
     } else {
-        init();
+        setTimeout(waitForLandmarkThenInit, DYNAMICS_INIT_DELAY);
     }
 
 })();
