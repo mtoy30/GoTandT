@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.6.2
+// @version      1.3.6.3
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay.
@@ -1297,7 +1297,12 @@
       const seen = new Set();
       selectors.forEach(sel => {
         doc.querySelectorAll(sel).forEach(el => {
-          let target =
+          // Walk up only to known field-level containers — removed the .pa-bz escalation
+          // which was grabbing large page sections and causing the flash-then-blank issue.
+          const target =
+            el.closest('[data-id="gtt_attachauthemail-FieldSectionItemContainer"]') ||
+            el.closest('[data-id="gtt_authorizationdocument-FieldSectionItemContainer"]') ||
+            el.closest('[data-id="gtt_authorizationrequired-FieldSectionItemContainer"]') ||
             el.closest('[data-id="gtt_attachauthemail"]') ||
             el.closest('[data-control-name="gtt_attachauthemail"]') ||
             el.closest('[data-id="gtt_authorizationdocument"]') ||
@@ -1305,8 +1310,6 @@
             el.closest('[data-id="gtt_authorizationrequired"]') ||
             el.closest('[data-control-name="gtt_authorizationrequired"]') ||
             el;
-          const outerRow = target.parentElement?.closest('div[role="presentation"].pa-bz');
-          if (outerRow) target = outerRow;
           if (target && target.parentNode && !seen.has(target)) {
             seen.add(target);
             target.remove();
@@ -1330,17 +1333,35 @@
     }
 
     function startAuthElementRemoval() {
-      removeAuthElementsEverywhere();
+      // Staggered initial passes to catch lazily-rendered fields — skip the immediate
+      // call at t=0 which was running before Dynamics had anything rendered.
       setTimeout(removeAuthElementsEverywhere, 500);
       setTimeout(removeAuthElementsEverywhere, 1500);
       setTimeout(removeAuthElementsEverywhere, 3000);
-      const mo = new MutationObserver(() => { removeAuthElementsEverywhere(); });
+      setTimeout(removeAuthElementsEverywhere, 6000);
+
+      // MutationObserver catches fields injected dynamically after load.
+      // Skips when body has very few children = Dynamics mid-navigation blank slate.
+      const mo = new MutationObserver(() => {
+        if (document.body && document.body.childElementCount < 3) return;
+        removeAuthElementsEverywhere();
+      });
       const startObserver = () => {
         if (!document.body) { setTimeout(startObserver, 100); return; }
         mo.observe(document.body, { childList: true, subtree: true });
       };
       startObserver();
-      setInterval(removeAuthElementsEverywhere, 2000);
+
+      // Periodic sweep — self-stops after 60s (30 × 2000ms). Page is stable by then.
+      // Raise sweepCap if you need longer coverage on slow machines.
+      let sweepCount = 0;
+      const sweepCap = 30;
+      const sweepInterval = setInterval(() => {
+        if (document.body && document.body.childElementCount >= 3) {
+          removeAuthElementsEverywhere();
+        }
+        if (++sweepCount >= sweepCap) clearInterval(sweepInterval);
+      }, 2000);
     }
 
     // ─── Entry point: wait for Dynamics to render a reliable landmark before injecting.
