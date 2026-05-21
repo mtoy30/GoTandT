@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.62
+// @version      4.1.63
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -3610,6 +3610,12 @@ function showTemplateReminderPopup(message) {
             font-size:14px;border:1px solid #ccc;border-radius:6px;resize:vertical;
         `;
 
+        const errorMsg = document.createElement("div");
+        errorMsg.innerText = "Reason must be entered.";
+        errorMsg.style.cssText = `
+            color:#dc3545;font-size:13px;font-weight:600;display:none;margin-top:-6px;
+        `;
+
         const btnRow = document.createElement("div");
         btnRow.style.cssText = "display:flex;justify-content:flex-end;gap:10px;";
 
@@ -3630,9 +3636,23 @@ function showTemplateReminderPopup(message) {
         `;
         confirmBtn.onclick = () => {
             const reason = textarea.value.trim();
+            if (!reason) {
+                errorMsg.style.display = "block";
+                textarea.style.border = "1px solid #dc3545";
+                textarea.focus();
+                return;
+            }
             overlay.remove();
             onConfirm(reason);
         };
+
+        // Clear error state when user starts typing
+        textarea.addEventListener("input", () => {
+            if (textarea.value.trim()) {
+                errorMsg.style.display = "none";
+                textarea.style.border = "1px solid #ccc";
+            }
+        });
 
         // Allow Enter (without Shift) to confirm, Escape to cancel
         textarea.addEventListener("keydown", (e) => {
@@ -3644,6 +3664,7 @@ function showTemplateReminderPopup(message) {
         btnRow.appendChild(confirmBtn);
         dialog.appendChild(title);
         dialog.appendChild(textarea);
+        dialog.appendChild(errorMsg);
         dialog.appendChild(btnRow);
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
