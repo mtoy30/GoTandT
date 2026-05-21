@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.59
+// @version      4.1.62
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -507,32 +507,57 @@ function getTransportPreviewAmount() {
                 showCenteredOverlayMessage("Enter a Provider Rate first to calculate margin.", false, 2000);
                 return;
             }
-            const marginDisplay = getResultMargin();
+
+            // Prefer higher-rates margin if it is displayed; fall back to standard margin
+            let marginDisplay = null;
+            const higherResultText = higherResult.innerText || higherResult.textContent || "";
+            const higherMarginMatch = higherResultText.match(/Margin:\s*(-?[0-9.]+)%/);
+            if (higherMarginMatch) {
+                marginDisplay = higherMarginMatch[1];
+            } else {
+                marginDisplay = getResultMargin();
+            }
+
             if (!marginDisplay) {
                 showCenteredOverlayMessage("No margin calculated yet. Enter a Provider Rate first.", false, 2000);
                 return;
             }
-            const textToCopy = `Management aware of Transportation low margin. Ok to staff approx. Margin ${marginDisplay}%`;
-            navigator.clipboard.writeText(textToCopy).then(() => {
-                const copiedMsg = document.createElement("div");
-                copiedMsg.innerText = `"${textToCopy}" copied!`;
-                copiedMsg.style.position = "fixed";
-                copiedMsg.style.top = "50%";
-                copiedMsg.style.left = "50%";
-                copiedMsg.style.transform = "translate(-50%, -50%)";
-                copiedMsg.style.background = "rgba(0,0,0,0.8)";
-                copiedMsg.style.color = "#fff";
-                copiedMsg.style.padding = "15px 25px";
-                copiedMsg.style.borderRadius = "8px";
-                copiedMsg.style.zIndex = "10001";
-                copiedMsg.style.fontSize = "18px";
-                copiedMsg.style.fontWeight = "bold";
-                copiedMsg.style.textAlign = "center";
-                copiedMsg.style.maxWidth = "80%";
-                copiedMsg.style.wordWrap = "break-word";
-                document.body.appendChild(copiedMsg);
-                setTimeout(() => copiedMsg.remove(), 1500);
-            });
+
+            const marginValue = parseFloat(marginDisplay);
+            const marginType = marginValue < 0 ? "negative margin" : "low margin";
+            const baseText = `Management aware of Transportation ${marginType}. Ok to staff approx. Margin ${marginDisplay}%`;
+
+            const doCopy = (textToCopy) => {
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    const copiedMsg = document.createElement("div");
+                    copiedMsg.innerText = `"${textToCopy}" copied!`;
+                    copiedMsg.style.position = "fixed";
+                    copiedMsg.style.top = "50%";
+                    copiedMsg.style.left = "50%";
+                    copiedMsg.style.transform = "translate(-50%, -50%)";
+                    copiedMsg.style.background = "rgba(0,0,0,0.8)";
+                    copiedMsg.style.color = "#fff";
+                    copiedMsg.style.padding = "15px 25px";
+                    copiedMsg.style.borderRadius = "8px";
+                    copiedMsg.style.zIndex = "10001";
+                    copiedMsg.style.fontSize = "18px";
+                    copiedMsg.style.fontWeight = "bold";
+                    copiedMsg.style.textAlign = "center";
+                    copiedMsg.style.maxWidth = "80%";
+                    copiedMsg.style.wordWrap = "break-word";
+                    document.body.appendChild(copiedMsg);
+                    setTimeout(() => copiedMsg.remove(), 1500);
+                });
+            };
+
+            if (marginValue < 0) {
+                showReasonPrompt((reason) => {
+                    const textToCopy = reason ? `${baseText} Reason: ${reason}` : baseText;
+                    doCopy(textToCopy);
+                });
+            } else {
+                doCopy(baseText);
+            }
         };
 
         const uberLMButton = createModernButton("UBER LM", "#f59e0b", "#fbbf24");
@@ -2950,10 +2975,39 @@ function showTemplateReminderPopup(message) {
   "#3b82f6",
   "#60a5fa",
   () => {
-    const textToCopy = "Management aware of Interpretation low margin. Ok to staff";
-    navigator.clipboard.writeText(textToCopy).then(() => {
-      showCenteredOverlayMessage(`"${textToCopy}" copied!`, true, 1000);
-    });
+    // Prefer higher-rates margin if displayed; fall back to standard margin
+    let marginDisplay = null;
+    const higherResultText = higherResult.innerText || higherResult.textContent || "";
+    const higherMarginMatch = higherResultText.match(/Margin:\s*(-?[0-9.]+)%/);
+    if (higherMarginMatch) {
+      marginDisplay = higherMarginMatch[1];
+    } else {
+      const resultText = result.innerText || result.textContent || "";
+      const marginMatch = resultText.match(/Margin:\s*(-?[0-9.]+)%/);
+      if (marginMatch) marginDisplay = marginMatch[1];
+    }
+
+    if (!marginDisplay) {
+      showCenteredOverlayMessage("No margin calculated yet. Enter a Provider Rate first.", false, 2000);
+      return;
+    }
+
+    const marginValue = parseFloat(marginDisplay);
+    const marginType = marginValue < 0 ? "negative margin" : "low margin";
+    const baseText = `Management aware of Interpretation ${marginType}. Ok to staff approx. Margin ${marginDisplay}%`;
+
+    if (marginValue < 0) {
+      showReasonPrompt((reason) => {
+        const textToCopy = reason ? `${baseText} Reason: ${reason}` : baseText;
+        navigator.clipboard.writeText(textToCopy).then(() => {
+          showCenteredOverlayMessage(`"${textToCopy}" copied!`, true, 1000);
+        });
+      });
+    } else {
+      navigator.clipboard.writeText(baseText).then(() => {
+        showCenteredOverlayMessage(`"${baseText}" copied!`, true, 1000);
+      });
+    }
   }
 );
 
@@ -3527,6 +3581,74 @@ function showTemplateReminderPopup(message) {
     recalc();
   }
 
+
+    // Shows a styled prompt dialog asking for a reason, then calls callback(reason).
+    // If the user cancels, callback is not called.
+    function showReasonPrompt(onConfirm) {
+        const overlay = document.createElement("div");
+        overlay.style.cssText = `
+            position:fixed;top:0;left:0;width:100%;height:100%;
+            background:rgba(0,0,0,0.55);z-index:10100;
+            display:flex;align-items:center;justify-content:center;
+        `;
+
+        const dialog = document.createElement("div");
+        dialog.style.cssText = `
+            background:#fff;color:#000;padding:24px 28px;border-radius:10px;
+            box-shadow:0 8px 30px rgba(0,0,0,0.25);min-width:340px;max-width:480px;
+            display:flex;flex-direction:column;gap:14px;
+        `;
+
+        const title = document.createElement("div");
+        title.innerText = "Enter Reason for Negative Margin";
+        title.style.cssText = "font-weight:bold;font-size:16px;";
+
+        const textarea = document.createElement("textarea");
+        textarea.placeholder = "e.g. to prevent a miss";
+        textarea.style.cssText = `
+            width:100%;box-sizing:border-box;height:80px;padding:8px;
+            font-size:14px;border:1px solid #ccc;border-radius:6px;resize:vertical;
+        `;
+
+        const btnRow = document.createElement("div");
+        btnRow.style.cssText = "display:flex;justify-content:flex-end;gap:10px;";
+
+        const cancelBtn = document.createElement("button");
+        cancelBtn.innerText = "Cancel";
+        cancelBtn.style.cssText = `
+            padding:8px 18px;border-radius:6px;border:1px solid #ccc;
+            background:#f0f0f0;cursor:pointer;font-size:14px;font-weight:600;
+        `;
+        cancelBtn.onclick = () => overlay.remove();
+
+        const confirmBtn = document.createElement("button");
+        confirmBtn.innerText = "Copy";
+        confirmBtn.style.cssText = `
+            padding:8px 18px;border-radius:6px;border:none;
+            background:linear-gradient(135deg,#3b82f6,#60a5fa);
+            color:#fff;cursor:pointer;font-size:14px;font-weight:600;
+        `;
+        confirmBtn.onclick = () => {
+            const reason = textarea.value.trim();
+            overlay.remove();
+            onConfirm(reason);
+        };
+
+        // Allow Enter (without Shift) to confirm, Escape to cancel
+        textarea.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); confirmBtn.click(); }
+            if (e.key === "Escape") cancelBtn.click();
+        });
+
+        btnRow.appendChild(cancelBtn);
+        btnRow.appendChild(confirmBtn);
+        dialog.appendChild(title);
+        dialog.appendChild(textarea);
+        dialog.appendChild(btnRow);
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+        setTimeout(() => textarea.focus(), 50);
+    }
 
     function createButtons() {
         const searchBox = document.querySelector('#searchBoxLiveRegion');
