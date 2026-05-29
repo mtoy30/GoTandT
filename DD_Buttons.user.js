@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.59
+// @version      4.1.60
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1524,6 +1524,7 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
         "Staffed Revised at Approved Rates",
         "Standard Rate Request",
         "CareIQ Rate Request",
+        "CareIQ Passenger Fee",
         "Convergence Higher Rate Request",
         "Homelink Rate Request",
         "Wait time request",
@@ -1572,6 +1573,7 @@ if (headerTitle.startsWith("212-")) {
     exclusions = [
         "Standard Rate Request",
         "CareIQ Rate Request",
+        "CareIQ Passenger Fee",
         "Convergence Higher Rate Request",
         "JBS Request for Higher Rates",
         "CareWorks Rate Request",
@@ -1582,6 +1584,7 @@ if (headerTitle.startsWith("212-")) {
     exclusions = [
         "Standard Rate Request",
         "CareIQ Rate Request",
+        "CareIQ Passenger Fee",
         "Convergence Higher Rate Request",
         "CareWorks Rate Request",
         "Homelink Rate Request",
@@ -1592,6 +1595,7 @@ if (headerTitle.startsWith("212-")) {
     exclusions = [
         "Standard Rate Request",
         "CareIQ Rate Request",
+        "CareIQ Passenger Fee",
         "Convergence Higher Rate Request",
         "Homelink Rate Request",
         "JBS Request for Higher Rates"
@@ -1600,6 +1604,7 @@ if (headerTitle.startsWith("212-")) {
     exclusions = [
         "Standard Rate Request",
         "CareIQ Rate Request",
+        "CareIQ Passenger Fee",
         "JBS Request for Higher Rates",
         "CareWorks Rate Request",
         "Homelink Rate Request",
@@ -1620,6 +1625,7 @@ if (headerTitle.startsWith("212-")) {
     exclusions = [
         "JBS Request for Higher Rates",
         "CareIQ Rate Request",
+        "CareIQ Passenger Fee",
         "CareWorks Rate Request",
         "Homelink Rate Request",
         "Convergence Higher Rate Request",
@@ -1635,20 +1641,39 @@ if (headerTitle.startsWith("212-")) {
         const start = isStaff ? "#fde047" : "#3b82f6";
         const end   = isStaff ? "#facc15" : "#60a5fa";
 
+        let buttonLabel = optionText;
+
+        if (/passenger fee/i.test(optionText)) {
+            buttonLabel = "👤 " + optionText;
+        } else if (/wait time/i.test(optionText)) {
+            buttonLabel = "🕒 " + optionText;
+        } else if (/staff/i.test(optionText)) {
+            buttonLabel = "✅ " + optionText;
+        } else if (/demographics/i.test(optionText)) {
+            buttonLabel = "📋 " + optionText;
+        } else if (/quote/i.test(optionText)) {
+            buttonLabel = "🧾 " + optionText;
+        } else if (/other/i.test(optionText)) {
+            buttonLabel = "⚙️ " + optionText;
+        } else if (/rate request/i.test(optionText) || /higher rates/i.test(optionText)) {
+            buttonLabel = "💵 " + optionText;
+        }
+
         const button = createModernButton(
-            optionText,
+            buttonLabel,   // only changes what user sees
             start, end,
             () => {
-                finalizeCopy(claimant, claim, referralDate, optionText);
+                finalizeCopy(claimant, claim, referralDate, optionText); // keeps real template name
                 dropdownContainer.remove();
             }
         );
+
         button.style.width = "100%";
         dropdownContainer.appendChild(button);
     });
 
     const closeButton = createModernButton(
-        "Close",
+        "❌ Close",
         "#7f1d1d", "#f87171",
         () => dropdownContainer.remove()
     );
@@ -2218,6 +2243,9 @@ function selectCorrectRadioButton(selectedOption) {
         labelToFind = "Request for Higher Rates";
     } else if (selectedOption === "CareIQ Rate Request") {
         labelToFind = "CIQ Higher Rate Request";
+        startCareIqPassengerWatch();
+    } else if (selectedOption === "CareIQ Passenger Fee") {
+        labelToFind = "CIQ - **Request for Additional Passenger Fee**";
         startCareIqPassengerWatch();
     } else if (selectedOption === "Homelink Rate Request") {
         labelToFind = "Homelink – Request for Higher Rates";
