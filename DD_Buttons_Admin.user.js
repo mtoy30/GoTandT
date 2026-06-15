@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.65
+// @version      4.1.66
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -4170,7 +4170,7 @@ function showTemplateReminderPopup(message) {
             const button2 = createModernButton('Copy Name/SP Tab', '#3b82f6', '#60a5fa', copyClaimantName);
             const button3 = createModernButton('ClaimantID', '#3b82f6', '#60a5fa', extractAndCopyTitle);
             const button4 = createModernButton('Margin', '#22c55e', '#4ade80', openCombinedMarginSelector);
-            const button5 = createModernButton('Multi Rates', '#dc2626', '#f87171', () => {
+            const button5 = createModernButton('Multi Day Rates', '#dc2626', '#f87171', () => {
                 if (typeof window.ddApplyLastAuthorizedRates === 'function') {
                     window.ddApplyLastAuthorizedRates();
                 } else {
