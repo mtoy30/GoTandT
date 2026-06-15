@@ -18,6 +18,8 @@
     function init() {
 
     let processingTimeoutId = null;
+    window.ddLastAuthorizedRatePayload = window.ddLastAuthorizedRatePayload || null;
+    window.ddLastAuthorizedRateSavedAt = window.ddLastAuthorizedRateSavedAt || null;
 
     const style = document.createElement('style');
     style.innerHTML = `
@@ -1062,8 +1064,32 @@ function getTransportPreviewAmount() {
             };
         }
 
-        function applyHigherRatesToAuthorizationFields() {
+        function authorizationPayloadHasAtLeastOneRate(ratePayload) {
+            return Object.entries(ratePayload).some(([label, value]) => label !== "Transport Rate Type" && value !== "" && value !== null && value !== undefined);
+        }
+
+        function saveLastAuthorizedRatesFromCalculator() {
             const ratePayload = buildAuthorizationRatePayload();
+
+            if (!authorizationPayloadHasAtLeastOneRate(ratePayload)) {
+                window.ddLastAuthorizedRatePayload = null;
+                window.ddLastAuthorizedRateSavedAt = null;
+                return false;
+            }
+
+            window.ddLastAuthorizedRatePayload = { ...ratePayload };
+            window.ddLastAuthorizedRateSavedAt = new Date().toISOString();
+            console.log("Saved Authorized Rates payload", window.ddLastAuthorizedRatePayload);
+            return true;
+        }
+
+        function applyHigherRatesToAuthorizationFields(savedPayload) {
+            const ratePayload = savedPayload || buildAuthorizationRatePayload();
+
+            if (!authorizationPayloadHasAtLeastOneRate(ratePayload)) {
+                showCenteredOverlayMessage("Enter at least one higher rate before applying rates.", false, 2500);
+                return;
+            }
 
             clickDynamicsTabByLabel("General", () => {
                 setTimeout(() => {
@@ -1079,7 +1105,7 @@ function getTransportPreviewAmount() {
                                     });
 
                                     setTimeout(() => {
-                                        showCenteredOverlayMessage("Please review rates entered. Then notate and save the referral", true, 3000);
+                                        showCenteredOverlayMessage("Please reveiw rates. Notate and save the referral", true, 3000);
                                         console.log("Authorized Rates payload applied", ratePayload, "Fields updated:", updatedCount);
                                     }, 900);
                                 };
@@ -1098,6 +1124,25 @@ function getTransportPreviewAmount() {
                 }, 700);
             }, 900);
         }
+
+        window.ddApplyLastAuthorizedRates = function() {
+            const savedPayload = window.ddLastAuthorizedRatePayload;
+            if (!savedPayload || !authorizationPayloadHasAtLeastOneRate(savedPayload)) {
+                showCenteredOverlayMessage("No saved rates found. Open Margin Calculator and use Request Rates, Apply & Staff, Homelink, or Boomerang first.", false, 3500);
+                return;
+            }
+            applyHigherRatesToAuthorizationFields(savedPayload);
+        };
+
+        const applySavedRatesButton = createModernButton("Apply Rates", "#16a34a", "#86efac");
+        applySavedRatesButton.onclick = () => {
+            calculateMargin();
+            setTimeout(() => {
+                if (saveLastAuthorizedRatesFromCalculator()) {
+                    applyHigherRatesToAuthorizationFields(window.ddLastAuthorizedRatePayload);
+                }
+            }, 250);
+        };
 
         const requestRatesButton = createModernButton("Request Rates", "#22c55e", "#4ade80");
         requestRatesButton.onclick = () => {
@@ -1121,6 +1166,8 @@ function getTransportPreviewAmount() {
 
             const finalParts = buildPartsString(productInputs, {}, miles, loadFeeQuantity);
             const finalText = "Request rates " + finalParts;
+
+            saveLastAuthorizedRatesFromCalculator();
 
             navigator.clipboard.writeText(finalText).then(() => {
                 const copiedMsg = document.createElement("div");
@@ -1167,6 +1214,8 @@ function getTransportPreviewAmount() {
 
             const finalParts = buildPartsString(productInputs, {}, miles, loadFeeQuantity);
             const finalText = "Apply rates " + finalParts + " // Advise in Staffing email";
+
+            saveLastAuthorizedRatesFromCalculator();
 
             navigator.clipboard.writeText(finalText).then(() => {
                 const copiedMsg = document.createElement("div");
@@ -1271,6 +1320,8 @@ function getTransportPreviewAmount() {
 
             const extrasText = extras.length > 0 ? `. ${extras.join(", ")}` : "";
             const homelinkText = `Request Flat Rate of $${higherTotal.toFixed(2)}${extrasText}. ${goatString}`;
+
+            saveLastAuthorizedRatesFromCalculator();
 
             navigator.clipboard.writeText(homelinkText).then(() => {
                 const copiedMsg = document.createElement("div");
@@ -1395,6 +1446,8 @@ function getTransportPreviewAmount() {
             } else {
                 boomerangText = `Request Rates ${partsString}. **Secure with Boomerang and leave in provider stage until rates approved`;
             }
+
+            saveLastAuthorizedRatesFromCalculator();
 
             navigator.clipboard.writeText(boomerangText).then(() => {
                 const copiedMsg = document.createElement("div");
@@ -4117,11 +4170,19 @@ function showTemplateReminderPopup(message) {
             const button2 = createModernButton('Copy Name/SP Tab', '#3b82f6', '#60a5fa', copyClaimantName);
             const button3 = createModernButton('ClaimantID', '#3b82f6', '#60a5fa', extractAndCopyTitle);
             const button4 = createModernButton('Margin', '#22c55e', '#4ade80', openCombinedMarginSelector);
+            const button5 = createModernButton('Multi Rates', '#dc2626', '#f87171', () => {
+                if (typeof window.ddApplyLastAuthorizedRates === 'function') {
+                    window.ddApplyLastAuthorizedRates();
+                } else {
+                    showCenteredOverlayMessage('No saved rates found. Open Margin Calculator and use Request Rates, Apply & Staff, Homelink, or Boomerang first.', false, 3500);
+                }
+            });
 
             buttonContainer.appendChild(button3);
             buttonContainer.appendChild(button2);
             buttonContainer.appendChild(button1);
             buttonContainer.appendChild(button4);
+            buttonContainer.appendChild(button5);
 
             searchBox.parentNode.insertBefore(buttonContainer, searchBox.nextSibling);
             console.log('Buttons created and inserted next to #searchBoxLiveRegion.');
