@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.66
+// @version      4.2.0
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -18,8 +18,421 @@
     function init() {
 
     let processingTimeoutId = null;
+
+
+    const DD_LAST_AUTH_RATES_STORAGE_KEY = "DD_Buttons_Admin_LastAuthorizedRates";
+    const DD_LAST_AUTH_RATES_BACKUP_KEY = "DD_Buttons_Admin_LastAuthorizedRates_Backup";
+
+    function ddSafeGetGMValue(key, fallbackValue = null) {
+        try {
+            if (typeof GM_getValue === "function") {
+                const value = GM_getValue(key, fallbackValue);
+                // Tampermonkey GM_getValue is synchronous. If another manager returns a Promise,
+                // fall back to browser storage so we do not break the click flow.
+                if (value && typeof value.then === "function") return fallbackValue;
+                return value;
+            }
+        } catch (e) {
+            console.warn("Unable to read GM value", key, e);
+        }
+        return fallbackValue;
+    }
+
+    function ddSafeSetGMValue(key, value) {
+        try {
+            if (typeof GM_setValue === "function") {
+                GM_setValue(key, value);
+                return true;
+            }
+        } catch (e) {
+            console.warn("Unable to save GM value", key, e);
+        }
+        return false;
+    }
+
+    function ddSaveLastAuthorizedRatesGlobal(ratePayload) {
+        // Do not erase the last good rates when a temporary/read failure returns blank.
+        if (!ratePayload) return false;
+
+        window.ddLastAuthorizedRatePayload = { ...ratePayload };
+        window.ddLastAuthorizedRateSavedAt = new Date().toISOString();
+
+        const savedObject = {
+            savedAt: window.ddLastAuthorizedRateSavedAt,
+            url: location.href,
+            title: document.title || "",
+            payload: ratePayload
+        };
+
+        try {
+            const savedText = JSON.stringify(savedObject);
+            const backupText = JSON.stringify(ratePayload);
+
+            // GM storage is shared between all matching Dynamics tabs/windows in Tampermonkey.
+            ddSafeSetGMValue(DD_LAST_AUTH_RATES_STORAGE_KEY, savedText);
+            ddSafeSetGMValue(DD_LAST_AUTH_RATES_BACKUP_KEY, backupText);
+
+            // Keep browser storage as an extra same-tab / same-origin fallback.
+            localStorage.setItem(DD_LAST_AUTH_RATES_STORAGE_KEY, savedText);
+            localStorage.setItem(DD_LAST_AUTH_RATES_BACKUP_KEY, backupText);
+            sessionStorage.setItem(DD_LAST_AUTH_RATES_STORAGE_KEY, savedText);
+            sessionStorage.setItem(DD_LAST_AUTH_RATES_BACKUP_KEY, backupText);
+
+            console.log("Saved last Authorized Rates", savedObject);
+            return true;
+        } catch (e) {
+            console.warn("Unable to save last authorized rates", e);
+            return false;
+        }
+    }
+
+    function ddParseSavedAuthorizedRates(raw, key) {
+        try {
+            if (!raw) return null;
+            const saved = typeof raw === "string" ? JSON.parse(raw) : raw;
+            if (saved && saved.payload) return saved.payload;
+            if (saved && typeof saved === "object") return saved;
+        } catch (e) {
+            console.warn("Unable to parse saved authorized rates", key, e);
+        }
+        return null;
+    }
+
+    function ddReadSavedAuthorizedRatesFromStorage(storage, key) {
+        try {
+            const raw = storage.getItem(key);
+            return ddParseSavedAuthorizedRates(raw, key);
+        } catch (e) {
+            console.warn("Unable to read saved authorized rates", key, e);
+        }
+        return null;
+    }
+
+    function ddLoadLastAuthorizedRatesGlobal() {
+        if (window.ddLastAuthorizedRatePayload) return window.ddLastAuthorizedRatePayload;
+
+        const payload =
+            ddParseSavedAuthorizedRates(ddSafeGetGMValue(DD_LAST_AUTH_RATES_STORAGE_KEY, null), DD_LAST_AUTH_RATES_STORAGE_KEY) ||
+            ddParseSavedAuthorizedRates(ddSafeGetGMValue(DD_LAST_AUTH_RATES_BACKUP_KEY, null), DD_LAST_AUTH_RATES_BACKUP_KEY) ||
+            ddReadSavedAuthorizedRatesFromStorage(localStorage, DD_LAST_AUTH_RATES_STORAGE_KEY) ||
+            ddReadSavedAuthorizedRatesFromStorage(localStorage, DD_LAST_AUTH_RATES_BACKUP_KEY) ||
+            ddReadSavedAuthorizedRatesFromStorage(sessionStorage, DD_LAST_AUTH_RATES_STORAGE_KEY) ||
+            ddReadSavedAuthorizedRatesFromStorage(sessionStorage, DD_LAST_AUTH_RATES_BACKUP_KEY);
+
+        if (!payload) return null;
+
+        window.ddLastAuthorizedRatePayload = { ...payload };
+        return window.ddLastAuthorizedRatePayload;
+    }
     window.ddLastAuthorizedRatePayload = window.ddLastAuthorizedRatePayload || null;
     window.ddLastAuthorizedRateSavedAt = window.ddLastAuthorizedRateSavedAt || null;
+
+
+    function ddAuthNormalizeOptionText(text) {
+        return (text || "")
+            .replace(/\s+/g, " ")
+            .replace(/[–—]/g, "-")
+            .trim()
+            .toLowerCase();
+    }
+
+    function ddAuthVisibleElement(el) {
+        if (!el) return false;
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+    }
+
+    function ddAuthClickLikeUser(el) {
+        if (!el) return false;
+        el.focus?.();
+        el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'mouse' }));
+        el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'mouse' }));
+        el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+        el.click();
+        return true;
+    }
+
+    function ddAuthClickDynamicsTabByLabel(label, callback, delay = 900) {
+        const wanted = ddAuthNormalizeOptionText(label);
+        const tab = Array.from(document.querySelectorAll('li[role="tab"], [role="tab"]')).find(el => {
+            const aria = ddAuthNormalizeOptionText(el.getAttribute('aria-label'));
+            const title = ddAuthNormalizeOptionText(el.getAttribute('title'));
+            const text = ddAuthNormalizeOptionText(el.textContent);
+            return aria === wanted || title === wanted || text === wanted;
+        });
+
+        if (!tab) {
+            showMessage(`Could not find ${label} tab.`, false);
+            if (callback) callback(false);
+            return;
+        }
+
+        ddAuthClickLikeUser(tab);
+        setTimeout(() => callback && callback(true), delay);
+    }
+
+    function ddAuthSetReactInputValue(input, value) {
+        if (!input || value === "" || value === null || value === undefined) return false;
+        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        valueSetter ? valueSetter.call(input, value) : input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.dispatchEvent(new Event('blur', { bubbles: true }));
+        return true;
+    }
+
+    function ddAuthFindFieldByAriaLabel(label) {
+        return document.querySelector(`input[aria-label="${CSS.escape(label)}"], textarea[aria-label="${CSS.escape(label)}"]`);
+    }
+
+    function ddAuthFindFieldNearVisibleLabel(label) {
+        const labelEls = Array.from(document.querySelectorAll('label, span, div')).filter(el => (el.textContent || '').trim() === label);
+        for (const labelEl of labelEls) {
+            const container = labelEl.closest('[data-id], .pa-gd, .flexbox, section, div') || labelEl.parentElement;
+            const field = container?.querySelector('input, textarea, [role="combobox"] input');
+            if (field) return field;
+        }
+        return null;
+    }
+
+    function ddAuthSetFieldByLabel(label, value) {
+        if (value === "" || value === null || value === undefined) return false;
+        const field = ddAuthFindFieldByAriaLabel(label) || ddAuthFindFieldNearVisibleLabel(label);
+        if (!field) {
+            console.warn(`Authorization field not found: ${label}`);
+            return false;
+        }
+        return ddAuthSetReactInputValue(field, value);
+    }
+
+    function ddAuthGetDropdownControlByLabel(label) {
+        const safeLabel = (label || "").replace(/"/g, '\\"');
+        const direct = document.querySelector(
+            `[aria-label="${safeLabel}"], input[aria-label="${safeLabel}"], [title="${safeLabel}"], input[title="${safeLabel}"]`
+        );
+        if (direct && ddAuthVisibleElement(direct)) return direct;
+
+        const dataIdNeedle = label.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const dataIdMatch = Array.from(document.querySelectorAll('[data-id], input, button, [role="combobox"]')).find(el => {
+            const txt = `${el.getAttribute('data-id') || ''} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('title') || ''}`.toLowerCase().replace(/[^a-z0-9]/g, "");
+            return txt.includes(dataIdNeedle) && ddAuthVisibleElement(el);
+        });
+        if (dataIdMatch) return dataIdMatch;
+
+        const labelEls = Array.from(document.querySelectorAll('label, span, div')).filter(el =>
+            ddAuthNormalizeOptionText(el.textContent) === ddAuthNormalizeOptionText(label)
+        );
+
+        for (const labelEl of labelEls) {
+            let container = labelEl;
+            for (let i = 0; i < 8 && container; i++, container = container.parentElement) {
+                const field = container.querySelector('input[role="combobox"], [role="combobox"], input, button[aria-haspopup="listbox"], button[aria-expanded]');
+                if (field && ddAuthVisibleElement(field)) return field;
+            }
+        }
+
+        return ddAuthFindFieldNearVisibleLabel(label);
+    }
+
+    function ddAuthFindOpenDropdownOption(value) {
+        const wanted = ddAuthNormalizeOptionText(value);
+        const optionSelectors = [
+            '[role="option"]',
+            '[data-testid*="option"]',
+            '[data-id*="option"]',
+            '[data-id*="Option"]',
+            'div[id*="fluent-listbox"] [role="option"]'
+        ];
+
+        let candidates = Array.from(document.querySelectorAll(optionSelectors.join(',')))
+            .filter(ddAuthVisibleElement)
+            .sort((a, b) => {
+                const ar = a.getBoundingClientRect();
+                const br = b.getBoundingClientRect();
+                return (ar.width * ar.height) - (br.width * br.height);
+            });
+
+        let found = candidates.find(el => ddAuthNormalizeOptionText(el.textContent) === wanted) ||
+                    candidates.find(el => ddAuthNormalizeOptionText(el.getAttribute('aria-label')) === wanted) ||
+                    candidates.find(el => ddAuthNormalizeOptionText(el.getAttribute('title')) === wanted) ||
+                    candidates.find(el => ddAuthNormalizeOptionText(el.textContent).includes(wanted));
+        if (found) return found;
+
+        candidates = Array.from(document.querySelectorAll('li, button, span'))
+            .filter(ddAuthVisibleElement)
+            .sort((a, b) => {
+                const ar = a.getBoundingClientRect();
+                const br = b.getBoundingClientRect();
+                return (ar.width * ar.height) - (br.width * br.height);
+            });
+
+        return candidates.find(el => ddAuthNormalizeOptionText(el.textContent) === wanted) ||
+               candidates.find(el => ddAuthNormalizeOptionText(el.getAttribute('aria-label')) === wanted) ||
+               candidates.find(el => ddAuthNormalizeOptionText(el.getAttribute('title')) === wanted) ||
+               candidates.find(el => ddAuthNormalizeOptionText(el.textContent).includes(wanted));
+    }
+
+    function ddAuthGetTransportRateTypeControl() {
+        return document.querySelector('button[data-id="gtt_authtransportratetype.fieldControl-option-set-select"][aria-label="Transport Rate Type"]') ||
+               document.querySelector('[data-id="gtt_authtransportratetype.fieldControl-option-set-select"]') ||
+               ddAuthGetDropdownControlByLabel('Transport Rate Type');
+    }
+
+    function ddAuthSetTransportRateTypePerMile(callback) {
+        const control = ddAuthGetTransportRateTypeControl();
+        if (!control || !ddAuthVisibleElement(control)) {
+            console.warn('Transport Rate Type dropdown not found.');
+            if (callback) callback(false);
+            return false;
+        }
+
+        const current = ddAuthNormalizeOptionText(control.textContent || control.getAttribute('title') || '');
+        if (current === ddAuthNormalizeOptionText('Per Mile')) {
+            if (callback) callback(true);
+            return true;
+        }
+
+        ddAuthClickLikeUser(control);
+        let attempts = 0;
+        const maxAttempts = 20;
+
+        const trySelectPerMile = () => {
+            attempts++;
+
+            if (attempts === 3 && control.getAttribute('aria-expanded') !== 'true') {
+                ddAuthClickLikeUser(control);
+            }
+
+            const option = ddAuthFindOpenDropdownOption('Per Mile');
+            if (option) {
+                option.scrollIntoView({ block: 'center' });
+                ddAuthClickLikeUser(option);
+                control.dispatchEvent(new Event('change', { bubbles: true }));
+                control.dispatchEvent(new Event('blur', { bubbles: true }));
+                setTimeout(() => callback && callback(true), 350);
+                return;
+            }
+
+            if (attempts === 8) {
+                control.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', code: 'KeyP', bubbles: true }));
+                control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+            }
+
+            if (attempts < maxAttempts) {
+                setTimeout(trySelectPerMile, 250);
+            } else {
+                console.warn('Could not select Transport Rate Type = Per Mile.');
+                if (callback) callback(false);
+            }
+        };
+
+        setTimeout(trySelectPerMile, 400);
+        return true;
+    }
+
+    function ddAuthSetLookupOrDropdownByLabel(label, value, callback) {
+        if (label === 'Transport Rate Type' && ddAuthNormalizeOptionText(value) === ddAuthNormalizeOptionText('Per Mile')) {
+            return ddAuthSetTransportRateTypePerMile(callback);
+        }
+
+        const control = ddAuthGetDropdownControlByLabel(label);
+        if (!control) {
+            console.warn(`Dropdown field not found: ${label}`);
+            if (callback) callback(false);
+            return false;
+        }
+
+        const input = control.tagName === 'INPUT' ? control : control.querySelector('input') || control;
+        ddAuthClickLikeUser(input);
+
+        if (input.tagName === 'INPUT') {
+            ddAuthSetReactInputValue(input, value);
+        }
+
+        let attempts = 0;
+        const maxAttempts = 12;
+        const trySelect = () => {
+            attempts++;
+            const option = ddAuthFindOpenDropdownOption(value);
+
+            if (option) {
+                option.scrollIntoView({ block: 'center' });
+                ddAuthClickLikeUser(option);
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+                input.dispatchEvent(new Event('blur', { bubbles: true }));
+                if (callback) setTimeout(() => callback(true), 250);
+                return;
+            }
+
+            if (attempts === 4) {
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', bubbles: true }));
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+            }
+
+            if (attempts < maxAttempts) {
+                setTimeout(trySelect, 250);
+            } else {
+                console.warn(`Dropdown option not found: ${label} = ${value}`);
+                if (callback) callback(false);
+            }
+        };
+
+        setTimeout(trySelect, 350);
+        return true;
+    }
+
+    function ddAuthAuthorizationPayloadHasAtLeastOneRate(ratePayload) {
+        if (!ratePayload) return false;
+        return Object.entries(ratePayload).some(([label, value]) => label !== "Transport Rate Type" && value !== "" && value !== null && value !== undefined);
+    }
+
+    function ddAuthApplyHigherRatesToAuthorizationFields(savedPayload) {
+        const ratePayload = savedPayload || ddLoadLastAuthorizedRatesGlobal();
+
+        if (!ddAuthAuthorizationPayloadHasAtLeastOneRate(ratePayload)) {
+            showCenteredOverlayMessage("No saved rates found. Open Margin Calculator and use Request Rates, Apply & Staff, Homelink, or Boomerang first.", false, 3500);
+            return;
+        }
+
+        ddAuthClickDynamicsTabByLabel("General", () => {
+            setTimeout(() => {
+                ddAuthSetLookupOrDropdownByLabel("Rate Approval Status", "Pending - RATE Authorization Requested", () => {
+                    setTimeout(() => {
+                        ddAuthClickDynamicsTabByLabel("Authorized Rates", () => {
+                            let updatedCount = 0;
+
+                            const applyTextFields = () => {
+                                Object.entries(ratePayload).forEach(([label, value]) => {
+                                    if (!value || label === "Transport Rate Type") return;
+                                    if (ddAuthSetFieldByLabel(label, value)) updatedCount++;
+                                });
+
+                                setTimeout(() => {
+                                    showCenteredOverlayMessage("Please review rates. Notate and save the referral", true, 3000);
+                                    console.log("Authorized Rates payload applied from saved rates", ratePayload, "Fields updated:", updatedCount);
+                                }, 900);
+                            };
+
+                            if (ratePayload["Transport Rate Type"]) {
+                                ddAuthSetLookupOrDropdownByLabel("Transport Rate Type", ratePayload["Transport Rate Type"], (selected) => {
+                                    if (selected) updatedCount++;
+                                    setTimeout(applyTextFields, 350);
+                                });
+                            } else {
+                                applyTextFields();
+                            }
+                        }, 1200);
+                    }, 500);
+                });
+            }, 700);
+        }, 900);
+    }
+
+    window.ddApplyLastAuthorizedRates = function() {
+        ddAuthApplyHigherRatesToAuthorizationFields(ddLoadLastAuthorizedRatesGlobal());
+    };
 
     const style = document.createElement('style');
     style.innerHTML = `
@@ -1072,13 +1485,11 @@ function getTransportPreviewAmount() {
             const ratePayload = buildAuthorizationRatePayload();
 
             if (!authorizationPayloadHasAtLeastOneRate(ratePayload)) {
-                window.ddLastAuthorizedRatePayload = null;
-                window.ddLastAuthorizedRateSavedAt = null;
+                console.warn("No authorized rates were found to save. Keeping any previously saved rates.", ratePayload);
                 return false;
             }
 
-            window.ddLastAuthorizedRatePayload = { ...ratePayload };
-            window.ddLastAuthorizedRateSavedAt = new Date().toISOString();
+            ddSaveLastAuthorizedRatesGlobal(ratePayload);
             console.log("Saved Authorized Rates payload", window.ddLastAuthorizedRatePayload);
             return true;
         }
@@ -1105,7 +1516,7 @@ function getTransportPreviewAmount() {
                                     });
 
                                     setTimeout(() => {
-                                        showCenteredOverlayMessage("Please reveiw rates. Notate and save the referral", true, 3000);
+                                        showCenteredOverlayMessage("Please proceed with notating the referral", true, 3000);
                                         console.log("Authorized Rates payload applied", ratePayload, "Fields updated:", updatedCount);
                                     }, 900);
                                 };
@@ -1126,7 +1537,7 @@ function getTransportPreviewAmount() {
         }
 
         window.ddApplyLastAuthorizedRates = function() {
-            const savedPayload = window.ddLastAuthorizedRatePayload;
+            const savedPayload = ddLoadLastAuthorizedRatesGlobal();
             if (!savedPayload || !authorizationPayloadHasAtLeastOneRate(savedPayload)) {
                 showCenteredOverlayMessage("No saved rates found. Open Margin Calculator and use Request Rates, Apply & Staff, Homelink, or Boomerang first.", false, 3500);
                 return;
@@ -1167,7 +1578,9 @@ function getTransportPreviewAmount() {
             const finalParts = buildPartsString(productInputs, {}, miles, loadFeeQuantity);
             const finalText = "Request rates " + finalParts;
 
+            calculateMargin();
             saveLastAuthorizedRatesFromCalculator();
+            setTimeout(saveLastAuthorizedRatesFromCalculator, 600);
 
             navigator.clipboard.writeText(finalText).then(() => {
                 const copiedMsg = document.createElement("div");
@@ -4170,11 +4583,11 @@ function showTemplateReminderPopup(message) {
             const button2 = createModernButton('Copy Name/SP Tab', '#3b82f6', '#60a5fa', copyClaimantName);
             const button3 = createModernButton('ClaimantID', '#3b82f6', '#60a5fa', extractAndCopyTitle);
             const button4 = createModernButton('Margin', '#22c55e', '#4ade80', openCombinedMarginSelector);
-            const button5 = createModernButton('Multi Day Rates', '#dc2626', '#f87171', () => {
+            const button5 = createModernButton('Multi Day Rates', '#991b1b', '#ef4444', () => {
                 if (typeof window.ddApplyLastAuthorizedRates === 'function') {
                     window.ddApplyLastAuthorizedRates();
                 } else {
-                    showCenteredOverlayMessage('No saved rates found. Open Margin Calculator and use Request Rates, Apply & Staff, Homelink, or Boomerang first.', false, 3500);
+                    showCenteredOverlayMessage('Multi Rates helper is not ready. Refresh the page and try again.', false, 2500);
                 }
             });
 
