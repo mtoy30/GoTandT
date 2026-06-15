@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.64
+// @version      4.1.65
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -705,6 +705,400 @@ function getTransportPreviewAmount() {
             return parts.join(", ");
         }
 
+
+
+        function getHigherRateInputValue(label) {
+            return (productInputs[label]?.value || "").trim();
+        }
+
+        function getContractPriceForProduct(productName) {
+            const rows = document.querySelectorAll('div[row-index], [role="row"]');
+            for (const row of rows) {
+                const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+                const priceCell = row.querySelector('[col-id="gtt_price"]');
+                if (!productCell || !priceCell) continue;
+                if ((productCell.innerText || "").trim() !== productName) continue;
+                const priceValue = parseFloat((priceCell.innerText || "").replace(/[^0-9.-]+/g, ''));
+                if (!isNaN(priceValue) && priceValue > 0) return priceValue.toFixed(2);
+            }
+            return "";
+        }
+
+        function normalizeHigherRateValue(label) {
+            const raw = getHigherRateInputValue(label);
+            if (!raw) return "";
+            if (/contract/i.test(raw)) {
+                if (label === "No Show") {
+                    const previewText = (noShowPreview?.innerText || "").replace(/[^0-9.-]+/g, '');
+                    if (previewText) return parseFloat(previewText).toFixed(2);
+                }
+                return getContractPriceForProduct(label);
+            }
+            const num = parseFloat(raw.replace(/[^0-9.-]+/g, ''));
+            return isNaN(num) ? raw : num.toFixed(2);
+        }
+
+        function normalizeHigherRateValueForAuth(label) {
+            const raw = getHigherRateInputValue(label);
+            if (!raw) return "";
+
+            // For Authorized Rates, contract Wait Time should be skipped.
+            // No Show / Cancel Fee still need the calculated green preview amount.
+            if (/contract/i.test(raw) && label === "Wait Time") return "";
+
+            return normalizeHigherRateValue(label);
+        }
+
+        function isContractTransportRateForAuth() {
+            const transportLabels = [
+                "Transport Ambulatory",
+                "Transport Wheelchair",
+                "Transport Stretcher, ALS & BLS"
+            ];
+
+            return transportLabels.some(label => /contract/i.test(getHigherRateInputValue(label)));
+        }
+
+        function getActiveTransportRateForAuth() {
+            const transportLabels = [
+                "Transport Ambulatory",
+                "Transport Wheelchair",
+                "Transport Stretcher, ALS & BLS"
+            ];
+
+            for (const label of transportLabels) {
+                const value = normalizeHigherRateValue(label);
+                if (value) return value;
+            }
+            return "";
+        }
+
+        function clickDynamicsTabByLabel(label, callback, delay = 900) {
+            const tab = Array.from(document.querySelectorAll('li[role="tab"], [role="tab"]')).find(el => {
+                const aria = (el.getAttribute('aria-label') || '').trim();
+                const title = (el.getAttribute('title') || '').trim();
+                const text = (el.textContent || '').trim();
+                return aria === label || title === label || text === label;
+            });
+
+            if (!tab) {
+                showMessage(`Could not find ${label} tab.`, false);
+                if (callback) callback(false);
+                return;
+            }
+
+            tab.click();
+            setTimeout(() => callback && callback(true), delay);
+        }
+
+        function setReactInputValue(input, value) {
+            if (!input || value === "" || value === null || value === undefined) return false;
+            const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+            valueSetter ? valueSetter.call(input, value) : input.value = value;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            input.dispatchEvent(new Event('blur', { bubbles: true }));
+            return true;
+        }
+
+        function findFieldByAriaLabel(label) {
+            return document.querySelector(`input[aria-label="${CSS.escape(label)}"], textarea[aria-label="${CSS.escape(label)}"]`);
+        }
+
+        function findFieldNearVisibleLabel(label) {
+            const labelEls = Array.from(document.querySelectorAll('label, span, div')).filter(el => (el.textContent || '').trim() === label);
+            for (const labelEl of labelEls) {
+                const container = labelEl.closest('[data-id], .pa-gd, .flexbox, section, div') || labelEl.parentElement;
+                const field = container?.querySelector('input, textarea, [role="combobox"] input');
+                if (field) return field;
+            }
+            return null;
+        }
+
+        function setFieldByLabel(label, value) {
+            if (value === "" || value === null || value === undefined) return false;
+            const field = findFieldByAriaLabel(label) || findFieldNearVisibleLabel(label);
+            if (!field) {
+                console.warn(`Authorization field not found: ${label}`);
+                return false;
+            }
+            return setReactInputValue(field, value);
+        }
+
+        function normalizeOptionText(text) {
+            return (text || "")
+                .replace(/\s+/g, " ")
+                .replace(/[–—]/g, "-")
+                .trim()
+                .toLowerCase();
+        }
+
+        function visibleElement(el) {
+            if (!el) return false;
+            const rect = el.getBoundingClientRect();
+            const style = window.getComputedStyle(el);
+            return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+        }
+
+        function getDropdownControlByLabel(label) {
+            const safeLabel = (label || "").replace(/"/g, '\\"');
+            const direct = document.querySelector(
+                `[aria-label="${safeLabel}"], input[aria-label="${safeLabel}"], [title="${safeLabel}"], input[title="${safeLabel}"]`
+            );
+            if (direct && visibleElement(direct)) return direct;
+
+            const dataIdNeedle = label.toLowerCase().replace(/[^a-z0-9]/g, "");
+            const dataIdMatch = Array.from(document.querySelectorAll('[data-id], input, button, [role="combobox"]')).find(el => {
+                const txt = `${el.getAttribute('data-id') || ''} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('title') || ''}`.toLowerCase().replace(/[^a-z0-9]/g, "");
+                return txt.includes(dataIdNeedle) && visibleElement(el);
+            });
+            if (dataIdMatch) return dataIdMatch;
+
+            const labelEls = Array.from(document.querySelectorAll('label, span, div')).filter(el =>
+                normalizeOptionText(el.textContent) === normalizeOptionText(label)
+            );
+
+            for (const labelEl of labelEls) {
+                let container = labelEl;
+                for (let i = 0; i < 8 && container; i++, container = container.parentElement) {
+                    const field = container.querySelector('input[role="combobox"], [role="combobox"], input, button[aria-haspopup="listbox"], button[aria-expanded]');
+                    if (field && visibleElement(field)) return field;
+                }
+            }
+
+            return findFieldNearVisibleLabel(label);
+        }
+
+        function findOpenDropdownOption(value) {
+            const wanted = normalizeOptionText(value);
+
+            // Prefer real Fluent/Dynamics option rows first. Avoid broad parent DIVs that can contain
+            // the option text but are not clickable selections.
+            const optionSelectors = [
+                '[role="option"]',
+                '[data-testid*="option"]',
+                '[data-id*="option"]',
+                '[data-id*="Option"]',
+                'div[id*="fluent-listbox"] [role="option"]'
+            ];
+
+            let candidates = Array.from(document.querySelectorAll(optionSelectors.join(',')))
+                .filter(visibleElement)
+                .sort((a, b) => {
+                    const ar = a.getBoundingClientRect();
+                    const br = b.getBoundingClientRect();
+                    return (ar.width * ar.height) - (br.width * br.height);
+                });
+
+            let found = candidates.find(el => normalizeOptionText(el.textContent) === wanted) ||
+                        candidates.find(el => normalizeOptionText(el.getAttribute('aria-label')) === wanted) ||
+                        candidates.find(el => normalizeOptionText(el.getAttribute('title')) === wanted) ||
+                        candidates.find(el => normalizeOptionText(el.textContent).includes(wanted));
+            if (found) return found;
+
+            // Fallback for Dynamics portals that render list items without role="option".
+            candidates = Array.from(document.querySelectorAll('li, button, span'))
+                .filter(visibleElement)
+                .sort((a, b) => {
+                    const ar = a.getBoundingClientRect();
+                    const br = b.getBoundingClientRect();
+                    return (ar.width * ar.height) - (br.width * br.height);
+                });
+
+            return candidates.find(el => normalizeOptionText(el.textContent) === wanted) ||
+                   candidates.find(el => normalizeOptionText(el.getAttribute('aria-label')) === wanted) ||
+                   candidates.find(el => normalizeOptionText(el.getAttribute('title')) === wanted) ||
+                   candidates.find(el => normalizeOptionText(el.textContent).includes(wanted));
+        }
+
+        function clickLikeUser(el) {
+            if (!el) return false;
+            el.focus?.();
+            el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'mouse' }));
+            el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+            el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'mouse' }));
+            el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+            el.click();
+            return true;
+        }
+
+        function getTransportRateTypeControl() {
+            return document.querySelector('button[data-id="gtt_authtransportratetype.fieldControl-option-set-select"][aria-label="Transport Rate Type"]') ||
+                   document.querySelector('[data-id="gtt_authtransportratetype.fieldControl-option-set-select"]') ||
+                   getDropdownControlByLabel('Transport Rate Type');
+        }
+
+        function setTransportRateTypePerMile(callback) {
+            const control = getTransportRateTypeControl();
+            if (!control || !visibleElement(control)) {
+                console.warn('Transport Rate Type dropdown not found.');
+                if (callback) callback(false);
+                return false;
+            }
+
+            const current = normalizeOptionText(control.textContent || control.getAttribute('title') || '');
+            if (current === normalizeOptionText('Per Mile')) {
+                if (callback) callback(true);
+                return true;
+            }
+
+            clickLikeUser(control);
+
+            let attempts = 0;
+            const maxAttempts = 20;
+
+            const trySelectPerMile = () => {
+                attempts++;
+
+                // If it did not open, click again using the exact combobox button.
+                if (attempts === 3 && control.getAttribute('aria-expanded') !== 'true') {
+                    clickLikeUser(control);
+                }
+
+                const option = findOpenDropdownOption('Per Mile');
+                if (option) {
+                    option.scrollIntoView({ block: 'center' });
+                    clickLikeUser(option);
+                    control.dispatchEvent(new Event('change', { bubbles: true }));
+                    control.dispatchEvent(new Event('blur', { bubbles: true }));
+
+                    setTimeout(() => {
+                        const after = normalizeOptionText(control.textContent || control.getAttribute('title') || '');
+                        if (callback) callback(after.includes('per mile') || true);
+                    }, 350);
+                    return;
+                }
+
+                // Last-resort keyboard path for Fluent UI comboboxes.
+                if (attempts === 8) {
+                    control.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', code: 'KeyP', bubbles: true }));
+                    control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+                }
+
+                if (attempts < maxAttempts) {
+                    setTimeout(trySelectPerMile, 250);
+                } else {
+                    console.warn('Could not select Transport Rate Type = Per Mile.');
+                    if (callback) callback(false);
+                }
+            };
+
+            setTimeout(trySelectPerMile, 400);
+            return true;
+        }
+
+        function setLookupOrDropdownByLabel(label, value, callback) {
+            if (label === 'Transport Rate Type' && normalizeOptionText(value) === normalizeOptionText('Per Mile')) {
+                return setTransportRateTypePerMile(callback);
+            }
+
+            const control = getDropdownControlByLabel(label);
+            if (!control) {
+                console.warn(`Dropdown field not found: ${label}`);
+                if (callback) callback(false);
+                return false;
+            }
+
+            const input = control.tagName === 'INPUT' ? control : control.querySelector('input') || control;
+            clickLikeUser(input);
+
+            // First try typing the exact value. Dynamics choice controls often filter options this way.
+            if (input.tagName === 'INPUT') {
+                setReactInputValue(input, value);
+            }
+
+            let attempts = 0;
+            const maxAttempts = 12;
+
+            const trySelect = () => {
+                attempts++;
+                const option = findOpenDropdownOption(value);
+
+                if (option) {
+                    option.scrollIntoView({ block: 'center' });
+                    clickLikeUser(option);
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                    input.dispatchEvent(new Event('blur', { bubbles: true }));
+                    if (callback) setTimeout(() => callback(true), 250);
+                    return;
+                }
+
+                if (attempts === 4) {
+                    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', bubbles: true }));
+                    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+                }
+
+                if (attempts < maxAttempts) {
+                    setTimeout(trySelect, 250);
+                } else {
+                    console.warn(`Dropdown option not found: ${label} = ${value}`);
+                    if (callback) callback(false);
+                }
+            };
+
+            setTimeout(trySelect, 350);
+            return true;
+        }
+
+        function buildAuthorizationRatePayload() {
+            const isContractTransport = isContractTransportRateForAuth();
+            const transportRate = isContractTransport ? "" : getActiveTransportRateForAuth();
+            const noShowValue = normalizeHigherRateValueForAuth("No Show");
+
+            return {
+                // If transport is Contract Rates, do not touch Transport Rate Type or Transport Rate.
+                "Transport Rate Type": (!isContractTransport && transportRate) ? "Per Mile" : "",
+                "Transport Rate": (!isContractTransport && transportRate) ? transportRate : "",
+
+                // Contract Wait Time should not be entered on Authorized Rates.
+                "Wait Time Fee": normalizeHigherRateValueForAuth("Wait Time"),
+
+                // Contract No Show still uses the green preview amount and also fills Cancel Fee.
+                "No Show": noShowValue,
+                "Load Fee": normalizeHigherRateValueForAuth("Load Fee"),
+                "Cancel Fee": noShowValue,
+                "Dead Miles": normalizeHigherRateValueForAuth("Miscellaneous Dead Miles"),
+                "Tolls": normalizeHigherRateValueForAuth("Tolls")
+            };
+        }
+
+        function applyHigherRatesToAuthorizationFields() {
+            const ratePayload = buildAuthorizationRatePayload();
+
+            clickDynamicsTabByLabel("General", () => {
+                setTimeout(() => {
+                    setLookupOrDropdownByLabel("Rate Approval Status", "Pending - RATE Authorization Requested", () => {
+                        setTimeout(() => {
+                            clickDynamicsTabByLabel("Authorized Rates", () => {
+                                let updatedCount = 0;
+
+                                const applyTextFields = () => {
+                                    Object.entries(ratePayload).forEach(([label, value]) => {
+                                        if (!value || label === "Transport Rate Type") return;
+                                        if (setFieldByLabel(label, value)) updatedCount++;
+                                    });
+
+                                    setTimeout(() => {
+                                        showCenteredOverlayMessage("Please review rates entered. Then notate and save the referral", true, 3000);
+                                        console.log("Authorized Rates payload applied", ratePayload, "Fields updated:", updatedCount);
+                                    }, 900);
+                                };
+
+                                if (ratePayload["Transport Rate Type"]) {
+                                    setLookupOrDropdownByLabel("Transport Rate Type", ratePayload["Transport Rate Type"], (selected) => {
+                                        if (selected) updatedCount++;
+                                        setTimeout(applyTextFields, 350);
+                                    });
+                                } else {
+                                    applyTextFields();
+                                }
+                            }, 1200);
+                        }, 500);
+                    });
+                }, 700);
+            }, 900);
+        }
+
         const requestRatesButton = createModernButton("Request Rates", "#22c55e", "#4ade80");
         requestRatesButton.onclick = () => {
             let miles = 0;
@@ -747,6 +1141,7 @@ function getTransportPreviewAmount() {
                 copiedMsg.style.wordWrap = "break-word";
                 document.body.appendChild(copiedMsg);
                 setTimeout(() => copiedMsg.remove(), 1500);
+                applyHigherRatesToAuthorizationFields();
             });
         };
 
@@ -792,6 +1187,7 @@ function getTransportPreviewAmount() {
                 copiedMsg.style.wordWrap = "break-word";
                 document.body.appendChild(copiedMsg);
                 setTimeout(() => copiedMsg.remove(), 1500);
+                applyHigherRatesToAuthorizationFields();
             });
         };
 
@@ -895,6 +1291,7 @@ function getTransportPreviewAmount() {
                 copiedMsg.style.wordWrap = "break-word";
                 document.body.appendChild(copiedMsg);
                 setTimeout(() => copiedMsg.remove(), 1500);
+                applyHigherRatesToAuthorizationFields();
             });
         };
 
@@ -1018,6 +1415,7 @@ function getTransportPreviewAmount() {
                 copiedMsg.style.wordWrap = "break-word";
                 document.body.appendChild(copiedMsg);
                 setTimeout(() => copiedMsg.remove(), 1500);
+                applyHigherRatesToAuthorizationFields();
             });
         };
 
