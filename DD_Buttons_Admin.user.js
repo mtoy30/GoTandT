@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.2.1
+// @version      4.2.2
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1555,6 +1555,13 @@ function getTransportPreviewAmount() {
             }, 250);
         };
 
+        function closeMarginCalcAfterRateAutomation() {
+            setTimeout(() => {
+                const calcBox = document.getElementById("calcBox");
+                if (calcBox) calcBox.remove();
+            }, 500);
+        }
+
         const requestRatesButton = createModernButton("Request Rates", "#22c55e", "#4ade80");
         requestRatesButton.onclick = () => {
             let miles = 0;
@@ -1602,6 +1609,7 @@ function getTransportPreviewAmount() {
                 document.body.appendChild(copiedMsg);
                 setTimeout(() => copiedMsg.remove(), 1500);
                 applyHigherRatesToAuthorizationFields();
+                closeMarginCalcAfterRateAutomation();
             });
         };
 
@@ -1650,6 +1658,7 @@ function getTransportPreviewAmount() {
                 document.body.appendChild(copiedMsg);
                 setTimeout(() => copiedMsg.remove(), 1500);
                 applyHigherRatesToAuthorizationFields();
+                closeMarginCalcAfterRateAutomation();
             });
         };
 
@@ -1756,6 +1765,7 @@ function getTransportPreviewAmount() {
                 document.body.appendChild(copiedMsg);
                 setTimeout(() => copiedMsg.remove(), 1500);
                 applyHigherRatesToAuthorizationFields();
+                closeMarginCalcAfterRateAutomation();
             });
         };
 
@@ -1882,6 +1892,7 @@ function getTransportPreviewAmount() {
                 document.body.appendChild(copiedMsg);
                 setTimeout(() => copiedMsg.remove(), 1500);
                 applyHigherRatesToAuthorizationFields();
+                closeMarginCalcAfterRateAutomation();
             });
         };
 
