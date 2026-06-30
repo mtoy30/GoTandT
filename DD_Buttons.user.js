@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.60
+// @version      4.1.68
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -9,6 +9,8 @@
 // @author       Michael Toy
 // @grant        GM_setClipboard
 // @grant        GM_registerMenuCommand
+// @grant        GM_xmlhttpRequest
+// @connect      lowmargin.mtoysystems.com
 // ==/UserScript==
 //Moved to GitHub for 3.2.5+
 
@@ -86,6 +88,360 @@ function createModernButton(text, gradientStart, gradientEnd, onClick) {
             setTimeout(() => popup.remove(), 500);
         }, 3000);
     }
+
+
+// --- LMS Transport No Show API helpers ---
+const LMS_TRANSPORT_NOSHOW_API_URL = "https://lowmargin.mtoysystems.com/api/submit_transport.php";
+const LMS_LOGIN_URL = "https://lowmargin.mtoysystems.com/login.php";
+
+function moneyTextToNumber(text) {
+    const cleaned = String(text || "").replace(/[^0-9.-]+/g, "");
+    const n = parseFloat(cleaned);
+    return isNaN(n) ? 0 : n;
+}
+
+function formatMoneyValue(value) {
+    const n = parseFloat(value);
+    return isNaN(n) ? "" : n.toFixed(2);
+}
+
+function getReferralNumberFromHeader() {
+    const headerElement = document.querySelector('[id^="formHeaderTitle"]');
+    const headerText = headerElement?.textContent?.trim() || document.title || "";
+    const m = headerText.match(/\b\d+-\d+-\d+\b/);
+    return m ? m[0] : "";
+}
+
+function getProviderNameFromPage() {
+    const selectors = [
+        '[data-id*="gtt_serviceprovider"][data-id*="selected_tag_text"]',
+        '[data-id*="gtt_serviceprovider"][data-id*="selected_tag"]',
+        '[data-id*="provider"][data-id*="selected_tag_text"]',
+        '[data-id*="provider"][data-id*="selected_tag"]',
+        'a[aria-label][href*="etn=account"]'
+    ];
+
+    for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        const txt =
+            el?.textContent?.trim() ||
+            el?.getAttribute("title")?.trim() ||
+            el?.getAttribute("aria-label")?.trim() ||
+            "";
+        if (txt) return txt.replace(/^Lookup\s*:\s*/i, "").trim();
+    }
+
+    return "";
+}
+
+function getCurrentMarginFromResult(resultElement) {
+    const txt = resultElement?.innerText || "";
+    const m = txt.match(/Margin:\s*(-?\d+(?:\.\d+)?)%/i);
+    return m ? m[1] : "";
+}
+
+function askYesNo(question) {
+    return confirm(question + "\n\nOK = Yes\nCancel = No") ? "Yes" : "No";
+}
+
+function askUberOption() {
+    const options = [
+        "No Phone Number for claimant",
+        "Claimant does not want rideshare",
+        "No drivers in area",
+        "Low availability",
+        "Medium availability",
+        "High availability",
+        "Cost more than provider",
+        "Referral has wait time",
+        "To Large (Over 35miles one way)",
+        "Not allowed for this payer",
+        "This is a TECH",
+        "ALERT shows this is PREFERRED provider"
+    ];
+
+    const msg = "Did you check UBER/Lyft?\n\n" +
+        options.map((o, i) => `${i + 1}. ${o}`).join("\n") +
+        "\n\nEnter option number:";
+
+    while (true) {
+        const ans = prompt(msg, "");
+        if (ans === null) return null;
+        const idx = parseInt(ans, 10);
+        if (idx >= 1 && idx <= options.length) return options[idx - 1];
+        alert("Please enter a valid option number.");
+    }
+}
+
+function buildProviderRatesForLms(rateType, providerRate, waitTime, noShow) {
+    const parts = [];
+    const rate = formatMoneyValue(providerRate);
+
+    if (rate) {
+        if (rateType === "mile") {
+            parts.push(`$${rate}/mile`);
+        } else {
+            parts.push(`Flat Rate $${rate}`);
+        }
+    }
+
+    const wait = formatMoneyValue(waitTime);
+    if (wait) parts.push(`Wait Time $${wait}/hr`);
+
+    const ns = formatMoneyValue(noShow);
+    if (ns) parts.push(`No Show $${ns}`);
+
+    return parts.join(", ");
+}
+
+async function submitTransportNoShowToLms(payload) {
+    // Use Tampermonkey's cross-site request so the existing LMS login cookie is sent reliably.
+    // A normal browser fetch from Dynamics can miss the LMS session because it is cross-domain.
+    return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+            method: "POST",
+            url: LMS_TRANSPORT_NOSHOW_API_URL,
+            headers: {
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            data: JSON.stringify(payload),
+            withCredentials: true,
+            anonymous: false,
+            onload: function(res) {
+                let data = {};
+                try {
+                    data = JSON.parse(res.responseText || "{}");
+                } catch (e) {
+                    reject(new Error("LMS returned a non-JSON response."));
+                    return;
+                }
+
+                if (data.login_required) {
+                    window.open(LMS_LOGIN_URL, "_blank");
+                    reject(new Error(data.error || "Please sign into LMS first, then submit again."));
+                    return;
+                }
+
+                if (data.duplicate) {
+                    const latest = data.latest || {};
+                    const ok = confirm(
+                        "This referral already exists in LMS.\n\n" +
+                        `Latest: ${latest.referral || ""} (${latest.status || ""})\n\n` +
+                        "Submit again anyway?"
+                    );
+                    if (!ok) {
+                        reject(new Error("Submit cancelled because referral already exists."));
+                        return;
+                    }
+
+                    payload.force_resubmit = true;
+                    submitTransportNoShowToLms(payload).then(resolve).catch(reject);
+                    return;
+                }
+
+                if (res.status < 200 || res.status >= 300 || !data.ok) {
+                    const msg = data.error || (data.errors ? Object.values(data.errors).join("\n") : "LMS submit failed.");
+                    reject(new Error(msg));
+                    return;
+                }
+
+                resolve(data);
+            },
+            onerror: function() {
+                reject(new Error("Could not reach the LMS API."));
+            },
+            ontimeout: function() {
+                reject(new Error("LMS API request timed out."));
+            }
+        });
+    });
+}
+
+function showLmsNoShowModal() {
+    return new Promise((resolve) => {
+        const options = [
+            "No Phone Number for claimant",
+            "Claimant does not want rideshare",
+            "No drivers in area",
+            "Low availability",
+            "Medium availability",
+            "High availability",
+            "Cost more than provider",
+            "Referral has wait time",
+            "To Large (Over 35miles one way)",
+            "Not allowed for this payer",
+            "This is a TECH",
+            "ALERT shows this is PREFERRED provider"
+        ];
+
+        const overlay = document.createElement("div");
+        overlay.style.position = "fixed";
+        overlay.style.inset = "0";
+        overlay.style.background = "rgba(0,0,0,0.35)";
+        overlay.style.zIndex = "100000";
+        overlay.style.display = "flex";
+        overlay.style.alignItems = "center";
+        overlay.style.justifyContent = "center";
+
+        const modal = document.createElement("div");
+        modal.style.width = "460px";
+        modal.style.maxWidth = "calc(100vw - 40px)";
+        modal.style.background = "#fff";
+        modal.style.color = "#000";
+        modal.style.borderRadius = "12px";
+        modal.style.boxShadow = "0 15px 40px rgba(0,0,0,0.35)";
+        modal.style.padding = "18px";
+        modal.style.fontFamily = "Arial, sans-serif";
+
+        const title = document.createElement("div");
+        title.innerText = "Submit No Show to LMS";
+        title.style.fontSize = "20px";
+        title.style.fontWeight = "bold";
+        title.style.marginBottom = "14px";
+        modal.appendChild(title);
+
+        function addLabel(text) {
+            const lbl = document.createElement("label");
+            lbl.innerText = text;
+            lbl.style.display = "block";
+            lbl.style.fontWeight = "bold";
+            lbl.style.marginTop = "10px";
+            lbl.style.marginBottom = "5px";
+            modal.appendChild(lbl);
+            return lbl;
+        }
+
+        addLabel("Provider Name");
+        const providerInput = document.createElement("input");
+        providerInput.type = "text";
+        providerInput.value = "";
+        providerInput.style.width = "100%";
+        providerInput.style.boxSizing = "border-box";
+        providerInput.style.padding = "8px";
+        modal.appendChild(providerInput);
+
+        addLabel("Additional Referrals (Optional)");
+        const additionalReferralsInput = document.createElement("input");
+        additionalReferralsInput.type = "text";
+        additionalReferralsInput.value = "";
+        additionalReferralsInput.placeholder = "Example: -10, -11, -12";
+        additionalReferralsInput.style.width = "100%";
+        additionalReferralsInput.style.boxSizing = "border-box";
+        additionalReferralsInput.style.padding = "8px";
+        additionalReferralsInput.style.border = "1px solid #777";
+        additionalReferralsInput.style.borderRadius = "2px";
+        additionalReferralsInput.style.background = "#fff";
+        additionalReferralsInput.style.fontFamily = "inherit";
+        additionalReferralsInput.style.fontSize = "14px";
+        modal.appendChild(additionalReferralsInput);
+
+        addLabel("Is it a rush?");
+        const rushWrap = document.createElement("div");
+        rushWrap.style.display = "flex";
+        rushWrap.style.gap = "16px";
+        rushWrap.innerHTML = `
+            <label style="font-weight:normal;"><input type="radio" name="lmsRush" value="Yes"> Yes</label>
+            <label style="font-weight:normal;"><input type="radio" name="lmsRush" value="No" checked> No</label>
+        `;
+        modal.appendChild(rushWrap);
+
+        addLabel("Did you check UBER/Lyft?");
+        const uberSelect = document.createElement("select");
+        uberSelect.style.width = "100%";
+        uberSelect.style.boxSizing = "border-box";
+        uberSelect.style.padding = "8px";
+        uberSelect.innerHTML = `<option value="">-- Select an option --</option>` +
+            options.map(o => `<option value="${o.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}">${o}</option>`).join("");
+        modal.appendChild(uberSelect);
+
+        const uberCostWrap = document.createElement("div");
+        uberCostWrap.style.display = "none";
+        addLabel("UBER Cost Round Trip").style.display = "none";
+        const uberCostLabel = modal.lastChild;
+        const uberCostInput = document.createElement("input");
+        uberCostInput.type = "number";
+        uberCostInput.step = "0.01";
+        uberCostInput.min = "0";
+        uberCostInput.style.width = "100%";
+        uberCostInput.style.boxSizing = "border-box";
+        uberCostInput.style.padding = "8px";
+        uberCostWrap.appendChild(uberCostInput);
+        modal.appendChild(uberCostWrap);
+
+        uberSelect.addEventListener("change", () => {
+            const needsCost = uberSelect.value === "Medium availability" || uberSelect.value === "High availability";
+            uberCostLabel.style.display = needsCost ? "block" : "none";
+            uberCostWrap.style.display = needsCost ? "block" : "none";
+            if (!needsCost) uberCostInput.value = "";
+        });
+
+        const error = document.createElement("div");
+        error.style.color = "#dc2626";
+        error.style.fontWeight = "bold";
+        error.style.marginTop = "10px";
+        error.style.minHeight = "18px";
+        modal.appendChild(error);
+
+        const buttons = document.createElement("div");
+        buttons.style.display = "flex";
+        buttons.style.justifyContent = "flex-end";
+        buttons.style.gap = "10px";
+        buttons.style.marginTop = "16px";
+
+        const cancelBtn = document.createElement("button");
+        cancelBtn.type = "button";
+        cancelBtn.innerText = "Cancel";
+        cancelBtn.style.padding = "8px 14px";
+
+        const submitBtn = document.createElement("button");
+        submitBtn.type = "button";
+        submitBtn.innerText = "Submit";
+        submitBtn.style.padding = "8px 14px";
+        submitBtn.style.background = "#22c55e";
+        submitBtn.style.color = "#fff";
+        submitBtn.style.border = "none";
+        submitBtn.style.borderRadius = "6px";
+        submitBtn.style.fontWeight = "bold";
+
+        buttons.appendChild(cancelBtn);
+        buttons.appendChild(submitBtn);
+        modal.appendChild(buttons);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        providerInput.focus();
+        providerInput.select();
+
+        function close(value) {
+            overlay.remove();
+            resolve(value);
+        }
+
+        cancelBtn.onclick = () => close(null);
+        overlay.addEventListener("click", (e) => { if (e.target === overlay) close(null); });
+
+        submitBtn.onclick = () => {
+            const providerName = providerInput.value.trim();
+            const additionalReferrals = additionalReferralsInput.value.trim();
+            const rush = modal.querySelector('input[name="lmsRush"]:checked')?.value || "No";
+            const uberOption = uberSelect.value;
+            const uberCost = uberCostInput.value.trim();
+
+            if (!providerName) { error.innerText = "Provider Name is required."; return; }
+            if (additionalReferrals && !/^[0-9,\-\s]+$/.test(additionalReferrals)) {
+                error.innerText = "Additional Referrals can only contain numbers, hyphens, commas, and spaces.";
+                return;
+            }
+            if (!uberOption) { error.innerText = "Please choose a UBER/Lyft option."; return; }
+            if ((uberOption === "Medium availability" || uberOption === "High availability") && (!uberCost || isNaN(parseFloat(uberCost)))) {
+                error.innerText = "UBER Cost is required for Medium/High availability.";
+                return;
+            }
+
+            close({ providerName, additionalReferrals, rush, uberOption, uberCost });
+        };
+    });
+}
 
 // Function to show calculator UI
 function showCalculatorBox() {
@@ -230,6 +586,33 @@ waitWrapper.appendChild(waitTimeInput);
 // Add both columns to the row
 twoColumnWrapper.appendChild(providerWrapper);
 twoColumnWrapper.appendChild(waitWrapper);
+
+// No Show box used for LMS API submit
+const noShowTopWrapper = document.createElement("div");
+noShowTopWrapper.style.marginTop = "15px";
+noShowTopWrapper.style.padding = "10px";
+noShowTopWrapper.style.border = "2px solid #facc15";
+noShowTopWrapper.style.borderRadius = "8px";
+noShowTopWrapper.style.background = "#fffef0";
+
+const noShowTopLabel = document.createElement("label");
+noShowTopLabel.innerText = "No Show:";
+noShowTopLabel.style.fontWeight = "bold";
+noShowTopLabel.style.display = "block";
+noShowTopLabel.style.marginBottom = "6px";
+noShowTopWrapper.appendChild(noShowTopLabel);
+
+const noShowTopInput = document.createElement("input");
+noShowTopInput.type = "number";
+noShowTopInput.step = "0.01";
+noShowTopInput.min = "0";
+noShowTopInput.style.width = "100%";
+noShowTopInput.value = "";
+noShowTopInput.placeholder = "Enter provider no show amount";
+let noShowTopTouched = false;
+noShowTopInput.addEventListener("input", () => { noShowTopTouched = true; });
+noShowTopWrapper.appendChild(noShowTopInput);
+
 
     const result = document.createElement("div");
     result.style.marginTop = "3px";
@@ -421,6 +804,7 @@ const resetButton = createModernButton("Reset", "#ef4444", "#f87171");
         input.value = "";
         waitTimeInput.value = "";
         providerLoadFeeInput.value = "";
+        noShowTopInput.value = "";
         providerLoadFeeWrap.style.display = "none";
         flatRadio.checked = true;
         mileRadio.checked = false;
@@ -440,6 +824,82 @@ if (transportPreview) {
             field.value = "";
         });
     };
+
+
+// Submit Provider No Show to LMS API
+const submitLmsNoShowButton = createModernButton("Submit to LMS", "#22c55e", "#4ade80");
+submitLmsNoShowButton.style.float = "right";
+submitLmsNoShowButton.style.marginLeft = "15px";
+submitLmsNoShowButton.style.color = "#fff";
+submitLmsNoShowButton.style.fontSize = "16px";
+submitLmsNoShowButton.style.padding = "12px 18px";
+
+submitLmsNoShowButton.onclick = async () => {
+    const referral = getReferralNumberFromHeader();
+    if (!referral) {
+        alert("Could not find referral number from the page header.");
+        return;
+    }
+
+    const rateType = document.querySelector('input[name="rateType"]:checked')?.value || "flat";
+    const providerRate = input.value.trim();
+    const waitTime = waitTimeInput.value.trim();
+    const noShowValue = noShowTopInput.value.trim();
+
+    if (!providerRate || isNaN(parseFloat(providerRate))) {
+        alert("Please enter a valid Provider Rate.");
+        return;
+    }
+
+    if (!noShowValue || isNaN(parseFloat(noShowValue))) {
+        alert("Please enter a valid No Show amount.");
+        return;
+    }
+
+    const margin = getCurrentMarginFromResult(result);
+    if (!margin) {
+        alert("Please calculate margin first by entering the provider rate.");
+        return;
+    }
+
+    const modalAnswers = await showLmsNoShowModal();
+    if (!modalAnswers) return;
+
+    const providerName = modalAnswers.providerName;
+    const additionalReferrals = modalAnswers.additionalReferrals || "";
+    const rush = modalAnswers.rush;
+    const uberOption = modalAnswers.uberOption;
+    const uberCost = modalAnswers.uberCost || "";
+
+    const providerRates = buildProviderRatesForLms(rateType, providerRate, waitTime, noShowValue);
+
+    const payload = {
+        referral,
+        additional_referrals: additionalReferrals,
+        rush,
+        margin,
+        uber_option: uberOption,
+        uber_cost: uberCost,
+        provider_name: providerName,
+        provider_rates: providerRates,
+        comments: "API submission from Margin Calc"
+    };
+
+    submitLmsNoShowButton.disabled = true;
+    submitLmsNoShowButton.innerText = "Submitting...";
+
+    try {
+        const data = await submitTransportNoShowToLms(payload);
+        showMessage("Submitted successfully! Check LMS to view management response.", true);
+    } catch (err) {
+        alert(err.message || "Submit failed.");
+        showMessage(err.message || "Submit failed.", false);
+    } finally {
+        submitLmsNoShowButton.disabled = false;
+        submitLmsNoShowButton.innerText = "Submit to LMS (No Show)";
+    }
+};
+
 
     // Create the "Request Rates" button
 const requestRatesButton = createModernButton("Request Rates", "#22c55e", "#4ade80");
@@ -1298,11 +1758,13 @@ let higherApprovalNote = higherMargin <= highermarginThreshold
 
     input.addEventListener("input", calculateMargin);
     waitTimeInput.addEventListener("input", calculateMargin);
+    noShowTopInput.addEventListener("input", calculateMargin);
     providerLoadFeeInput.addEventListener("input", calculateMargin);
     flatRadio.addEventListener("change", () => {
         input.value = "";
         waitTimeInput.value = "";
         providerLoadFeeInput.value = "";
+        noShowTopInput.value = "";
         providerLoadFeeWrap.style.display = "none";
 if (noShowPreview) {
     noShowPreview.innerText = "";
@@ -1318,6 +1780,7 @@ calculateMargin();
         input.value = "";
         waitTimeInput.value = "";
         providerLoadFeeInput.value = "";
+        noShowTopInput.value = "";
         providerLoadFeeWrap.style.display = "none";
 if (noShowPreview) {
     noShowPreview.innerText = "";
@@ -1337,12 +1800,14 @@ calculateMargin();
     box.appendChild(mileRadio);
     box.appendChild(mileLabel);
     box.appendChild(twoColumnWrapper);
+    box.appendChild(noShowTopWrapper);
     box.appendChild(result);
     box.appendChild(targetLabel);
     box.appendChild(higherHeader);
     box.appendChild(higherInputsWrapper);
     box.appendChild(higherResult);
     box.appendChild(resetButton);
+    box.appendChild(submitLmsNoShowButton);
     // box.appendChild(requestRatesButton);
 
 
