@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.68
+// @version      4.1.69
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -295,7 +295,7 @@ function showLmsNoShowModal() {
         modal.style.fontFamily = "Arial, sans-serif";
 
         const title = document.createElement("div");
-        title.innerText = "Submit No Show to LMS";
+        title.innerText = "Submit Rates to LMS";
         title.style.fontSize = "20px";
         title.style.fontWeight = "bold";
         title.style.marginBottom = "14px";
