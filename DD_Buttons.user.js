@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.69
+// @version      4.1.70
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -482,8 +482,9 @@ function showCalculatorUI() {
     box.style.maxWidth = "500px";
     box.style.color = "black";
 
-    // Add fixed height and vertical scrollbar
-    box.style.height = "800px"; // fixed height you want
+    // Auto height now that Higher Rates is collapsed by default; still scroll if content overflows.
+    box.style.height = "auto";
+    box.style.maxHeight = "calc(100vh - 40px)";
     box.style.overflowY = "auto"; // vertical scroll if content overflows
 
     // Rest of your existing code remains unchanged...
@@ -639,6 +640,33 @@ noShowTopWrapper.appendChild(noShowTopInput);
     higherResult.style.marginTop = "10px";
     higherResult.style.fontWeight = "bold";
     higherResult.style.whiteSpace = "pre-line";
+
+    // Higher Rates section is collapsed by default to keep the transport submit view clean.
+    let higherRatesVisible = false;
+    higherHeader.style.display = "none";
+    higherInputsWrapper.style.display = "none";
+    higherResult.style.display = "none";
+
+    const toggleHigherRatesButton = document.createElement("button");
+    toggleHigherRatesButton.type = "button";
+    toggleHigherRatesButton.innerText = "▼ Show Higher Rates Calculator";
+    toggleHigherRatesButton.style.marginTop = "18px";
+    toggleHigherRatesButton.style.padding = "8px 12px";
+    toggleHigherRatesButton.style.border = "1px solid #999";
+    toggleHigherRatesButton.style.borderRadius = "6px";
+    toggleHigherRatesButton.style.background = "#f3f4f6";
+    toggleHigherRatesButton.style.color = "#111";
+    toggleHigherRatesButton.style.fontWeight = "bold";
+    toggleHigherRatesButton.style.cursor = "pointer";
+    toggleHigherRatesButton.onclick = () => {
+        higherRatesVisible = !higherRatesVisible;
+        higherHeader.style.display = higherRatesVisible ? "block" : "none";
+        higherInputsWrapper.style.display = higherRatesVisible ? "flex" : "none";
+        higherResult.style.display = higherRatesVisible ? "block" : "none";
+        toggleHigherRatesButton.innerText = higherRatesVisible
+            ? "▲ Hide Higher Rates Calculator"
+            : "▼ Show Higher Rates Calculator";
+    };
 
     const productInputs = {};
     let noShowPreview = null;
@@ -1803,6 +1831,7 @@ calculateMargin();
     box.appendChild(noShowTopWrapper);
     box.appendChild(result);
     box.appendChild(targetLabel);
+    box.appendChild(toggleHigherRatesButton);
     box.appendChild(higherHeader);
     box.appendChild(higherInputsWrapper);
     box.appendChild(higherResult);
