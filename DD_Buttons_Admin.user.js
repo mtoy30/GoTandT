@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.2.2
+// @version      4.2.3
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1949,7 +1949,21 @@ function getTransportPreviewAmount() {
                             product !== "After Hours Fee") ||
                         product === "Wait Time"
                     ) {
-                        if (!isNaN(totalValue)) totalBilled += totalValue;
+                        if (!isNaN(totalValue)) {
+                            if (product === "Wait Time" && totalValue === 0) {
+                                const priceCell = row.querySelector('[col-id="gtt_price"]');
+                                const priceText = priceCell?.innerText.trim().replace(/[^0-9.-]+/g, '') || "0";
+                                const priceValue = parseFloat(priceText);
+
+                                // Wait Time should always count as quantity 1 when present
+                                if (!isNaN(priceValue) && priceValue > 0) {
+                                    totalBilled += priceValue;
+                                    quantities["Wait Time"] = 1;
+                                }
+                            } else {
+                                totalBilled += totalValue;
+                            }
+                        }
                     }
 
                     if (qtyCell) {
@@ -2178,7 +2192,7 @@ ${loadFeeLine}
 
                 let enteredValueRaw = productInputs[product]?.value;
                 let enteredValue = parseFloat(enteredValueRaw);
-                let qty = quantities[product] || 0;
+                let qty = product === "Wait Time" ? 1 : (quantities[product] || 0);
 
                 const contractProducts = {
                     "Wait Time": { forceQty: true },
