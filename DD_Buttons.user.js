@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.70
+// @version      4.1.71
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1423,7 +1423,19 @@ rows.forEach(row => {
             || product === "Wait Time"
            ) {
             if (!isNaN(totalValue)) {
-                totalBilled += totalValue;
+                if (product === "Wait Time" && totalValue === 0) {
+                    const priceCell = row.querySelector('[col-id="gtt_price"]');
+                    const priceText = priceCell?.innerText.trim().replace(/[^0-9.-]+/g, '') || "0";
+                    const priceValue = parseFloat(priceText);
+
+                    // Wait Time always counts as quantity 1
+                    if (!isNaN(priceValue) && priceValue > 0) {
+                        totalBilled += priceValue;
+                        quantities["Wait Time"] = 1;
+                    }
+                } else {
+                    totalBilled += totalValue;
+                }
             }
         }
 
@@ -1675,7 +1687,7 @@ foundProducts.forEach(product => {
 
     let enteredValueRaw = productInputs[product]?.value;
     let enteredValue = parseFloat(enteredValueRaw);
-    let qty = quantities[product] || 0;
+    let qty = product === "Wait Time" ? 1 : (quantities[product] || 0);
 
     //Enter Contract Rates
     const contractProducts = {
@@ -1749,7 +1761,7 @@ if (!isNaN(enteredValue)) {
     } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
         higherTotal += enteredValue;
     } else if (product === "Wait Time") {
-        higherTotal += enteredValue;
+        higherTotal += enteredValue * qty;
     } else {
         higherTotal += enteredValue * qty;
     }
