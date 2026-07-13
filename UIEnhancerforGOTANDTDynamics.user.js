@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.6.4
+// @version      1.3.6.6
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay.
@@ -19,6 +19,8 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_deleteValue
+// @grant        GM_xmlhttpRequest
+// @connect      lowmargin.mtoysystems.com
 // @run-at       document-start
 // ==/UserScript==
 
@@ -1364,6 +1366,232 @@
       }, 2000);
     }
 
+    /* ================= CAREWORKS JURISDICTION WARNING ================= */
+    const CAREWORKS_JURISDICTION_API =
+      'https://lowmargin.mtoysystems.com/api/get_email_list.php?list=CareWorks_Jurisdiction';
+
+    let careWorksCurrentReferralKey = '';
+    let careWorksDismissedThisVisit = false;
+    let careWorksCheckInFlight = false;
+    let careWorksLastCheckSignature = '';
+
+    function careWorksNormalizeName(value) {
+      return (value || '')
+        .toLowerCase()
+        .replace(/\([^)]*\)/g, ' ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function careWorksNameVariants(value) {
+      const normalized = careWorksNormalizeName(value);
+      if (!normalized) return [];
+
+      const variants = new Set([normalized]);
+      const parts = normalized.split(' ').filter(Boolean);
+      if (parts.length >= 2) {
+        variants.add(`${parts[parts.length - 1]} ${parts.slice(0, -1).join(' ')}`);
+      }
+      return [...variants];
+    }
+
+    function careWorksGetClaimantName() {
+      const claimant = Array.from(document.querySelectorAll('a[aria-label][href*="etn=contact"]'))
+        .find(el => isVisibleElement(el) && (el.textContent || '').trim());
+      return (claimant?.textContent || '').trim();
+    }
+
+    function careWorksGetPayerText() {
+      const payer =
+        document.querySelector('[data-id*="gtt_payerid"][data-id*="selected_tag_text"]') ||
+        document.querySelector('[data-id*="gtt_payerid"][data-id*="selected_tag"]') ||
+        document.querySelector('[data-id*="gtt_payerid"] input') ||
+        document.querySelector('[aria-label="Payer"]');
+
+      return (
+        payer?.textContent ||
+        payer?.value ||
+        payer?.getAttribute?.('title') ||
+        payer?.getAttribute?.('aria-label') ||
+        ''
+      ).trim();
+    }
+
+    function careWorksGetReferralKey() {
+      const claimant = careWorksGetClaimantName();
+      if (!claimant) return '';
+
+      try {
+        const url = new URL(location.href);
+        const id = url.searchParams.get('id');
+        if (id) return `id:${id.toLowerCase()}`;
+      } catch {}
+
+      const header = document.querySelector('[id^="formHeaderTitle"]');
+      const headerText = (header?.textContent || '').trim();
+      return headerText ? `header:${headerText}` : `claimant:${careWorksNormalizeName(claimant)}`;
+    }
+
+    function careWorksCollectNames(payload) {
+      const names = [];
+      const add = value => {
+        if (typeof value !== 'string') return;
+        const trimmed = value.trim();
+        if (!trimmed) return;
+
+        // Support plain names, "Name <email>", and email-list values.
+        const displayName = trimmed.match(/^\s*([^<]+?)\s*<[^>]+>\s*$/)?.[1]?.trim();
+        if (displayName) names.push(displayName);
+        names.push(trimmed);
+
+        if (trimmed.includes('@')) {
+          const localPart = trimmed.split('@')[0].replace(/[._-]+/g, ' ').trim();
+          if (localPart) names.push(localPart);
+        }
+      };
+
+      const walk = value => {
+        if (Array.isArray(value)) {
+          value.forEach(walk);
+        } else if (value && typeof value === 'object') {
+          ['name', 'full_name', 'display_name', 'claimant', 'value', 'email'].forEach(key => add(value[key]));
+        } else {
+          add(value);
+        }
+      };
+
+      ['names', 'members', 'items', 'entries', 'to', 'cc', 'bcc'].forEach(key => walk(payload?.[key]));
+      return names;
+    }
+
+    function careWorksRequestList() {
+      return new Promise((resolve, reject) => {
+        if (typeof GM_xmlhttpRequest === 'function') {
+          GM_xmlhttpRequest({
+            method: 'GET',
+            url: `${CAREWORKS_JURISDICTION_API}&_=${Date.now()}`,
+            headers: { Accept: 'application/json' },
+            timeout: 15000,
+            onload: response => {
+              try {
+                if (response.status < 200 || response.status >= 300) {
+                  reject(new Error(`API returned HTTP ${response.status}`));
+                  return;
+                }
+                resolve(JSON.parse(response.responseText));
+              } catch (error) {
+                reject(error);
+              }
+            },
+            onerror: () => reject(new Error('CareWorks API request failed')),
+            ontimeout: () => reject(new Error('CareWorks API request timed out'))
+          });
+          return;
+        }
+
+        fetch(`${CAREWORKS_JURISDICTION_API}&_=${Date.now()}`, { cache: 'no-store' })
+          .then(response => {
+            if (!response.ok) throw new Error(`API returned HTTP ${response.status}`);
+            return response.json();
+          })
+          .then(resolve, reject);
+      });
+    }
+
+    function showCareWorksJurisdictionPopup() {
+      if (document.getElementById('mtoy-careworks-jurisdiction-popup')) return;
+
+      const backdrop = document.createElement('div');
+      backdrop.id = 'mtoy-careworks-jurisdiction-popup';
+      backdrop.style.cssText = `
+        position:fixed; inset:0; z-index:2147483647;
+        display:flex; align-items:center; justify-content:center;
+        background:rgba(0,0,0,.48); padding:20px; box-sizing:border-box;
+      `;
+
+      const box = document.createElement('div');
+      box.setAttribute('role', 'alertdialog');
+      box.setAttribute('aria-modal', 'true');
+      box.style.cssText = `
+        width:min(560px, 92vw); background:#fff; color:#111;
+        border:3px solid #b91c1c; border-radius:12px; padding:24px;
+        box-shadow:0 18px 55px rgba(0,0,0,.4); text-align:center;
+        font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      `;
+
+      const message = document.createElement('div');
+      message.textContent = 'Jurisdiction issues please review rates on PO are correct';
+      message.style.cssText = 'font-size:22px;font-weight:700;line-height:1.35;margin-bottom:22px;';
+
+      const ok = document.createElement('button');
+      ok.type = 'button';
+      ok.textContent = 'OK';
+      ok.style.cssText = `
+        min-width:110px; padding:10px 24px; border:0; border-radius:8px;
+        background:#b91c1c; color:#fff; font-size:16px; font-weight:700; cursor:pointer;
+      `;
+      ok.addEventListener('click', () => {
+        careWorksDismissedThisVisit = true;
+        backdrop.remove();
+      });
+
+      box.append(message, ok);
+      backdrop.appendChild(box);
+      document.body.appendChild(backdrop);
+      setTimeout(() => ok.focus(), 0);
+    }
+
+    async function checkCareWorksJurisdiction() {
+      const referralKey = careWorksGetReferralKey();
+
+      // Leaving the referral resets the warning, including for a later return to the same referral.
+      if (!referralKey) {
+        careWorksCurrentReferralKey = '';
+        careWorksDismissedThisVisit = false;
+        careWorksLastCheckSignature = '';
+        return;
+      }
+
+      if (referralKey !== careWorksCurrentReferralKey) {
+        careWorksCurrentReferralKey = referralKey;
+        careWorksDismissedThisVisit = false;
+        careWorksLastCheckSignature = '';
+        document.getElementById('mtoy-careworks-jurisdiction-popup')?.remove();
+      }
+
+      if (careWorksDismissedThisVisit || careWorksCheckInFlight) return;
+
+      const payer = careWorksGetPayerText();
+      const claimant = careWorksGetClaimantName();
+      if (!payer.toLowerCase().includes('careworks') || !claimant) return;
+
+      const signature = `${referralKey}|${careWorksNormalizeName(payer)}|${careWorksNormalizeName(claimant)}`;
+      if (signature === careWorksLastCheckSignature) return;
+      careWorksLastCheckSignature = signature;
+      careWorksCheckInFlight = true;
+
+      try {
+        const payload = await careWorksRequestList();
+        if (!payload || payload.ok === false) throw new Error(payload?.error || 'CareWorks API returned an invalid response');
+
+        const claimantVariants = new Set(careWorksNameVariants(claimant));
+        const isMatch = careWorksCollectNames(payload).some(name =>
+          careWorksNameVariants(name).some(variant => claimantVariants.has(variant))
+        );
+
+        if (isMatch && referralKey === careWorksCurrentReferralKey && !careWorksDismissedThisVisit) {
+          showCareWorksJurisdictionPopup();
+        }
+      } catch (error) {
+        console.warn('CareWorks jurisdiction check failed:', error);
+        // Allow a later retry if the API was temporarily unavailable.
+        careWorksLastCheckSignature = '';
+      } finally {
+        careWorksCheckInFlight = false;
+      }
+    }
+
     // ─── Entry point: wait for Dynamics to render a reliable landmark before injecting.
     // A fixed delay isn't reliable — Dynamics can take anywhere from 1s to 10s+ depending
     // on load. We watch for #searchBoxLiveRegion (the nav search bar) which is one of the
@@ -1388,6 +1616,7 @@
         observeRateStatusChanges();
         insertJbaBannerIfNeeded();
         insertVipBannerIfNeeded();
+        checkCareWorksJurisdiction();
         isInSearchUIWrapper();
       }, 200);
     });
@@ -1410,6 +1639,7 @@
 
     observeNotifications();
     startAuthElementRemoval();
+    setInterval(checkCareWorksJurisdiction, 1200);
 
     if (document.title.includes('Email:')) {
       waitForMoniqueInIframe();
