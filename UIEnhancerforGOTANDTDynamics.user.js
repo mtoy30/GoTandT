@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.6.6
+// @version      1.3.6.7
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay.
@@ -1521,7 +1521,7 @@
       `;
 
       const message = document.createElement('div');
-      message.textContent = 'Out of Juristiction claim - Please confirm rates on PO are the contracted rates if not please email cordinator for updates contracted rates';
+      message.textContent = 'Out of Juristiction claim - Please confirm rates on PO are the correct rates. If not email please email cordinator for updated rates';
       message.style.cssText = 'font-size:22px;font-weight:700;line-height:1.35;margin-bottom:22px;';
 
       const ok = document.createElement('button');
