@@ -1521,7 +1521,7 @@
       `;
 
       const message = document.createElement('div');
-      message.textContent = 'Out of Juristiction claim - Please confirm rates on PO are the correct rates. If not please email cordinator for updated rates';
+      message.textContent = 'Out of Jurisdiction claim - Please confirm rates on PO are the correct rates. If not please email coordinator for updated rates';
       message.style.cssText = 'font-size:22px;font-weight:700;line-height:1.35;margin-bottom:22px;';
 
       const ok = document.createElement('button');
