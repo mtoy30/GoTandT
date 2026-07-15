@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.71
+// @version      4.1.74
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -138,6 +138,20 @@ function getCurrentMarginFromResult(resultElement) {
     const txt = resultElement?.innerText || "";
     const m = txt.match(/Margin:\s*(-?\d+(?:\.\d+)?)%/i);
     return m ? m[1] : "";
+}
+
+function getBillingProductPrice(productName) {
+    const rows = document.querySelectorAll('div[row-index]');
+    for (const row of rows) {
+        const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+        const priceCell = row.querySelector('[col-id="gtt_price"]');
+        if (!productCell || !priceCell) continue;
+        if (productCell.innerText.trim() !== productName) continue;
+
+        const value = moneyTextToNumber(priceCell.innerText);
+        return value > 0 ? value : 0;
+    }
+    return 0;
 }
 
 function askYesNo(question) {
@@ -873,6 +887,7 @@ submitLmsNoShowButton.onclick = async () => {
     const providerRate = input.value.trim();
     const waitTime = waitTimeInput.value.trim();
     const noShowValue = noShowTopInput.value.trim();
+    const billingWaitTime = getBillingProductPrice("Wait Time");
 
     if (!providerRate || isNaN(parseFloat(providerRate))) {
         alert("Please enter a valid Provider Rate.");
@@ -883,6 +898,16 @@ submitLmsNoShowButton.onclick = async () => {
         alert("Please enter a valid No Show amount.");
         return;
     }
+
+    const noShowNumber = parseFloat(noShowValue);
+    const waitTimeNumber = waitTime === "" ? 0 : parseFloat(waitTime);
+
+    if (isNaN(waitTimeNumber) || waitTimeNumber < 0) {
+        alert("Please enter a valid Wait Time amount.");
+        return;
+    }
+
+    // The API silently decides whether the request qualifies for auto-approval.
 
     const margin = getCurrentMarginFromResult(result);
     if (!margin) {
@@ -910,6 +935,9 @@ submitLmsNoShowButton.onclick = async () => {
         uber_cost: uberCost,
         provider_name: providerName,
         provider_rates: providerRates,
+        provider_wait_time: waitTimeNumber,
+        billing_wait_time: billingWaitTime,
+        provider_no_show: noShowNumber,
         comments: "API submission from Margin Calc"
     };
 
