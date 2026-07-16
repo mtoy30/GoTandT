@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.75
+// @version      4.1.76
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -972,7 +972,18 @@ submitLmsNoShowButton.onclick = async () => {
 
     try {
         const data = await submitTransportNoShowToLms(payload);
-        showMessage("Submitted successfully! Check LMS to view management response.", true);
+
+        const waitTimeRateNotFound =
+            waitTimeNumber > 0 &&
+            billingWaitTime <= 0 &&
+            data.auto_approval_enabled === true;
+
+        if (waitTimeRateNotFound) {
+            alert("Wait time rate not found being sent for manual review");
+            showMessage("Submitted for manual review.", true);
+        } else {
+            showMessage("Submitted successfully! Check LMS to view management response.", true);
+        }
     } catch (err) {
         alert(err.message || "Submit failed.");
         showMessage(err.message || "Submit failed.", false);
