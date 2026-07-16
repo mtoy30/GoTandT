@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.74
+// @version      4.1.75
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -369,6 +369,22 @@ function showLmsNoShowModal() {
             options.map(o => `<option value="${o.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}">${o}</option>`).join("");
         modal.appendChild(uberSelect);
 
+        addLabel("Comments (Optional)");
+        const commentsInput = document.createElement("textarea");
+        commentsInput.rows = 4;
+        commentsInput.value = "";
+        commentsInput.placeholder = "Enter any additional comments...";
+        commentsInput.style.width = "100%";
+        commentsInput.style.boxSizing = "border-box";
+        commentsInput.style.padding = "8px";
+        commentsInput.style.border = "1px solid #777";
+        commentsInput.style.borderRadius = "2px";
+        commentsInput.style.background = "#fff";
+        commentsInput.style.fontFamily = "inherit";
+        commentsInput.style.fontSize = "14px";
+        commentsInput.style.resize = "vertical";
+        modal.appendChild(commentsInput);
+
         const uberCostWrap = document.createElement("div");
         uberCostWrap.style.display = "none";
         addLabel("UBER Cost Round Trip").style.display = "none";
@@ -452,7 +468,14 @@ function showLmsNoShowModal() {
                 return;
             }
 
-            close({ providerName, additionalReferrals, rush, uberOption, uberCost });
+            close({
+                providerName,
+                additionalReferrals,
+                rush,
+                uberOption,
+                uberCost,
+                comments: commentsInput.value.trim()
+            });
         };
     });
 }
@@ -923,6 +946,7 @@ submitLmsNoShowButton.onclick = async () => {
     const rush = modalAnswers.rush;
     const uberOption = modalAnswers.uberOption;
     const uberCost = modalAnswers.uberCost || "";
+    const userComments = modalAnswers.comments || "";
 
     const providerRates = buildProviderRatesForLms(rateType, providerRate, waitTime, noShowValue);
 
@@ -938,7 +962,9 @@ submitLmsNoShowButton.onclick = async () => {
         provider_wait_time: waitTimeNumber,
         billing_wait_time: billingWaitTime,
         provider_no_show: noShowNumber,
-        comments: "API submission from Margin Calc"
+        comments: userComments
+            ? "API submission from Margin Calc\n\n" + userComments
+            : "API submission from Margin Calc"
     };
 
     submitLmsNoShowButton.disabled = true;
