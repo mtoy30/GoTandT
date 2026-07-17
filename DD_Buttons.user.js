@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.76
+// @version      4.1.78
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -152,6 +152,39 @@ function getBillingProductPrice(productName) {
         return value > 0 ? value : 0;
     }
     return 0;
+}
+
+async function ensureBillingTabOpen() {
+    const billingTab = document.querySelector('li[role="tab"][title="Billing"]');
+    if (!billingTab) {
+        throw new Error('Could not find the Billing tab. Please open Billing and try again.');
+    }
+
+    const isSelected =
+        billingTab.getAttribute('aria-selected') === 'true' ||
+        billingTab.classList.contains('selected');
+
+    if (!isSelected) {
+        billingTab.click();
+    }
+
+    // Allow Dynamics time to activate and render the Billing product grid.
+    const timeoutAt = Date.now() + 5000;
+    while (Date.now() < timeoutAt) {
+        const selectedNow = billingTab.getAttribute('aria-selected') === 'true';
+        const billingRowsLoaded = document.querySelectorAll('div[row-index]').length > 0;
+
+        if (selectedNow && billingRowsLoaded) {
+            await new Promise(resolve => setTimeout(resolve, 350));
+            return;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 150));
+    }
+
+    // Dynamics does not always update aria-selected consistently, so continue
+    // after a final render delay once the click has been issued.
+    await new Promise(resolve => setTimeout(resolve, 750));
 }
 
 function askYesNo(question) {
@@ -900,6 +933,13 @@ submitLmsNoShowButton.style.fontSize = "16px";
 submitLmsNoShowButton.style.padding = "12px 18px";
 
 submitLmsNoShowButton.onclick = async () => {
+    try {
+        await ensureBillingTabOpen();
+    } catch (err) {
+        alert(err.message || "Could not open the Billing tab.");
+        return;
+    }
+
     const referral = getReferralNumberFromHeader();
     if (!referral) {
         alert("Could not find referral number from the page header.");
@@ -976,7 +1016,8 @@ submitLmsNoShowButton.onclick = async () => {
         const waitTimeRateNotFound =
             waitTimeNumber > 0 &&
             billingWaitTime <= 0 &&
-            data.auto_approval_enabled === true;
+            data.auto_approval_enabled === true &&
+            data.matched_enabled_rule === true;
 
         if (waitTimeRateNotFound) {
             alert("Wait time rate not found being sent for manual review");
