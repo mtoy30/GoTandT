@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.2.4
+// @version      4.2.5
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1730,21 +1730,21 @@ function getTransportPreviewAmount() {
                 noShowText = noShowVal.toLowerCase() === "contract rates" ? "Contract" : noShowVal;
             }
 
-            const partsString = buildPartsString(productInputs, quantities, 0, quantities["Load Fee"]);
-            const goatString = `**Enter in Goat as ${partsString}`;
-
             let extras = [];
+
             if (waitTimeText) {
                 const waitDisplay = isNaN(waitTimeText) ? waitTimeText : `$${waitTimeText}/hour`;
-                extras.push(`${waitDisplay} wait time in addition to flat rate`);
+                extras.push(`${waitDisplay} Wait Time in addition to flat rate`);
             }
+
             if (noShowText) {
                 const noShowDisplay = isNaN(noShowText) ? noShowText : `$${noShowText}`;
                 extras.push(`${noShowDisplay} No Show/Late Cancel`);
             }
 
-            const extrasText = extras.length > 0 ? `. ${extras.join(", ")}` : "";
-            const homelinkText = `Request Flat Rate of $${higherTotal.toFixed(2)}${extrasText}. ${goatString}`;
+            const homelinkText =
+                  `Request Flat Rate of $${higherTotal.toFixed(2)}` +
+                  (extras.length ? `\n${extras.join("\n")}` : "");
 
             saveLastAuthorizedRatesFromCalculator();
 
