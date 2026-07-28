@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.2.5
+// @version      4.2.6
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1870,7 +1870,14 @@ function getTransportPreviewAmount() {
             if (isHomeLink) {
                 boomerangText = `Request Flat Rate of $${flatTotal}${extrasText}. **Enter in Goat as ${partsString}** Secure with Boomerang and leave in provider stage until rates approved`;
             } else {
-                boomerangText = `Request Rates ${partsString}. **Secure with Boomerang and leave in provider stage until rates approved`;
+                boomerangText =
+                    "Request Rates:\n" +
+                    partsString
+                    .replace(/,\s*/g, "\n")
+                    .replace(/\/mile/g, " per mile")
+                    .replace(/\bcontract Wait Time\b/gi, "contract Wait Time per hour")
+                    .replace(/\bWait Time\b/gi, "Wait Time per hour") +
+                    "\n**Secure with Boomerang and leave in provider stage until rates approved";
             }
 
             saveLastAuthorizedRatesFromCalculator();
