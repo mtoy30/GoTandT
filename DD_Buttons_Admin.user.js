@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.2.6
+// @version      4.2.7
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -2759,12 +2759,12 @@ if (headerTitle.startsWith("212-")) {
 
                                     setTimeout(() => {
                                         selectCorrectRadioButton(selectedOption);
-                                    }, 2500);
+                                    }, 1800);
                                 } else {
                                     showMessage('Template button not found.', false);
                                     hideProcessingMessage();
                                 }
-                            }, 2500);
+                            }, 1800);
                         } catch (e) {
                             console.error('Cannot access iframe content:', e);
                             hideProcessingMessage();
@@ -2773,7 +2773,7 @@ if (headerTitle.startsWith("212-")) {
                         console.error('No iframe found.');
                         hideProcessingMessage();
                     }
-                }, 5000);
+                }, 3500);
             })
             .catch((error) => {
                 showMessage(error, false);
