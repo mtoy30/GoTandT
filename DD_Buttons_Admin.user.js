@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.2.7
+// @version      4.2.9
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -9,6 +9,8 @@
 // @match        https://gttqap2.crm.dynamics.com/*
 // @author        Michael Toy
 // @grant        GM_setClipboard
+// @grant        GM_getValue
+// @grant        GM_setValue
 // @grant        GM_registerMenuCommand
 // ==/UserScript==
 
@@ -109,8 +111,10 @@
     }
 
     function ddLoadLastAuthorizedRatesGlobal() {
-        if (window.ddLastAuthorizedRatePayload) return window.ddLastAuthorizedRatePayload;
-
+        // Always re-read persistent storage first.
+        // Dynamics is a SPA and Multi Day Rates can stay open in the same browser tab
+        // while a newer rate request is saved from another referral/tab. Returning the
+        // in-memory window cache first can therefore reuse the very first payload.
         const payload =
             ddParseSavedAuthorizedRates(ddSafeGetGMValue(DD_LAST_AUTH_RATES_STORAGE_KEY, null), DD_LAST_AUTH_RATES_STORAGE_KEY) ||
             ddParseSavedAuthorizedRates(ddSafeGetGMValue(DD_LAST_AUTH_RATES_BACKUP_KEY, null), DD_LAST_AUTH_RATES_BACKUP_KEY) ||
@@ -119,10 +123,13 @@
             ddReadSavedAuthorizedRatesFromStorage(sessionStorage, DD_LAST_AUTH_RATES_STORAGE_KEY) ||
             ddReadSavedAuthorizedRatesFromStorage(sessionStorage, DD_LAST_AUTH_RATES_BACKUP_KEY);
 
-        if (!payload) return null;
+        if (payload) {
+            window.ddLastAuthorizedRatePayload = { ...payload };
+            return window.ddLastAuthorizedRatePayload;
+        }
 
-        window.ddLastAuthorizedRatePayload = { ...payload };
-        return window.ddLastAuthorizedRatePayload;
+        // Last-resort fallback only when persistent storage is unavailable.
+        return window.ddLastAuthorizedRatePayload || null;
     }
     window.ddLastAuthorizedRatePayload = window.ddLastAuthorizedRatePayload || null;
     window.ddLastAuthorizedRateSavedAt = window.ddLastAuthorizedRateSavedAt || null;
