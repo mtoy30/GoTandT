@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.1.79
+// @version      4.2.0
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -2147,6 +2147,7 @@ function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
 
 const is4474 = headerTitle.startsWith("4474-");
 const is11525 = headerTitle.startsWith("11525-");
+const is11912 = headerTitle.startsWith("11912-");
 const isHClaim = /^H/i.test((claim || "").trim());
 
 // Prefer the selected text node, but fall back to selected tag/title/aria-label
@@ -2165,15 +2166,18 @@ const isJBSPacking = payerText.toLowerCase().includes("jbs packing");
 // Only override 4474 when payer is JBS Packing
 const use11525Rules = is11525 || (is4474 && isJBSPacking);
 
+// H claims for these three prefixes use L-Orchid
+const isLOrchidPrefix = is4474 || is11525 || is11912;
+
 console.log("headerTitle:", headerTitle);
 console.log("payerText:", payerText);
 console.log("is4474:", is4474, "is11525:", is11525, "isJBSPacking:", isJBSPacking, "use11525Rules:", use11525Rules);
 
-if (use11525Rules) {
-    fullOptions.splice(6, 0, "JBS Request for Higher Rates");
-} else if (is4474 && isHClaim) {
+if (isLOrchidPrefix && isHClaim) {
     fullOptions.splice(6, 0, "L-Orchid-CareWorks");
-} else if (is4474 && !isHClaim) {
+} else if (use11525Rules) {
+    fullOptions.splice(6, 0, "JBS Request for Higher Rates");
+} else if (is4474 || is11912) {
     fullOptions.splice(6, 0, "CareWorks Rate Request");
 } else {
     fullOptions.splice(6, 0, "CareWorks Rate Request", "JBS Request for Higher Rates");
@@ -2244,6 +2248,10 @@ if (headerTitle.startsWith("212-")) {
         "Staffed UBER Health",
         "Staffed Revised at Approved Rates"
     ];
+}
+// If L-Orchid applies, do not show Standard Rate Request
+if (isLOrchidPrefix && isHClaim) {
+    exclusions.push("Standard Rate Request");
 }
 
     const filteredOptions = fullOptions.filter(opt => !exclusions.includes(opt));
