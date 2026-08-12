@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.6.9
+// @version      1.3.7.2
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay.
@@ -119,7 +119,9 @@
       return (overlap / denom) >= minOverlapRatio;
     }
 
-    function collectOverlayText(container) {
+    let legCopyInProgress = false;
+
+    function collectCurrentOverlayLines(container) {
       let nodes = Array.from(container.querySelectorAll(TEXT_SELECTORS)).filter(isVisible);
       nodes = nodes.filter(n => !n.closest('#mtoy-inline-copy') && !n.closest('#mtoy-copy-toast'));
 
@@ -132,7 +134,7 @@
         return { el, rect, text };
       }).filter(i => i.text);
 
-      if (!items.length) return '';
+      if (!items.length) return [];
 
       items.sort((a, b) => {
         if (!sameVisualRow(a, b)) {
@@ -151,9 +153,214 @@
         return 0;
       });
 
-      const out = [];
-      for (const it of items) out.push(it.text);
-      return out.join('\n');
+      return items.map(it => it.text);
+    }
+
+    function mergeOverlayLines(existing, incoming) {
+      if (!existing.length) return incoming.slice();
+      if (!incoming.length) return existing;
+
+      const maxOverlap = Math.min(existing.length, incoming.length);
+      for (let size = maxOverlap; size >= 2; size--) {
+        let match = true;
+        for (let i = 0; i < size; i++) {
+          if (existing[existing.length - size + i] !== incoming[i]) {
+            match = false;
+            break;
+          }
+        }
+        if (match) {
+          existing.push(...incoming.slice(size));
+          return existing;
+        }
+      }
+
+      existing.push(...incoming);
+      return existing;
+    }
+
+    /*
+       The Copy button/date row lives INSIDE the same scrollable Leg Info panel
+       as all of the legs. Walk upward from that row and use the nearest real
+       vertical scroll container. This avoids scrolling the Dynamics page or
+       unrelated Power Apps wrappers.
+    */
+    function findLegInfoScroller(container) {
+      const anchor = findDateAnchorIn(container);
+      if (!anchor) return null;
+
+      let firstScrollable = null;
+      let p = anchor.parentElement;
+
+      while (p && p !== document.documentElement) {
+        try {
+          const clientHeight = p.clientHeight || 0;
+          const scrollHeight = p.scrollHeight || 0;
+          const range = scrollHeight - clientHeight;
+
+          if (clientHeight >= 100 && range > 8) {
+            if (!firstScrollable) firstScrollable = p;
+
+            const cs = getComputedStyle(p);
+            const overflowY = cs.overflowY || '';
+
+            // Prefer the nearest ancestor that is explicitly the scroll viewport.
+            if (/auto|scroll|overlay/i.test(overflowY)) return p;
+          }
+        } catch {}
+
+        if (p === container) break;
+        p = p.parentElement;
+      }
+
+      // Power Apps occasionally reports overflow:hidden while still using
+      // scrollTop internally. In that case, the nearest ancestor with an actual
+      // scroll range is still the correct Leg Info viewport.
+      return firstScrollable;
+    }
+
+    function legNumberFromId(id) {
+      const m = String(id || '').match(/-(\d+)\s*$/);
+      return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER;
+    }
+
+    function extractLegBlocks(lines) {
+      const starts = [];
+
+      for (let i = 0; i < lines.length - 1; i++) {
+        if (/^Leg:\s*$/i.test(lines[i])) {
+          const id = lines[i + 1] || '';
+          if (/\S+-\d+\s*$/.test(id)) {
+            starts.push({
+              legIndex: i,
+              start: (i > 0 && DATE_RE.test(lines[i - 1])) ? i - 1 : i,
+              id: id.trim()
+            });
+          }
+        }
+      }
+
+      const blocks = [];
+      for (let i = 0; i < starts.length; i++) {
+        const cur = starts[i];
+        const nextStart = i + 1 < starts.length ? starts[i + 1].start : lines.length;
+        const blockLines = lines.slice(cur.start, nextStart).filter(Boolean);
+        if (blockLines.length >= 3) blocks.push({ id: cur.id, lines: blockLines });
+      }
+
+      return blocks;
+    }
+
+    async function waitForPowerAppsRender() {
+      // Two animation frames + a short delay gives the virtualized gallery time
+      // to recycle its rows after scrollTop changes.
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await sleep(260);
+    }
+
+    async function scrollLegPanel(scroller, top) {
+      const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+      const target = Math.max(0, Math.min(top, maxScroll));
+
+      try { scroller.scrollTop = target; } catch {}
+      try { scroller.scrollTo?.(0, target); } catch {}
+      try { scroller.dispatchEvent(new Event('scroll', { bubbles: true })); } catch {}
+
+      await waitForPowerAppsRender();
+    }
+
+    async function collectOverlayText(container) {
+      const scroller = findLegInfoScroller(container);
+      const originalTop = scroller ? (scroller.scrollTop || 0) : 0;
+      const originalBehavior = scroller ? scroller.style.scrollBehavior : '';
+
+      const legMap = new Map();
+      const seenOrder = new Map();
+      let orderCounter = 0;
+      let fallbackLines = [];
+
+      const capture = () => {
+        const lines = collectCurrentOverlayLines(container);
+        if (!lines.length) return;
+
+        fallbackLines = mergeOverlayLines(fallbackLines, lines);
+
+        for (const block of extractLegBlocks(lines)) {
+          if (!seenOrder.has(block.id)) seenOrder.set(block.id, orderCounter++);
+
+          const existing = legMap.get(block.id);
+          // A leg can be clipped at the top/bottom of the viewport. Keep the
+          // snapshot containing the greatest number of fields for that leg.
+          if (!existing || block.lines.length > existing.length) {
+            legMap.set(block.id, block.lines.slice());
+          }
+        }
+      };
+
+      try {
+        // Always capture what is currently visible first.
+        capture();
+
+        if (scroller) {
+          try { scroller.style.scrollBehavior = 'auto'; } catch {}
+
+          // Start at the top of the same white Leg Info frame shown in the UI.
+          await scrollLegPanel(scroller, 0);
+          capture();
+
+          let lastTop = scroller.scrollTop || 0;
+          let loops = 0;
+
+          while (loops++ < 100) {
+            const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+            const current = scroller.scrollTop || 0;
+
+            if (current >= maxScroll - 2) break;
+
+            // Keep substantial overlap between captures so a leg split across
+            // two screens is eventually captured in full.
+            const step = Math.max(90, Math.floor((scroller.clientHeight || 300) * 0.42));
+            const target = Math.min(current + step, maxScroll);
+
+            await scrollLegPanel(scroller, target);
+            capture();
+
+            const after = scroller.scrollTop || 0;
+            if (Math.abs(after - lastTop) < 1) break;
+            lastTop = after;
+          }
+
+          // Explicit bottom capture is the important part for referrals where
+          // leg 5+ is not rendered until the scrollbar reaches the bottom.
+          const bottom = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+          await scrollLegPanel(scroller, bottom);
+          capture();
+          await waitForPowerAppsRender();
+          capture();
+        }
+      } finally {
+        if (scroller) {
+          try {
+            scroller.scrollTop = originalTop;
+            scroller.style.scrollBehavior = originalBehavior;
+            scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+          } catch {}
+        }
+      }
+
+      if (legMap.size) {
+        const ids = Array.from(legMap.keys()).sort((a, b) => {
+          const na = legNumberFromId(a), nb = legNumberFromId(b);
+          if (na !== nb) return na - nb;
+          return (seenOrder.get(a) || 0) - (seenOrder.get(b) || 0);
+        });
+
+        return ids.flatMap(id => legMap.get(id)).join('\n');
+      }
+
+      // If Power Apps changes its Leg markup, never return an empty clipboard;
+      // fall back to the text gathered from the panel while scrolling.
+      return fallbackLines.join('\n');
     }
 
     function showToast(msg) {
@@ -175,6 +382,8 @@
     }
 
     function injectInlineButton() {
+      if (legCopyInProgress) return;
+
       const overlay = findOverlayContainer();
       const existing = document.getElementById('mtoy-inline-copy');
 
@@ -190,7 +399,7 @@
       btn.id = 'mtoy-inline-copy';
       btn.type = 'button';
       btn.textContent = 'Copy';
-      btn.title = 'Copy all visible info in this Leg Info panel';
+      btn.title = 'Copy all legs in this Leg Info panel';
       btn.style.cssText = `
         display: inline-block;
         margin: 0 8px 2px 0;
@@ -203,19 +412,34 @@
         font: 13px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial;
         box-shadow: 0 2px 10px rgba(0,0,0,.15);
       `;
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
+        if (legCopyInProgress) return;
+
+        legCopyInProgress = true;
+        btn.disabled = true;
+        btn.textContent = 'Copying…';
+
         try {
-          const text = collectOverlayText(overlay);
+          const text = await collectOverlayText(overlay);
           if (!text) { alert('Nothing visible to copy.'); return; }
+
           if (typeof GM_setClipboard === 'function') {
             GM_setClipboard(text, { type: 'text', mimetype: 'text/plain' });
           } else {
-            navigator.clipboard.writeText(text).catch(() => {});
+            await navigator.clipboard.writeText(text);
           }
-          showToast('Copied.');
+
+          showToast('Copied all legs.');
         } catch (e) {
           console.error('Copy failed', e);
           alert('Copy failed. See console.');
+        } finally {
+          legCopyInProgress = false;
+          if (btn.isConnected) {
+            btn.disabled = false;
+            btn.textContent = 'Copy';
+          }
+          injectInlineButton();
         }
       });
 
