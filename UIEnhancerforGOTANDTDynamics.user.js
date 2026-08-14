@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.2
+// @version      1.3.7.3
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay.
@@ -491,7 +491,7 @@
 
     const YOURNAME_OPTIONS = [
       'Alexandra Cirlan','Annejulia Villegas-Torres','Christian Antunez','Christina Armstrong',
-      'Damaris Olmeda','David Hobbs','Jeremy Rivera','Kevin Roberts','Melantony Burks',
+      'Cooper Turner','Damaris Olmeda','David Hobbs','Jeremy Rivera','Kevin Roberts','Melantony Burks',
       'Michael Toy','Naomi Picklesimer','Tonyjay Matias','Yuri Nichols'
     ];
 
