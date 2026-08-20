@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.2.5
+// @version      4.2.6
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -316,6 +316,47 @@ function getDateOfServiceForLmsApi() {
     return startDateInput ? startDateInput.value.trim() : "";
 }
 
+function normalizeDosForDateInput(dosText) {
+    const raw = String(dosText || "").trim();
+    if (!raw) return "";
+
+    // Already in ISO format.
+    let m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (m) {
+        const y = parseInt(m[1], 10);
+        const mo = parseInt(m[2], 10);
+        const d = parseInt(m[3], 10);
+        const check = new Date(y, mo - 1, d);
+        if (
+            check.getFullYear() === y &&
+            check.getMonth() === mo - 1 &&
+            check.getDate() === d
+        ) {
+            return `${String(y).padStart(4, "0")}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        }
+        return "";
+    }
+
+    // Dynamics commonly displays M/D/YYYY or MM/DD/YYYY.
+    m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!m) return "";
+
+    const mo = parseInt(m[1], 10);
+    const d = parseInt(m[2], 10);
+    const y = parseInt(m[3], 10);
+    const check = new Date(y, mo - 1, d);
+
+    if (
+        check.getFullYear() !== y ||
+        check.getMonth() !== mo - 1 ||
+        check.getDate() !== d
+    ) {
+        return "";
+    }
+
+    return `${String(y).padStart(4, "0")}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
 function isDateOfServiceToday(dosText) {
     const raw = String(dosText || "").trim();
     if (!raw) return false;
@@ -408,11 +449,11 @@ function showLmsNoShowModal() {
         providerInput.style.padding = "8px";
         modal.appendChild(providerInput);
 
-        addLabel("First DOS Only");
+        addLabel("DOS");
         const dosInput = document.createElement("input");
-        dosInput.type = "text";
-        dosInput.value = getDateOfServiceForLmsApi();
-        dosInput.placeholder = "M/D/YYYY";
+        dosInput.type = "date";
+        dosInput.required = true;
+        dosInput.value = normalizeDosForDateInput(getDateOfServiceForLmsApi());
         dosInput.style.width = "100%";
         dosInput.style.boxSizing = "border-box";
         dosInput.style.padding = "8px";
@@ -558,6 +599,7 @@ function showLmsNoShowModal() {
             const uberCost = uberCostInput.value.trim();
 
             if (!providerName) { error.innerText = "Provider Name is required."; return; }
+            if (!dosInput.value) { error.innerText = "DOS is required."; dosInput.focus(); return; }
             if (additionalReferrals && !/^[0-9,\-\s]+$/.test(additionalReferrals)) {
                 error.innerText = "Additional Referrals can only contain numbers, hyphens, commas, and spaces.";
                 return;
