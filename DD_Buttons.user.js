@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.2.0
+// @version      4.2.1
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -924,6 +924,17 @@ if (transportPreview) {
     };
 
 
+// Get DOS the same way the Payer Emails button gets its default date.
+// If Dynamics has no Start Date value, return a blank string.
+function getDateOfServiceForLmsApi() {
+    const startDateInput =
+        document.querySelector('input[aria-label="Start Date"]') ||
+        document.querySelector('input[aria-label="Date of Start Date"]') ||
+        document.querySelector('input[placeholder="---"][role="combobox"]');
+
+    return startDateInput ? startDateInput.value.trim() : "";
+}
+
 // Submit Provider No Show to LMS API
 const submitLmsNoShowButton = createModernButton("Submit to LMS", "#22c55e", "#4ade80");
 submitLmsNoShowButton.style.float = "right";
@@ -989,9 +1000,11 @@ submitLmsNoShowButton.onclick = async () => {
     const userComments = modalAnswers.comments || "";
 
     const providerRates = buildProviderRatesForLms(rateType, providerRate, waitTime, noShowValue);
+    const dos = getDateOfServiceForLmsApi();
 
     const payload = {
         referral,
+        dos,
         additional_referrals: additionalReferrals,
         rush,
         margin,
