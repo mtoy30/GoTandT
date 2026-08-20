@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.2.1
+// @version      4.2.5
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -305,6 +305,46 @@ async function submitTransportNoShowToLms(payload) {
     });
 }
 
+// Get DOS the same way the Payer Emails button gets its default date.
+// If Dynamics has no Start Date value, return a blank string.
+function getDateOfServiceForLmsApi() {
+    const startDateInput =
+        document.querySelector('input[aria-label="Start Date"]') ||
+        document.querySelector('input[aria-label="Date of Start Date"]') ||
+        document.querySelector('input[placeholder="---"][role="combobox"]');
+
+    return startDateInput ? startDateInput.value.trim() : "";
+}
+
+function isDateOfServiceToday(dosText) {
+    const raw = String(dosText || "").trim();
+    if (!raw) return false;
+
+    let year, month, day;
+
+    // Most Dynamics date fields are shown as M/D/YYYY or MM/DD/YYYY.
+    let m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+        month = parseInt(m[1], 10);
+        day = parseInt(m[2], 10);
+        year = parseInt(m[3], 10);
+    } else {
+        // Also support YYYY-MM-DD if Dynamics/browser returns ISO-style text.
+        m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (!m) return false;
+        year = parseInt(m[1], 10);
+        month = parseInt(m[2], 10);
+        day = parseInt(m[3], 10);
+    }
+
+    const today = new Date();
+    return (
+        year === today.getFullYear() &&
+        month === (today.getMonth() + 1) &&
+        day === today.getDate()
+    );
+}
+
 function showLmsNoShowModal() {
     return new Promise((resolve) => {
         const options = [
@@ -368,6 +408,21 @@ function showLmsNoShowModal() {
         providerInput.style.padding = "8px";
         modal.appendChild(providerInput);
 
+        addLabel("First DOS Only");
+        const dosInput = document.createElement("input");
+        dosInput.type = "text";
+        dosInput.value = getDateOfServiceForLmsApi();
+        dosInput.placeholder = "M/D/YYYY";
+        dosInput.style.width = "100%";
+        dosInput.style.boxSizing = "border-box";
+        dosInput.style.padding = "8px";
+        dosInput.style.border = "1px solid #777";
+        dosInput.style.borderRadius = "2px";
+        dosInput.style.background = "#fff";
+        dosInput.style.fontFamily = "inherit";
+        dosInput.style.fontSize = "14px";
+        modal.appendChild(dosInput);
+
         addLabel("Additional Referrals (Optional)");
         const additionalReferralsInput = document.createElement("input");
         additionalReferralsInput.type = "text";
@@ -387,11 +442,23 @@ function showLmsNoShowModal() {
         const rushWrap = document.createElement("div");
         rushWrap.style.display = "flex";
         rushWrap.style.gap = "16px";
+
+        const defaultRushYes = isDateOfServiceToday(dosInput.value);
+
         rushWrap.innerHTML = `
-            <label style="font-weight:normal;"><input type="radio" name="lmsRush" value="Yes"> Yes</label>
-            <label style="font-weight:normal;"><input type="radio" name="lmsRush" value="No" checked> No</label>
+            <label style="font-weight:normal;"><input type="radio" name="lmsRush" value="Yes" ${defaultRushYes ? "checked" : ""}> Yes</label>
+            <label style="font-weight:normal;"><input type="radio" name="lmsRush" value="No" ${defaultRushYes ? "" : "checked"}> No</label>
         `;
         modal.appendChild(rushWrap);
+
+        // If the DOS is entered or corrected in the modal, update the Rush default too.
+        dosInput.addEventListener("change", () => {
+            const isToday = isDateOfServiceToday(dosInput.value);
+            const yesRadio = modal.querySelector('input[name="lmsRush"][value="Yes"]');
+            const noRadio = modal.querySelector('input[name="lmsRush"][value="No"]');
+            if (yesRadio) yesRadio.checked = isToday;
+            if (noRadio) noRadio.checked = !isToday;
+        });
 
         addLabel("Did you check UBER/Lyft?");
         const uberSelect = document.createElement("select");
@@ -503,6 +570,7 @@ function showLmsNoShowModal() {
 
             close({
                 providerName,
+                dos: dosInput.value.trim(),
                 additionalReferrals,
                 rush,
                 uberOption,
@@ -924,17 +992,6 @@ if (transportPreview) {
     };
 
 
-// Get DOS the same way the Payer Emails button gets its default date.
-// If Dynamics has no Start Date value, return a blank string.
-function getDateOfServiceForLmsApi() {
-    const startDateInput =
-        document.querySelector('input[aria-label="Start Date"]') ||
-        document.querySelector('input[aria-label="Date of Start Date"]') ||
-        document.querySelector('input[placeholder="---"][role="combobox"]');
-
-    return startDateInput ? startDateInput.value.trim() : "";
-}
-
 // Submit Provider No Show to LMS API
 const submitLmsNoShowButton = createModernButton("Submit to LMS", "#22c55e", "#4ade80");
 submitLmsNoShowButton.style.float = "right";
@@ -993,6 +1050,7 @@ submitLmsNoShowButton.onclick = async () => {
     if (!modalAnswers) return;
 
     const providerName = modalAnswers.providerName;
+    const dos = modalAnswers.dos || "";
     const additionalReferrals = modalAnswers.additionalReferrals || "";
     const rush = modalAnswers.rush;
     const uberOption = modalAnswers.uberOption;
@@ -1000,7 +1058,6 @@ submitLmsNoShowButton.onclick = async () => {
     const userComments = modalAnswers.comments || "";
 
     const providerRates = buildProviderRatesForLms(rateType, providerRate, waitTime, noShowValue);
-    const dos = getDateOfServiceForLmsApi();
 
     const payload = {
         referral,
