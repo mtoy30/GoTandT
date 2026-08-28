@@ -2162,7 +2162,7 @@ function getTransportPreviewAmount() {
             const headerElement = document.querySelector('[id^="formHeaderTitle"]');
             const headerText = headerElement?.textContent?.trim() || "";
 
-            let marginThreshold = 34.99;
+            let marginThreshold = 24.99;
             if (/^(133\-|202\-|9616\-)/.test(headerText)) {
                 marginThreshold = 19.99;
             } else if (headerText.startsWith("999-")) {
