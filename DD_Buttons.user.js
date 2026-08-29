@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.2.7
+// @version      4.2.8
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -2113,18 +2113,21 @@ document.addEventListener('mouseup', function () {
 
     // Function to copy claimant name
 function copyClaimantName() {
-    // Look for any anchor tag with an aria-label that looks like a name and href pointing to a contact record
-    var elementToCopy = Array.from(document.querySelectorAll('a[aria-label][href*="etn=contact"]'))
-        .find(el => el.textContent.trim().length > 0);
+    var elementToCopy = document.querySelector(
+        'div[data-id="gtt_claimantid.fieldControl-LookupResultsDropdown_gtt_claimantid_selected_tag_text"]'
+    );
 
     if (elementToCopy) {
-        var textToCopy = elementToCopy.textContent.trim();
+        var textToCopy =
+            (elementToCopy.getAttribute('title') || elementToCopy.textContent).trim();
+
         GM_setClipboard(textToCopy);
         showMessage(`Copied: "${textToCopy}" successfully.`);
         console.log('Copied to clipboard:', textToCopy);
 
-        // Look for the tab with title "Service Provider"
-        var serviceProviderTab = document.querySelector('li[role="tab"][title="Service Provider"]');
+        var serviceProviderTab =
+            document.querySelector('li[role="tab"][title="Service Provider"]');
+
         if (serviceProviderTab) {
             serviceProviderTab.click();
             console.log('Clicked "Service Provider" tab.');
@@ -2133,7 +2136,10 @@ function copyClaimantName() {
             console.error('"Service Provider" tab not found.');
         }
     } else {
-        showMessage('Claimant Name not found. Please make sure you are in a referral.', false);
+        showMessage(
+            'Claimant Name not found. Please make sure you are in a referral.',
+            false
+        );
         console.error('Claimant element not found.');
     }
 }
@@ -2164,37 +2170,52 @@ function copyClaimantName() {
 
 // Function to copy both claimant name and claim
 function copyBoth() {
-    // Claimant: contact link
-    var element1 = Array.from(document.querySelectorAll('a[aria-label][href*="etn=contact"]'))
-        .find(el => el.textContent.trim().length > 0);
+    var element1 = document.querySelector(
+        'div[data-id="gtt_claimantid.fieldControl-LookupResultsDropdown_gtt_claimantid_selected_tag_text"]'
+    );
 
-    // Claim: gtt_claim link
-    var element2 = Array.from(document.querySelectorAll('a[aria-label][href*="etn=gtt_claim"]'))
-        .find(el => el.textContent.trim().length > 0);
+    var element2 = document.querySelector(
+        'div[data-id="gtt_claimid.fieldControl-LookupResultsDropdown_gtt_claimid_selected_tag_text"]'
+    );
 
     var titleElement = document.querySelector('[id^="formHeaderTitle"]');
 
-    // Try to find the input field for "Date of Start Date"
-        var startDateInput =
-            document.querySelector('input[aria-label="Start Date"]') ||
-            document.querySelector('input[aria-label="Date of Start Date"]') ||
-            document.querySelector('input[placeholder="---"][role="combobox"]');
+    var startDateInput =
+        document.querySelector('input[aria-label="Start Date"]') ||
+        document.querySelector('input[aria-label="Date of Start Date"]') ||
+        document.querySelector('input[placeholder="---"][role="combobox"]');
 
-        var startDateValue = startDateInput ? startDateInput.value.trim() : "";
+    var startDateValue = startDateInput
+        ? startDateInput.value.trim()
+        : "";
 
     if (element1 && element2) {
-        var text1 = element1.textContent.trim(); // Claimant
-        var text2 = element2.textContent.trim(); // Claim #
-        var headerTitle = titleElement ? titleElement.textContent.trim() : "";
+        var text1 =
+            (element1.getAttribute('title') || element1.textContent).trim();
+
+        var text2 =
+            (element2.getAttribute('title') || element2.textContent).trim();
+
+        var headerTitle = titleElement
+            ? titleElement.textContent.trim()
+            : "";
 
         if (headerTitle.startsWith("4403-54316")) {
-            alert("Please combine staffing and/or auth requests into one email (include multiple dates into one email).");
+            alert(
+                "Please combine staffing and/or auth requests into one email " +
+                "(include multiple dates into one email)."
+            );
         }
 
-        // Use Start Date as default value in prompt
-        var referralDate = prompt("Please enter the referral date(s):", startDateValue);
+        var referralDate = prompt(
+            "Please enter the referral date(s):",
+            startDateValue
+        );
+
         if (referralDate === null) {
-            var textToCopy = `Claimant: ${text1} - Claim: ${text2} - on DOS:`;
+            var textToCopy =
+                `Claimant: ${text1} - Claim: ${text2} - on DOS:`;
+
             GM_setClipboard(textToCopy);
             showMessage(`Copied: "${textToCopy}" successfully.`);
             return;
@@ -2204,10 +2225,22 @@ function copyBoth() {
             referralDate = "[No Date Provided]";
         }
 
-        createDropdownMenu(text1, text2, referralDate, headerTitle);
+        createDropdownMenu(
+            text1,
+            text2,
+            referralDate,
+            headerTitle
+        );
     } else {
-        showMessage('Claimant Name & Claim# not found. Please make sure you are in a referral.', false);
-        console.error('Missing elements:', { element1, element2 });
+        showMessage(
+            'Claimant Name & Claim# not found. Please make sure you are in a referral.',
+            false
+        );
+
+        console.error('Missing elements:', {
+            claimantElement: element1,
+            claimElement: element2
+        });
     }
 }
 
