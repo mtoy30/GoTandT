@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.3.2
+// @version      4.3.3
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -2406,29 +2406,37 @@ ${loadFeeLine}
         calculatorButton.addEventListener('click', showCalculatorBox);
     }
 
-    function copyClaimantName() {
-        var elementToCopy = Array.from(document.querySelectorAll('a[aria-label][href*="etn=contact"]'))
-            .find(el => el.textContent.trim().length > 0);
+function copyClaimantName() {
+    var elementToCopy = document.querySelector(
+        'div[data-id="gtt_claimantid.fieldControl-LookupResultsDropdown_gtt_claimantid_selected_tag_text"]'
+    );
 
-        if (elementToCopy) {
-            var textToCopy = elementToCopy.textContent.trim();
-            GM_setClipboard(textToCopy);
-            showMessage(`Copied: "${textToCopy}" successfully.`);
-            console.log('Copied to clipboard:', textToCopy);
+    if (elementToCopy) {
+        var textToCopy =
+            (elementToCopy.getAttribute('title') || elementToCopy.textContent).trim();
 
-            var serviceProviderTab = document.querySelector('li[role="tab"][title="Service Provider"]');
-            if (serviceProviderTab) {
-                serviceProviderTab.click();
-                console.log('Clicked "Service Provider" tab.');
-                waitForButtonAndClick();
-            } else {
-                console.error('"Service Provider" tab not found.');
-            }
+        GM_setClipboard(textToCopy);
+        showMessage(`Copied: "${textToCopy}" successfully.`);
+        console.log('Copied to clipboard:', textToCopy);
+
+        var serviceProviderTab =
+            document.querySelector('li[role="tab"][title="Service Provider"]');
+
+        if (serviceProviderTab) {
+            serviceProviderTab.click();
+            console.log('Clicked "Service Provider" tab.');
+            waitForButtonAndClick();
         } else {
-            showMessage('Claimant Name not found. Please make sure you are in a referral.', false);
-            console.error('Claimant element not found.');
+            console.error('"Service Provider" tab not found.');
         }
+    } else {
+        showMessage(
+            'Claimant Name not found. Please make sure you are in a referral.',
+            false
+        );
+        console.error('Claimant element not found.');
     }
+}
 
     function waitForButtonAndClick() {
         var attempts = 0;
@@ -2453,45 +2461,80 @@ ${loadFeeLine}
         }, interval);
     }
 
-    function copyBoth() {
-        var element1 = Array.from(document.querySelectorAll('a[aria-label][href*="etn=contact"]'))
-            .find(el => el.textContent.trim().length > 0);
+function copyBoth() {
+    var element1 = document.querySelector(
+        'div[data-id="gtt_claimantid.fieldControl-LookupResultsDropdown_gtt_claimantid_selected_tag_text"]'
+    );
 
-        var element2 = Array.from(document.querySelectorAll('a[aria-label][href*="etn=gtt_claim"]'))
-            .find(el => el.textContent.trim().length > 0);
+    var element2 = document.querySelector(
+        'div[data-id="gtt_claimid.fieldControl-LookupResultsDropdown_gtt_claimid_selected_tag_text"]'
+    );
 
-        var titleElement = document.querySelector('[id^="formHeaderTitle"]');
-        var startDateInput =
-            document.querySelector('input[aria-label="Start Date"]') ||
-            document.querySelector('input[aria-label="Date of Start Date"]') ||
-            document.querySelector('input[placeholder="---"][role="combobox"]');
+    var titleElement = document.querySelector('[id^="formHeaderTitle"]');
 
-        var startDateValue = startDateInput ? startDateInput.value.trim() : "";
+    var startDateInput =
+        document.querySelector('input[aria-label="Start Date"]') ||
+        document.querySelector('input[aria-label="Date of Start Date"]') ||
+        document.querySelector('input[placeholder="---"][role="combobox"]');
 
-        if (element1 && element2) {
-            var text1 = element1.textContent.trim();
-            var text2 = element2.textContent.trim();
-            var headerTitle = titleElement ? titleElement.textContent.trim() : "";
+    var startDateValue = startDateInput
+        ? startDateInput.value.trim()
+        : "";
 
-            if (headerTitle.startsWith("4403-54316")) {
-                alert("Please combine staffing and/or auth requests into one email (include multiple dates into one email).");
-            }
+    if (element1 && element2) {
+        var text1 =
+            (element1.getAttribute('title') || element1.textContent).trim();
 
-            var referralDate = prompt("Please enter the referral date(s):", startDateValue);
-            if (referralDate === null) {
-                var textToCopy = `Claimant: ${text1} - Claim: ${text2} - on DOS:`;
-                GM_setClipboard(textToCopy);
-                showMessage(`Copied: "${textToCopy}" successfully.`);
-                return;
-            }
+        var text2 =
+            (element2.getAttribute('title') || element2.textContent).trim();
 
-            if (!referralDate) referralDate = "[No Date Provided]";
-            createDropdownMenu(text1, text2, referralDate, headerTitle);
-        } else {
-            showMessage('Claimant Name & Claim# not found. Please make sure you are in a referral.', false);
-            console.error('Missing elements:', { element1, element2 });
+        var headerTitle = titleElement
+            ? titleElement.textContent.trim()
+            : "";
+
+        if (headerTitle.startsWith("4403-54316")) {
+            alert(
+                "Please combine staffing and/or auth requests into one email " +
+                "(include multiple dates into one email)."
+            );
         }
+
+        var referralDate = prompt(
+            "Please enter the referral date(s):",
+            startDateValue
+        );
+
+        if (referralDate === null) {
+            var textToCopy =
+                `Claimant: ${text1} - Claim: ${text2} - on DOS:`;
+
+            GM_setClipboard(textToCopy);
+            showMessage(`Copied: "${textToCopy}" successfully.`);
+            return;
+        }
+
+        if (!referralDate) {
+            referralDate = "[No Date Provided]";
+        }
+
+        createDropdownMenu(
+            text1,
+            text2,
+            referralDate,
+            headerTitle
+        );
+    } else {
+        showMessage(
+            'Claimant Name & Claim# not found. Please make sure you are in a referral.',
+            false
+        );
+
+        console.error('Missing elements:', {
+            claimantElement: element1,
+            claimElement: element2
+        });
     }
+}
 
     function createDropdownMenu(claimant, claim, referralDate, headerTitle) {
         var existingDropdown = document.getElementById("customDropdownContainer");
