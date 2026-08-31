@@ -2817,12 +2817,12 @@ if (isLOrchidPrefix && isHClaim) {
 
                                     setTimeout(() => {
                                         selectCorrectRadioButton(selectedOption);
-                                    }, 1800);
+                                    }, 2500);
                                 } else {
                                     showMessage('Template button not found.', false);
                                     hideProcessingMessage();
                                 }
-                            }, 1800);
+                            }, 2500);
                         } catch (e) {
                             console.error('Cannot access iframe content:', e);
                             hideProcessingMessage();
