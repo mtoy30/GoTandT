@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TL_Claim
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.0.0
+// @version      1.0.1
 // @updateURL   https://raw.githubusercontent.com/mtoy30/GoTandT/main/TL_Claim.user.js
 // @downloadURL https://raw.githubusercontent.com/mtoy30/GoTandT/main/TL_Claim.user.js
 // @description  Adds one button that copies Claimant + Claim + DOS (Start Date) to clipboard. Nothing else.
@@ -86,17 +86,25 @@
   // ----------------------------
   // Extract: Claimant, Claim, DOS
   // ----------------------------
-  function getClaimantName() {
-    const el = Array.from(document.querySelectorAll('a[aria-label][href*="etn=contact"]'))
-      .find(a => (a.textContent || "").trim().length > 0);
-    return el ? el.textContent.trim() : "";
-  }
+function getClaimantName() {
+  const el = document.querySelector(
+    'div[data-id="gtt_claimantid.fieldControl-LookupResultsDropdown_gtt_claimantid_selected_tag_text"]'
+  );
 
-  function getClaimNumber() {
-    const el = Array.from(document.querySelectorAll('a[aria-label][href*="etn=gtt_claim"]'))
-      .find(a => (a.textContent || "").trim().length > 0);
-    return el ? el.textContent.trim() : "";
-  }
+  return el
+    ? (el.getAttribute("title") || el.textContent || "").trim()
+    : "";
+}
+
+function getClaimNumber() {
+  const el = document.querySelector(
+    'div[data-id="gtt_claimid.fieldControl-LookupResultsDropdown_gtt_claimid_selected_tag_text"]'
+  );
+
+  return el
+    ? (el.getAttribute("title") || el.textContent || "").trim()
+    : "";
+}
 
   function getDOS() {
     // This is what your existing script uses
