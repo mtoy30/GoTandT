@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.4
+// @version      1.3.7.5
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay.
@@ -1537,9 +1537,15 @@
     }
 
     function careWorksGetClaimantName() {
-      const claimant = Array.from(document.querySelectorAll('a[aria-label][href*="etn=contact"]'))
-        .find(el => isVisibleElement(el) && (el.textContent || '').trim());
-      return (claimant?.textContent || '').trim();
+      const claimant = document.querySelector(
+        'div[data-id="gtt_claimantid.fieldControl-LookupResultsDropdown_gtt_claimantid_selected_tag_text"]'
+      );
+
+      return (
+        claimant?.getAttribute('title') ||
+        claimant?.textContent ||
+        ''
+      ).trim();
     }
 
     function careWorksGetPayerText() {
