@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.2.8
+// @version      4.2.9
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -1082,8 +1082,12 @@ submitLmsNoShowButton.onclick = async () => {
 
     // The API silently decides whether the request qualifies for auto-approval.
 
-    const margin = getCurrentMarginFromResult(result);
-    if (!margin) {
+    let margin = getCurrentMarginFromResult(result);
+    const noBillingRatesFound = result.innerText.includes("No billing rates found.");
+
+    if (!margin && noBillingRatesFound) {
+        margin = "-999";
+    } else if (!margin) {
         alert("Please calculate margin first by entering the provider rate.");
         return;
     }
@@ -1807,9 +1811,11 @@ labelRow.appendChild(rightGroup);
 });
 
         if (totalBilled === 0) {
-            result.innerText = "Could not find any billed total.";
+            result.innerText = "No billing rates found. LMS submission will use a -999 margin.";
             result.style.color = "black";
+            targetLabel.innerHTML = "";
             higherResult.innerText = "";
+            return;
         }
 
         const loadFeeQty = quantities["Load Fee"] || 0;
