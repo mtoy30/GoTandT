@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.5
+// @version      1.3.7.6
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay.
@@ -1096,9 +1096,11 @@
 
   /* =================================== DYNAMICS SECTION =================================== */
   if (isDynamics) {
-    const statusText     = "Pending - RATE Authorization Requested";
-    const headerSelector = '[id^="formHeaderTitle_"]';
-    const buttonSelector = 'button[aria-label="Rate Approval Status"]';
+    const statusText          = "Pending - RATE Authorization Requested";
+    const itineraryChangeText = "Itinerary Change Requested";
+    const headerSelector      = '[id^="formHeaderTitle_"]';
+    const buttonSelector      = 'button[aria-label="Rate Approval Status"]';
+    const itinerarySelector   = 'button[data-id="gtt_itinerarychange.fieldControl-option-set-select"]';
 
     function isInSearchUI(el) {
       if (!el) return false;
@@ -1151,6 +1153,47 @@
       if (!button) return;
       const observer = new MutationObserver(() => checkStatusAndInsertBanner());
       observer.observe(button, { childList: true, subtree: true, characterData: true });
+    }
+
+    function insertItineraryChangeBanner() {
+      const header = document.querySelector(headerSelector);
+      if (!header || document.getElementById('itinerary-change-banner')) return;
+
+      const banner = document.createElement('div');
+      banner.id = 'itinerary-change-banner';
+      banner.textContent = 'STOP PENDING CHANGES DO NOT STAFF YET';
+      banner.style.backgroundColor = '#d32f2f';
+      banner.style.color = 'white';
+      banner.style.padding = '5px';
+      banner.style.marginTop = '5px';
+      banner.style.fontWeight = 'bold';
+      banner.style.textAlign = 'center';
+      banner.style.borderRadius = '5px';
+      header.parentNode.insertBefore(banner, header.nextSibling);
+    }
+
+    function removeItineraryChangeBanner() {
+      const existing = document.getElementById('itinerary-change-banner');
+      if (existing) existing.remove();
+    }
+
+    function checkItineraryChangeBanner() {
+      const button = document.querySelector(itinerarySelector);
+      if (!button) {
+        removeItineraryChangeBanner();
+        return;
+      }
+
+      const currentValue = (
+        button.value ||
+        button.getAttribute('value') ||
+        button.textContent ||
+        button.title ||
+        ''
+      ).trim();
+
+      if (currentValue === itineraryChangeText) insertItineraryChangeBanner();
+      else removeItineraryChangeBanner();
     }
 
     function highlightAllRowsGlobal() {
@@ -1755,6 +1798,7 @@
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         checkStatusAndInsertBanner();
+        checkItineraryChangeBanner();
         highlightAllRowsGlobal();
         addLegend();
         adjustSpacing();
@@ -1771,6 +1815,7 @@
     let attempts = 0;
     const tryInit = setInterval(() => {
       checkStatusAndInsertBanner();
+      checkItineraryChangeBanner();
       highlightAllRowsGlobal();
       addLegend();
       adjustSpacing();
@@ -1784,6 +1829,12 @@
     }, 500);
 
     observeNotifications();
+    document.addEventListener('click', (e) => {
+      if (e.target?.closest?.(itinerarySelector) || e.target?.closest?.('[role="option"]')) {
+        setTimeout(checkItineraryChangeBanner, 50);
+        setTimeout(checkItineraryChangeBanner, 250);
+      }
+    }, true);
     setInterval(checkCareWorksJurisdiction, 1200);
 
     if (document.title.includes('Email:')) {
