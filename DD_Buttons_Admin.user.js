@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.3.3
+// @version      4.3.6
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -2790,6 +2790,1014 @@ if (isLOrchidPrefix && isHClaim) {
         });
     }
 
+/* =================== EMAIL CONFIRMATION SAFEGUARDS =================== */
+
+// Dynamics can render the referral-recipient rows and the confirmation-form
+// checkboxes in different same-origin iframe documents.  Do NOT assume they
+// live in one specific iframe.  Instead, walk every accessible document and
+// search them independently.
+function getAllAccessibleDynamicsDocuments() {
+    const docs = [];
+    const seen = new Set();
+
+    function walk(doc) {
+        if (!doc || seen.has(doc)) return;
+        seen.add(doc);
+        docs.push(doc);
+
+        let frames = [];
+        try {
+            frames = Array.from(doc.querySelectorAll('iframe'));
+        } catch (e) {
+            return;
+        }
+
+        for (const frame of frames) {
+            try {
+                const childDoc = frame.contentDocument || frame.contentWindow?.document;
+                if (childDoc) walk(childDoc);
+            } catch (e) {
+                // Cross-origin iframe; ignore it.
+            }
+        }
+    }
+
+    walk(document);
+    return docs;
+}
+
+function findConfirmationControls() {
+    const docs = getAllAccessibleDynamicsDocuments();
+
+    for (const doc of docs) {
+        try {
+            const clientCheck = doc.getElementById('cbClientForm');
+            const driverCheck = doc.getElementById('cbDriverForm');
+            const interpreterCheck = doc.getElementById('cbInterpreterForm');
+
+            if (clientCheck || driverCheck || interpreterCheck) {
+                return { doc, clientCheck, driverCheck, interpreterCheck };
+            }
+        } catch (e) {}
+    }
+
+    return { doc: null, clientCheck: null, driverCheck: null, interpreterCheck: null };
+}
+
+function getSelectedReferralRecipients() {
+    const recipients = [];
+    const seenInputs = new Set();
+
+    for (const doc of getAllAccessibleDynamicsDocuments()) {
+        let checks = [];
+
+        try {
+            // Use the exact referral-recipient structure from the Dynamics web resource.
+            // IDs vary, but AddOrRemoveRecipient is stable for these recipient rows.
+            checks = Array.from(doc.querySelectorAll(
+                'input[type="checkbox"][onclick*="AddOrRemoveRecipient"]'
+            ));
+        } catch (e) {
+            continue;
+        }
+
+        for (const check of checks) {
+            if (!check || seenInputs.has(check)) continue;
+            seenInputs.add(check);
+
+            // :checked should mirror .checked, but test both because Dynamics can
+            // update the element during its inline onclick handler.
+            let isChecked = !!check.checked;
+            try { isChecked = isChecked || check.matches(':checked'); } catch (e) {}
+            if (!isChecked) continue;
+
+            let row = null;
+            try { row = check.closest('tr'); } catch (e) {}
+            if (!row) continue;
+
+            let cells = [];
+            try { cells = Array.from(row.querySelectorAll('td')); } catch (e) {}
+
+            const visibleText = String(cells[1]?.textContent || cells[1]?.innerText || '')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            const hiddenName = String(cells[2]?.textContent || cells[2]?.innerText || '')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            // IMPORTANT: search the ENTIRE row.  Service-provider rows can be:
+            // ACGE T&T LLC (MO) (Service Provider - Interpreter)
+            // and the role text must not be lost by preferring only a name cell.
+            const rowText = String(row.textContent || row.innerText || '')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            const searchText = [visibleText, hiddenName, rowText]
+                .filter(Boolean)
+                .join(' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            if (!searchText) continue;
+
+            recipients.push({
+                input: check,
+                text: visibleText || rowText || hiddenName,
+                visibleText,
+                hiddenName,
+                rowText,
+                searchText
+            });
+        }
+    }
+
+    return recipients;
+}
+
+function setConfirmationUnchecked(checkBox) {
+    if (!checkBox || !checkBox.checked) return;
+
+    // Prefer a normal click so the web resource receives its native behavior.
+    // Dynamics may show its own confirmation dialog after this click.  The
+    // safeguard cleanup watcher below handles that dialog only when one of our
+    // safety rules has fired.
+    try { checkBox.click(); } catch (e) {}
+
+    // Hard fallback in case Dynamics blocks or replaces the normal click behavior.
+    if (checkBox.checked) {
+        checkBox.checked = false;
+        try { checkBox.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+        try { checkBox.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+    }
+}
+
+/*
+ * When a safeguard rule removes Client/Driver Confirmation, Dynamics opens a
+ * second confirmation dialog asking whether to remove the Confirmation Form
+ * content/attachment.  Once the user has acknowledged OUR safeguard alert, we
+ * automatically accept that Dynamics dialog, remove every attachment from
+ * the email, and SAVE that clean state before the user selects the correct form.
+ * This cleanup runs only after a safeguard violation.
+ */
+let mtoySafeguardCleanupTimer = null;
+let mtoySafeguardCleanupStartedAt = 0;
+let mtoySafeguardCleanupLastActionAt = 0;
+let mtoySafeguardCleanupNoAttachmentTicks = 0;
+let mtoySafeguardCleanupSaveClicked = false;
+let mtoySafeguardCleanupSaveClickedAt = 0;
+
+function elementIsActuallyVisible(el) {
+    if (!el || !el.isConnected) return false;
+    try {
+        const style = el.ownerDocument?.defaultView?.getComputedStyle(el);
+        if (style && (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0')) {
+            return false;
+        }
+        const rect = el.getBoundingClientRect?.();
+        return !rect || rect.width > 0 || rect.height > 0;
+    } catch (e) {
+        return true;
+    }
+}
+
+function getVisibleSafeguardCleanupDialogs() {
+    const dialogs = [];
+
+    for (const doc of getAllAccessibleDynamicsDocuments()) {
+        let candidates = [];
+        try {
+            candidates = Array.from(doc.querySelectorAll(
+                '[role="dialog"], [aria-modal="true"], .ms-Dialog-main, .fui-DialogSurface'
+            ));
+        } catch (e) {
+            continue;
+        }
+
+        for (const dialog of candidates) {
+            if (!elementIsActuallyVisible(dialog)) continue;
+
+            const text = String(dialog.innerText || dialog.textContent || '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toLowerCase();
+
+            // Exact native confirmation generated by unchecking Client/Driver Form.
+            const isConfirmationFormRemoval =
+                text.includes('you have selected to remove') &&
+                text.includes('confirmation form') &&
+                (text.includes('list of attachments') || text.includes('remove the content'));
+
+            // Some Dynamics builds may show a separate attachment-delete confirm.
+            const isAttachmentDeleteConfirm =
+                text.includes('delete') &&
+                text.includes('attachment');
+
+            if (isConfirmationFormRemoval || isAttachmentDeleteConfirm) {
+                dialogs.push(dialog);
+            }
+        }
+    }
+
+    return dialogs;
+}
+
+function clickSafeguardDialogAcceptButton() {
+    const dialogs = getVisibleSafeguardCleanupDialogs();
+    if (!dialogs.length) return false;
+
+    for (const dialog of dialogs) {
+        let buttons = [];
+        try { buttons = Array.from(dialog.querySelectorAll('button')); } catch (e) {}
+
+        const acceptButton = buttons.find(btn => {
+            if (!elementIsActuallyVisible(btn)) return false;
+            const txt = String(btn.innerText || btn.textContent || btn.getAttribute('aria-label') || '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toLowerCase();
+            return txt === 'ok' || txt === 'yes' || txt === 'delete' || txt === 'remove';
+        });
+
+        if (acceptButton) {
+            try {
+                acceptButton.click();
+                console.log('Email confirmation safeguard: accepted Dynamics removal dialog.');
+                return true;
+            } catch (e) {}
+        }
+    }
+
+    return false;
+}
+
+function getEmailAttachmentContainers() {
+    const containers = [];
+    const seen = new Set();
+
+    for (const doc of getAllAccessibleDynamicsDocuments()) {
+        let found = [];
+        try {
+            found = Array.from(doc.querySelectorAll(
+                '.attachmentsContainer .attachmentThumbnailIconContainer, .attachmentThumbnailIconContainer'
+            ));
+        } catch (e) {
+            continue;
+        }
+
+        for (const el of found) {
+            if (!seen.has(el)) {
+                seen.add(el);
+                containers.push(el);
+            }
+        }
+    }
+
+    return containers;
+}
+
+function getEmailAttachmentDeleteButtons() {
+    const buttons = [];
+    const seen = new Set();
+
+    for (const container of getEmailAttachmentContainers()) {
+        let btn = null;
+        try { btn = container.querySelector('button[aria-label="Delete attachment"]'); } catch (e) {}
+        if (btn && !seen.has(btn)) {
+            seen.add(btn);
+            buttons.push(btn);
+        }
+    }
+
+    return buttons;
+}
+
+function clickNextEmailAttachmentDelete() {
+    const buttons = getEmailAttachmentDeleteButtons();
+    if (!buttons.length) return false;
+
+    const btn = buttons[0];
+    const container = btn.closest?.('.attachmentThumbnailIconContainer');
+
+    try {
+        // Fluent UI hides the thumbnail buttons until hover.  Programmatic click
+        // normally works while hidden, but dispatch hover events too for builds
+        // that require the button group to be activated first.
+        if (container) {
+            container.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+            container.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
+        }
+    } catch (e) {}
+
+    try {
+        btn.click();
+        console.log('Email confirmation safeguard: clicked Delete attachment.');
+        return true;
+    } catch (e) {
+        console.warn('Email confirmation safeguard: could not click Delete attachment.', e);
+        return false;
+    }
+}
+
+function clickVisibleEmailSaveForSafeguard() {
+    const candidates = [];
+
+    for (const doc of getAllAccessibleDynamicsDocuments()) {
+        let found = [];
+        try {
+            found = Array.from(doc.querySelectorAll(
+                '[id*="SavePrimary"], ' +
+                'button[data-id$=".Save"], ' +
+                'button[aria-label="Save"]'
+            ));
+        } catch (e) {
+            continue;
+        }
+
+        for (const btn of found) {
+            if (!btn || !elementIsActuallyVisible(btn)) continue;
+            if (btn.disabled || btn.getAttribute('aria-disabled') === 'true') continue;
+
+            const label = String(
+                btn.getAttribute('aria-label') ||
+                btn.getAttribute('title') ||
+                btn.innerText ||
+                btn.textContent ||
+                ''
+            ).replace(/\s+/g, ' ').trim().toLowerCase();
+
+            // Explicitly avoid Save & Close.  We only want to commit the cleanup
+            // while leaving the email open so the user can choose the correct form.
+            if (label.includes('save & close') || label.includes('save and close')) continue;
+            candidates.push(btn);
+        }
+    }
+
+    if (!candidates.length) return false;
+
+    try {
+        candidates[candidates.length - 1].click();
+        console.log('Email confirmation safeguard: saved email to persist attachment removals.');
+        return true;
+    } catch (e) {
+        console.warn('Email confirmation safeguard: could not click Save after cleanup.', e);
+        return false;
+    }
+}
+
+function stopSafeguardAttachmentCleanup() {
+    if (mtoySafeguardCleanupTimer !== null) {
+        clearInterval(mtoySafeguardCleanupTimer);
+        mtoySafeguardCleanupTimer = null;
+    }
+}
+
+function startSafeguardAttachmentCleanup() {
+    // This cleanup is intentionally limited to the Confirmation Form workflow.
+    // It NEVER blanket-deletes attachments. Manually added files must remain.
+    // The continuous reconciler below removes only generated confirmation PDFs
+    // whose type conflicts with the currently valid confirmation selection.
+    mtoySafeguardCleanupStartedAt = Date.now();
+    mtoySafeguardCleanupLastActionAt = Date.now();
+    mtoySafeguardCleanupSaveClicked = false;
+    mtoySafeguardCleanupSaveClickedAt = 0;
+
+    if (mtoySafeguardCleanupTimer !== null) return;
+
+    mtoySafeguardCleanupTimer = setInterval(() => {
+        const now = Date.now();
+
+        if (now - mtoySafeguardCleanupStartedAt > 15000) {
+            stopSafeguardAttachmentCleanup();
+            return;
+        }
+
+        // Accept only the native Dynamics dialog caused by removing one of the
+        // generated Confirmation Forms (or a generated confirmation attachment).
+        if (clickSafeguardDialogAcceptButton()) {
+            mtoySafeguardCleanupLastActionAt = now;
+            return;
+        }
+
+        // Continuously reconcile only Client/Driver/Interpreter confirmation PDFs.
+        // Other/manual attachment names are ignored by the reconciler.
+        try { reconcileConfirmationAttachments(); } catch (e) {}
+
+        // Persist the checkbox/form removal after Dynamics has had time to settle.
+        // If a stale confirmation PDF appears later, the reconciler will remove
+        // that specific PDF and save again.
+        if (
+            !mtoySafeguardCleanupSaveClicked &&
+            now - mtoySafeguardCleanupLastActionAt > 1400
+        ) {
+            if (clickVisibleEmailSaveForSafeguard()) {
+                mtoySafeguardCleanupSaveClicked = true;
+                mtoySafeguardCleanupSaveClickedAt = now;
+            }
+            return;
+        }
+
+        if (
+            mtoySafeguardCleanupSaveClicked &&
+            now - mtoySafeguardCleanupSaveClickedAt > 2200
+        ) {
+            stopSafeguardAttachmentCleanup();
+        }
+    }, 200);
+}
+
+
+/*
+ * Keep the generated confirmation PDFs synchronized with the confirmation
+ * checkboxes and the CURRENTLY selected referral recipients. Dynamics can create
+ * a PDF several seconds after the checkbox/prompt flow finishes, so a one-time
+ * cleanup is not enough. This reconciler runs continuously while the email is open:
+ *
+ *   Client checked       -> keep Client Confirmation (subject to existing rules)
+ *   Driver checked       -> keep Driver Confirmation (subject to existing rules)
+ *   Interpreter checked  -> keep Interpreter Confirmation; recipient eligibility
+ *                           is validated event-by-event and again at Send
+ *   unchecked/invalid    -> remove that generated confirmation PDF if it appears
+ *
+ * Other/non-confirmation attachments are never touched by this reconciler.
+ */
+let mtoyConfirmationAttachmentLastDeleteAt = 0;
+let mtoyConfirmationAttachmentLastDeleteKey = '';
+let mtoyConfirmationAttachmentNeedsSave = false;
+let mtoyConfirmationAttachmentSaveAt = 0;
+
+function getEmailAttachmentEntries() {
+    const entries = [];
+
+    for (const container of getEmailAttachmentContainers()) {
+        let nameEl = null;
+        let deleteButton = null;
+
+        try {
+            nameEl = container.querySelector('.attachmentName, [class*="attachmentName"]');
+            deleteButton = container.querySelector('button[aria-label="Delete attachment"]');
+        } catch (e) {}
+
+        const name = String(
+            nameEl?.innerText ||
+            nameEl?.textContent ||
+            container.getAttribute?.('aria-label') ||
+            ''
+        ).replace(/\s+/g, ' ').trim();
+
+        if (!name) continue;
+
+        entries.push({
+            container,
+            deleteButton,
+            name,
+            lowerName: name.toLowerCase()
+        });
+    }
+
+    return entries;
+}
+
+function getRecipientSearchText(item) {
+    return [
+        item?.searchText,
+        item?.text,
+        item?.visibleText,
+        item?.hiddenName,
+        item?.rowText
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+// Interpreter matching is intentionally EVENT-DRIVEN instead of being invalidated
+// continuously by the 250 ms poll. Dynamics can briefly rebuild the recipient web
+// resource while a confirmation checkbox is changing; an "absence" check during that
+// rebuild caused false Interpreter warnings. Client/Driver safeguards never rely on
+// absence, so Interpreter now follows the same philosophy: validate when Interpreter
+// is selected, when an Interpreter recipient changes, and again at Send.
+function getCurrentInterpreterRecipient(selectedRecipients = null) {
+    const recipients = selectedRecipients || getSelectedReferralRecipients();
+    return recipients.find(item =>
+        getRecipientSearchText(item).toLowerCase().includes('interpreter')
+    ) || null;
+}
+
+function hasSelectedInterpreterRecipient() {
+    return !!getCurrentInterpreterRecipient();
+}
+
+let mtoyInterpreterStableValidationToken = 0;
+
+function validateInterpreterSelectionAfterRender(showAlert = true) {
+    const token = ++mtoyInterpreterStableValidationToken;
+    let attempts = 0;
+    const maxAttempts = 12; // ~2.4 seconds, enough for the Dynamics web resource to rerender.
+
+    function check() {
+        if (token !== mtoyInterpreterStableValidationToken) return;
+
+        const controls = findConfirmationControls();
+        const interpreterCheck = controls.interpreterCheck;
+        if (!interpreterCheck?.checked) return;
+
+        const recipients = getSelectedReferralRecipients();
+        const interpreterRecipient = getCurrentInterpreterRecipient(recipients);
+
+        if (interpreterRecipient) {
+            // Interpreter is valid. Now enforce one-of-three and the rest of the rules,
+            // but do NOT run an absence-based Interpreter check again.
+            validateEmailConfirmations(showAlert, false);
+            return;
+        }
+
+        attempts++;
+        if (attempts < maxAttempts) {
+            setTimeout(check, 200);
+            return;
+        }
+
+        // Recipient rows stayed stable long enough and no Interpreter recipient exists.
+        validateEmailConfirmations(showAlert, true);
+    }
+
+    setTimeout(check, 175);
+}
+
+function isClientConfirmationAttachment(entry) {
+    return entry.lowerName.includes('client confirmation');
+}
+
+function isDriverConfirmationAttachment(entry) {
+    return entry.lowerName.includes('driver confirmation');
+}
+
+function isInterpreterConfirmationAttachment(entry) {
+    return entry.lowerName.includes('interpreter confirmation');
+}
+
+function getMismatchedConfirmationAttachments() {
+    const controls = findConfirmationControls();
+    const clientChecked = !!controls.clientCheck?.checked;
+    const driverChecked = !!controls.driverCheck?.checked;
+    const interpreterChecked = !!controls.interpreterCheck?.checked;
+    // There may be ZERO or ONE valid generated confirmation attachment.
+    // Manual attachments with every other filename are always ignored.
+    let allowedType = '';
+
+    if (interpreterChecked) {
+        allowedType = 'interpreter';
+    } else if (clientChecked && !driverChecked && !interpreterChecked) {
+        allowedType = 'client';
+    } else if (driverChecked && !clientChecked && !interpreterChecked) {
+        allowedType = 'driver';
+    }
+
+    return getEmailAttachmentEntries().filter(entry => {
+        const isClient = isClientConfirmationAttachment(entry);
+        const isDriver = isDriverConfirmationAttachment(entry);
+        const isInterpreter = isInterpreterConfirmationAttachment(entry);
+
+        if (!isClient && !isDriver && !isInterpreter) return false;
+
+        if (!allowedType) return true;
+        if (allowedType === 'client') return !isClient;
+        if (allowedType === 'driver') return !isDriver;
+        if (allowedType === 'interpreter') return !isInterpreter;
+
+        return true;
+    });
+}
+
+function clickSpecificAttachmentDelete(entry) {
+    if (!entry?.deleteButton) return false;
+
+    try {
+        entry.container?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        entry.container?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
+    } catch (e) {}
+
+    try {
+        entry.deleteButton.click();
+        console.log('Email confirmation attachment reconciler: removing stale attachment:', entry.name);
+        return true;
+    } catch (e) {
+        console.warn('Email confirmation attachment reconciler: failed to remove:', entry.name, e);
+        return false;
+    }
+}
+
+function reconcileConfirmationAttachments() {
+    const now = Date.now();
+
+    // If a delete click opened a native Dynamics confirmation, accept it. This
+    // reuses the narrowly-scoped dialog detector already used by the safeguard.
+    if (mtoyConfirmationAttachmentNeedsSave && clickSafeguardDialogAcceptButton()) {
+        mtoyConfirmationAttachmentLastDeleteAt = now;
+        return;
+    }
+
+    const mismatches = getMismatchedConfirmationAttachments();
+
+    if (mismatches.length > 0) {
+        const entry = mismatches[0];
+        const key = `${entry.container?.id || ''}|${entry.name}`;
+
+        // Give Dynamics time to rerender/remove the thumbnail after each click,
+        // and avoid hammering the same hidden Delete button while a modal is open.
+        if (
+            key !== mtoyConfirmationAttachmentLastDeleteKey ||
+            now - mtoyConfirmationAttachmentLastDeleteAt > 1500
+        ) {
+            if (clickSpecificAttachmentDelete(entry)) {
+                mtoyConfirmationAttachmentLastDeleteKey = key;
+                mtoyConfirmationAttachmentLastDeleteAt = now;
+                mtoyConfirmationAttachmentNeedsSave = true;
+            }
+        }
+        return;
+    }
+
+    // Once the wrong PDF is actually gone, persist that deletion. This is
+    // especially important when Dynamics adds the stale PDF after the user's
+    // earlier Save has already completed.
+    if (
+        mtoyConfirmationAttachmentNeedsSave &&
+        now - mtoyConfirmationAttachmentLastDeleteAt > 1200 &&
+        now - mtoyConfirmationAttachmentSaveAt > 2500
+    ) {
+        if (clickVisibleEmailSaveForSafeguard()) {
+            mtoyConfirmationAttachmentSaveAt = now;
+            mtoyConfirmationAttachmentNeedsSave = false;
+            mtoyConfirmationAttachmentLastDeleteKey = '';
+            console.log('Email confirmation attachment reconciler: saved removal of stale confirmation PDF.');
+        }
+    }
+}
+
+let mtoyEmailSafeguardHandling = false;
+
+function validateEmailConfirmations(showAlert = true, enforceInterpreterRecipient = false) {
+    if (mtoyEmailSafeguardHandling) return true;
+
+    const controls = findConfirmationControls();
+    const clientCheck = controls.clientCheck;
+    const driverCheck = controls.driverCheck;
+    const interpreterCheck = controls.interpreterCheck;
+
+    if (!clientCheck && !driverCheck && !interpreterCheck) return true;
+
+    const selectedRecipients = getSelectedReferralRecipients();
+    const interpreterRecipient = getCurrentInterpreterRecipient(selectedRecipients);
+
+    console.log(
+        'Email confirmation safeguard - selected referral recipients:',
+        selectedRecipients.map(item => ({
+            id: item.input?.id || '',
+            text: item.text,
+            visibleText: item.visibleText,
+            rowText: item.rowText,
+            searchText: getRecipientSearchText(item),
+            checked: !!item.input?.checked
+        }))
+    );
+
+    // RULE 1: Only ONE generated confirmation may be selected.
+    // When more than one is checked, prefer the confirmation that actually matches
+    // the selected recipient type instead of blindly preferring Interpreter.
+    //
+    // Examples:
+    //   Service Provider - Interpreter -> keep Interpreter
+    //   Service Provider - Transporter -> keep Driver
+    //   Adjuster / Customer Contact / Authorized -> keep Client
+    // If more than one checked form is individually valid (for example a generic
+    // recipient with both Client and Driver checked), clear the conflicting forms
+    // rather than guessing.
+    const checkedControls = [
+        { key: 'client', label: 'Client Confirmation', cb: clientCheck },
+        { key: 'driver', label: 'Driver Confirmation', cb: driverCheck },
+        { key: 'interpreter', label: 'Interpreter Confirmation', cb: interpreterCheck }
+    ].filter(item => item.cb?.checked);
+
+    if (checkedControls.length > 1) {
+        const recipientSearchTexts = selectedRecipients.map(item =>
+            getRecipientSearchText(item).toLowerCase()
+        );
+        const hasTransportRecipient = recipientSearchTexts.some(text => text.includes('transport'));
+        const hasClientTypeRecipient = recipientSearchTexts.some(text =>
+            text.includes('adjuster') ||
+            text.includes('customer contact') ||
+            text.includes('authorized')
+        );
+
+        const isCompatible = (key) => {
+            if (key === 'interpreter') return !!interpreterRecipient;
+            if (key === 'driver') return !interpreterRecipient && !hasClientTypeRecipient;
+            if (key === 'client') return !interpreterRecipient && !hasTransportRecipient;
+            return false;
+        };
+
+        const compatibleChecked = checkedControls.filter(item => isCompatible(item.key));
+
+        mtoyEmailSafeguardHandling = true;
+        try {
+            if (compatibleChecked.length === 1) {
+                const keep = compatibleChecked[0];
+                const removed = [];
+
+                checkedControls.forEach(item => {
+                    if (item !== keep) {
+                        setConfirmationUnchecked(item.cb);
+                        removed.push(item.label);
+                    }
+                });
+
+                if (showAlert && removed.length) {
+                    alert(
+                        'EMAIL CONFIRMATION SAFEGUARD\n\n' +
+                        'Only one confirmation form may be selected.\n\n' +
+                        `${keep.label} has been kept because it matches the selected recipient; ` +
+                        removed.join(' and ') +
+                        (removed.length > 1 ? ' have' : ' has') +
+                        ' been unchecked.'
+                    );
+                }
+            } else {
+                const removed = [];
+                checkedControls.forEach(item => {
+                    setConfirmationUnchecked(item.cb);
+                    removed.push(item.label);
+                });
+
+                if (showAlert) {
+                    alert(
+                        'EMAIL CONFIRMATION SAFEGUARD\n\n' +
+                        'Only one confirmation form may be selected.\n\n' +
+                        (compatibleChecked.length === 0
+                            ? 'None of the selected confirmation forms matches the selected recipient, so the conflicting confirmations have been unchecked.'
+                            : 'More than one selected confirmation could apply, so the conflicting confirmations have been unchecked rather than guessing.')
+                    );
+                }
+            }
+
+            startSafeguardAttachmentCleanup();
+        } finally {
+            setTimeout(() => { mtoyEmailSafeguardHandling = false; }, 75);
+        }
+        return false;
+    }
+
+    // RULE 2: Only enforce the Interpreter-recipient requirement after a stable,
+    // event-driven check (or at Send). The background poll deliberately skips this
+    // absence test because Dynamics temporarily removes recipient rows while rerendering.
+    if (enforceInterpreterRecipient && interpreterCheck?.checked && !interpreterRecipient) {
+        mtoyEmailSafeguardHandling = true;
+        try {
+            setConfirmationUnchecked(interpreterCheck);
+
+            if (showAlert) {
+                alert(
+                    'EMAIL CONFIRMATION SAFEGUARD\n\n' +
+                    'Interpreter Confirmation can only be used when a selected recipient contains "Interpreter".\n\n' +
+                    'Interpreter Confirmation has been unchecked.'
+                );
+            }
+
+            startSafeguardAttachmentCleanup();
+        } finally {
+            setTimeout(() => { mtoyEmailSafeguardHandling = false; }, 75);
+        }
+        return false;
+    }
+
+    // RULE 3: If an Interpreter recipient is selected, Client and Driver
+    // Confirmation are not allowed. This mirrors the existing positive-match
+    // Transport/Adjuster safeguards: act only when the matching recipient is found.
+    if (interpreterRecipient && (clientCheck?.checked || driverCheck?.checked)) {
+        mtoyEmailSafeguardHandling = true;
+        try {
+            const removed = [];
+            if (clientCheck?.checked) {
+                setConfirmationUnchecked(clientCheck);
+                removed.push('Client Confirmation');
+            }
+            if (driverCheck?.checked) {
+                setConfirmationUnchecked(driverCheck);
+                removed.push('Driver Confirmation');
+            }
+
+            if (showAlert && removed.length) {
+                alert(
+                    'EMAIL CONFIRMATION SAFEGUARD\n\n' +
+                    `Selected recipient: ${interpreterRecipient.text}\n\n` +
+                    'An Interpreter recipient can only use Interpreter Confirmation.\n\n' +
+                    `${removed.join(' and ')} ${removed.length > 1 ? 'have' : 'has'} been unchecked.`
+                );
+            }
+
+            startSafeguardAttachmentCleanup();
+        } finally {
+            setTimeout(() => { mtoyEmailSafeguardHandling = false; }, 75);
+        }
+        return false;
+    }
+
+    // RULE 4: Client Confirmation cannot be used when any selected referral
+    // recipient contains "transport".
+    if (clientCheck?.checked) {
+        const offendingClientRecipient = selectedRecipients.find(item =>
+            getRecipientSearchText(item).toLowerCase().includes('transport')
+        );
+
+        if (offendingClientRecipient) {
+            mtoyEmailSafeguardHandling = true;
+            try {
+                setConfirmationUnchecked(clientCheck);
+
+                if (showAlert) {
+                    alert(
+                        'EMAIL CONFIRMATION SAFEGUARD\n\n' +
+                        `Selected recipient: ${offendingClientRecipient.text}\n\n` +
+                        'Client Confirmation cannot be used for a recipient containing "Transport".\n\n' +
+                        'Client Confirmation has been unchecked.'
+                    );
+                }
+
+                startSafeguardAttachmentCleanup();
+            } finally {
+                setTimeout(() => { mtoyEmailSafeguardHandling = false; }, 75);
+            }
+            return false;
+        }
+    }
+
+    // RULE 5: Driver Confirmation cannot be used for Adjuster,
+    // Customer Contact, or Authorized recipient rows.
+    if (driverCheck?.checked) {
+        const blockedTerms = ['adjuster', 'customer contact', 'authorized'];
+        let offendingDriverRecipient = null;
+        let matchedTerm = '';
+
+        for (const item of selectedRecipients) {
+            const lower = getRecipientSearchText(item).toLowerCase();
+            matchedTerm = blockedTerms.find(term => lower.includes(term)) || '';
+            if (matchedTerm) {
+                offendingDriverRecipient = item;
+                break;
+            }
+        }
+
+        if (offendingDriverRecipient) {
+            mtoyEmailSafeguardHandling = true;
+            try {
+                setConfirmationUnchecked(driverCheck);
+
+                if (showAlert) {
+                    alert(
+                        'EMAIL CONFIRMATION SAFEGUARD\n\n' +
+                        `Selected recipient: ${offendingDriverRecipient.text}\n\n` +
+                        `Driver Confirmation cannot be used when a selected recipient contains "${matchedTerm}".\n\n` +
+                        'Driver Confirmation has been unchecked.'
+                    );
+                }
+
+                startSafeguardAttachmentCleanup();
+            } finally {
+                setTimeout(() => { mtoyEmailSafeguardHandling = false; }, 75);
+            }
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function installEmailConfirmationListenersInDocument(doc) {
+    if (!doc || doc.__mtoyConfirmationSafeguardInstalledV4224) return;
+    doc.__mtoyConfirmationSafeguardInstalledV4224 = true;
+
+    const validateAfterCheckboxChange = (event) => {
+        const target = event.target;
+        if (!target || target.type !== 'checkbox') return;
+
+        setTimeout(() => {
+            const id = target.id || '';
+            let isReferralRecipient = false;
+            try {
+                isReferralRecipient = target.matches(
+                    'input[type="checkbox"][onclick*="AddOrRemoveRecipient"]'
+                );
+            } catch (e) {}
+
+            // Interpreter is validated only after Dynamics has had time to rebuild
+            // the referral-recipient rows. This avoids the false "no Interpreter"
+            // message that happened while the row was temporarily missing.
+            if (id === 'cbInterpreterForm' && target.checked) {
+                validateInterpreterSelectionAfterRender(true);
+                return;
+            }
+
+            if (isReferralRecipient) {
+                let rowHasInterpreter = false;
+                try {
+                    rowHasInterpreter = String(target.closest('tr')?.textContent || '')
+                        .replace(/\s+/g, ' ')
+                        .toLowerCase()
+                        .includes('interpreter');
+                } catch (e) {}
+
+                if (rowHasInterpreter) {
+                    // If Interpreter Confirmation is currently selected, re-check its
+                    // eligibility only after the recipient list has stabilized.
+                    const controls = findConfirmationControls();
+                    if (controls.interpreterCheck?.checked) {
+                        validateInterpreterSelectionAfterRender(true);
+                        return;
+                    }
+                }
+            }
+
+            // Client/Driver and positive recipient matches can still be checked
+            // immediately, exactly like the working Transport/Adjuster safeguards.
+            validateEmailConfirmations(true, false);
+        }, 150);
+    };
+
+    try {
+        doc.addEventListener('click', validateAfterCheckboxChange, true);
+        doc.addEventListener('change', validateAfterCheckboxChange, true);
+    } catch (e) {}
+}
+
+function installEmailSendSafeguard() {
+    if (window.mtoyEmailSendSafeguardInstalledV4224) return;
+    window.mtoyEmailSendSafeguardInstalledV4224 = true;
+
+    document.addEventListener('click', (event) => {
+        const sendButton = event.target?.closest?.(
+            'button[data-id="email|NoRelationship|Form|Mscrm.Form.email.Send"], ' +
+            'button[id^="email|NoRelationship|Form|Mscrm.Form.email.Send"]'
+        );
+
+        if (!sendButton) return;
+
+        if (!validateEmailConfirmations(true, true)) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            console.warn('Email send stopped by confirmation safeguard.');
+        }
+    }, true);
+}
+
+function startEmailConfirmationSafeguardWatch() {
+    if (window.mtoyEmailConfirmationSafeguardWatchStartedV4224) return;
+    window.mtoyEmailConfirmationSafeguardWatchStartedV4224 = true;
+
+    let lastFingerprint = '';
+
+    function scan() {
+        const docs = getAllAccessibleDynamicsDocuments();
+        docs.forEach(installEmailConfirmationListenersInDocument);
+
+        // Polling is intentional here. Dynamics can update checkbox state inside
+        // a web resource without replacing nodes or generating a useful top-level
+        // mutation.  The poll gives us a second independent safeguard path.
+        const controls = findConfirmationControls();
+        const recipients = getSelectedReferralRecipients();
+        const fingerprint = [
+            controls.clientCheck?.checked ? 'C1' : 'C0',
+            controls.driverCheck?.checked ? 'D1' : 'D0',
+            controls.interpreterCheck?.checked ? 'I1' : 'I0',
+            recipients.map(r => `${r.input?.id || ''}:${r.input?.checked ? 1 : 0}:${getRecipientSearchText(r)}`).join('||')
+        ].join('|');
+
+        if (fingerprint !== lastFingerprint) {
+            lastFingerprint = fingerprint;
+            validateEmailConfirmations(true, false);
+        }
+
+        // Dynamics may generate confirmation PDFs several seconds after the
+        // checkbox/prompt/save flow. Continuously remove any confirmation PDF
+        // that conflicts with the currently selected form/recipient combination.
+        reconcileConfirmationAttachments();
+    }
+
+    const observer = new MutationObserver(scan);
+    observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true
+    });
+
+    setInterval(scan, 250);
+    scan();
+}
+
+installEmailSendSafeguard();
+startEmailConfirmationSafeguardWatch();
+
     function proceedWithRestOfFunction(claimant, claim, referralDate, selectedOption) {
         showProcessingMessage();
 
@@ -2806,9 +3814,15 @@ if (isLOrchidPrefix && isHClaim) {
                             var iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
                             var checkBox = iframeDoc.querySelector('#cbClientForm');
 
+                            // Install the same confirmation/recipient safeguards used by DD_Buttons.
+                            installEmailConfirmationListenersInDocument(iframeDoc);
+
                             if (checkBox && !checkBox.checked) {
                                 checkBox.click();
                             }
+
+                            // Validate the automatic Client Confirmation selection immediately.
+                            setTimeout(() => validateEmailConfirmations(true), 25);
 
                             setTimeout(() => {
                                 var templateButton = document.querySelector('[id*="Template"]');
