@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.6
+// @version      1.3.7.10
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay.
@@ -1120,25 +1120,149 @@
       return false;
     }
 
+    // Keep the form banners in the LEFT header section exactly between the
+    // Save Status row ("- Saved" / "- Unsaved") and the breadcrumb row that
+    // begins with "Referral".  Dynamics changed the header DOM, so anchoring to
+    // the old formHeaderTitle parent can either put the banner inline with the
+    // referral number or make the header flex container grow vertically.
+    //
+    // These two data-id values are much more stable and describe the exact
+    // before/after position we want:
+    //   [data-id="header_saveStatus"]   -> banner goes AFTER this row
+    //   [data-id="entity_name_span"]    -> banner goes BEFORE this row
+
+    function directChildUnder(ancestor, descendant) {
+      if (!ancestor || !descendant) return null;
+      let node = descendant;
+      while (node && node.parentElement && node.parentElement !== ancestor) {
+        node = node.parentElement;
+      }
+      return node && node.parentElement === ancestor ? node : null;
+    }
+
+    function findFormBannerInsertionPoint() {
+      const saveStatus = document.querySelector('[data-id="header_saveStatus"]');
+      const entityName = document.querySelector('[data-id="entity_name_span"]');
+      if (!saveStatus || !entityName) return null;
+
+      // Find the LOWEST common ancestor containing both the save-status line and
+      // the Referral/Information breadcrumb line.  On the current Dynamics form
+      // this is the left-side header column, not the whole page header.
+      let common = saveStatus.parentElement;
+      while (common && common !== document.body && !common.contains(entityName)) {
+        common = common.parentElement;
+      }
+      if (!common || common === document.body) return null;
+
+      const saveRow = directChildUnder(common, saveStatus);
+      const referralRow = directChildUnder(common, entityName);
+      if (!saveRow || !referralRow || saveRow === referralRow) return null;
+
+      // Make sure the save-status row really comes before Referral in this build.
+      const relationship = saveRow.compareDocumentPosition(referralRow);
+      if (!(relationship & Node.DOCUMENT_POSITION_FOLLOWING)) return null;
+
+      return { parent: common, before: referralRow };
+    }
+
+    function normalizeFormBannerStack(stack) {
+      if (!stack) return;
+      const banners = Array.from(stack.children);
+      const compact = banners.length > 1;
+
+      Object.assign(stack.style, {
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        maxWidth: '100%',
+        boxSizing: 'border-box',
+        margin: '2px 0 3px 0',
+        padding: '0',
+        gap: compact ? '2px' : '0',
+        position: 'static',
+        inset: 'auto',
+        transform: 'none',
+        zIndex: 'auto',
+        pointerEvents: 'auto'
+      });
+
+      banners.forEach(banner => {
+        Object.assign(banner.style, {
+          display: 'block',
+          width: '100%',
+          maxWidth: '100%',
+          boxSizing: 'border-box',
+          margin: '0',
+          minHeight: compact ? '19px' : '23px',
+          padding: compact ? '2px 6px' : '3px 6px',
+          fontSize: compact ? '11px' : '12px',
+          lineHeight: compact ? '15px' : '17px'
+        });
+      });
+    }
+
+    function ensureFormBannerStack() {
+      const point = findFormBannerInsertionPoint();
+      if (!point) return null;
+
+      let stack = document.getElementById('mtoy-form-banner-stack');
+      if (!stack) {
+        stack = document.createElement('div');
+        stack.id = 'mtoy-form-banner-stack';
+        stack.setAttribute('role', 'presentation');
+      }
+
+      // Always re-home it because Dynamics can rebuild the header when records,
+      // tabs, save state, or form data change.
+      if (stack.parentNode !== point.parent || stack.nextSibling !== point.before) {
+        point.parent.insertBefore(stack, point.before);
+      }
+
+      normalizeFormBannerStack(stack);
+      return stack;
+    }
+
+    function placeFormBanner(banner) {
+      const stack = ensureFormBannerStack();
+      if (!stack) return false;
+      if (banner.parentNode !== stack) stack.appendChild(banner);
+      normalizeFormBannerStack(stack);
+      return true;
+    }
+
+    function cleanupFormBannerStack() {
+      const stack = document.getElementById('mtoy-form-banner-stack');
+      if (!stack) return;
+      if (!stack.children.length) {
+        stack.remove();
+        return;
+      }
+
+      // Re-check the exact Saved/Unsaved -> banner -> Referral placement after
+      // any Dynamics redraw.
+      ensureFormBannerStack();
+    }
+
     function insertBanner() {
-      const header = document.querySelector(headerSelector);
-      if (!header || document.getElementById('rate-status-banner')) return;
-      const banner = document.createElement('div');
-      banner.id = 'rate-status-banner';
-      banner.textContent = "**PENDING RATES**";
-      banner.style.backgroundColor = 'lightblue';
-      banner.style.color = 'black';
-      banner.style.padding = '5px';
-      banner.style.marginTop = '5px';
-      banner.style.fontWeight = 'normal';
-      banner.style.textAlign = 'center';
-      banner.style.borderRadius = '5px';
-      header.parentNode.insertBefore(banner, header.nextSibling);
+      let banner = document.getElementById('rate-status-banner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'rate-status-banner';
+        banner.textContent = "**PENDING RATES**";
+        banner.style.backgroundColor = 'lightblue';
+        banner.style.color = 'black';
+        banner.style.padding = '5px';
+        banner.style.fontWeight = 'normal';
+        banner.style.textAlign = 'center';
+        banner.style.borderRadius = '5px';
+      }
+      placeFormBanner(banner);
     }
 
     function removeBanner() {
       const existing = document.getElementById('rate-status-banner');
       if (existing) existing.remove();
+      cleanupFormBannerStack();
     }
 
     function checkStatusAndInsertBanner() {
@@ -1156,25 +1280,25 @@
     }
 
     function insertItineraryChangeBanner() {
-      const header = document.querySelector(headerSelector);
-      if (!header || document.getElementById('itinerary-change-banner')) return;
-
-      const banner = document.createElement('div');
-      banner.id = 'itinerary-change-banner';
-      banner.textContent = 'STOP PENDING CHANGES DO NOT STAFF YET';
-      banner.style.backgroundColor = '#d32f2f';
-      banner.style.color = 'white';
-      banner.style.padding = '5px';
-      banner.style.marginTop = '5px';
-      banner.style.fontWeight = 'bold';
-      banner.style.textAlign = 'center';
-      banner.style.borderRadius = '5px';
-      header.parentNode.insertBefore(banner, header.nextSibling);
+      let banner = document.getElementById('itinerary-change-banner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'itinerary-change-banner';
+        banner.textContent = 'STOP PENDING CHANGED DO NOT STAFF YET';
+        banner.style.backgroundColor = '#d32f2f';
+        banner.style.color = 'white';
+        banner.style.padding = '5px';
+        banner.style.fontWeight = 'bold';
+        banner.style.textAlign = 'center';
+        banner.style.borderRadius = '5px';
+      }
+      placeFormBanner(banner);
     }
 
     function removeItineraryChangeBanner() {
       const existing = document.getElementById('itinerary-change-banner');
       if (existing) existing.remove();
+      cleanupFormBannerStack();
     }
 
     function checkItineraryChangeBanner() {
@@ -1470,11 +1594,10 @@
       banner.style.backgroundColor = "#f8d7da";
       banner.style.color = "#721c24";
       banner.style.padding = "6px";
-      banner.style.marginTop = "5px";
       banner.style.fontWeight = "bold";
       banner.style.textAlign = "center";
       banner.style.borderRadius = "5px";
-      if (header) header.parentNode.insertBefore(banner, header.nextSibling);
+      if (header) placeFormBanner(banner);
     }
 
     function insertVipBannerIfNeeded() {
@@ -1492,11 +1615,10 @@
       banner.style.backgroundColor = "#f8d7da";
       banner.style.color = "#721c24";
       banner.style.padding = "6px";
-      banner.style.marginTop = "5px";
       banner.style.fontWeight = "bold";
       banner.style.textAlign = "center";
       banner.style.borderRadius = "5px";
-      if (header) header.parentNode.insertBefore(banner, header.nextSibling);
+      if (header) placeFormBanner(banner);
     }
 
     function isInSearchUIWrapper() {
