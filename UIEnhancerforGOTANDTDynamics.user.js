@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.10
+// @version      1.3.7.11
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay.
@@ -1249,10 +1249,10 @@
         banner = document.createElement('div');
         banner.id = 'rate-status-banner';
         banner.textContent = "**PENDING RATES**";
-        banner.style.backgroundColor = 'lightblue';
-        banner.style.color = 'black';
+        banner.style.backgroundColor = 'darkblue';
+        banner.style.color = 'white';
         banner.style.padding = '5px';
-        banner.style.fontWeight = 'normal';
+        banner.style.fontWeight = 'bold';
         banner.style.textAlign = 'center';
         banner.style.borderRadius = '5px';
       }
@@ -1326,7 +1326,7 @@
         "dr.'s visit: 2nd opinion -  always vip!!","dr.'s visit: ime:  always vip !!",
         "pqme -   always vip!!","pqme - panel qualified medical examination - always vip!!",
         "qme - qualified medical exam) vip!!","ame - agreed medical evaluation",
-        "evaluation","fce - long appt!!!!!"
+        "evaluation","fce - long appt.!!!!!"
       ];
       const rows = document.querySelectorAll('div[role="row"]');
       const now = new Date();
