@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons_Admin
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.3.6
+// @version      4.3.13
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons_Admin.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -12,6 +12,9 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
+// @grant        GM_xmlhttpRequest
+// @grant        unsafeWindow
+// @connect      lowmargin.mtoysystems.com
 // ==/UserScript==
 
 (function() {
@@ -2932,6 +2935,605 @@ function setConfirmationUnchecked(checkBox) {
     }
 }
 
+/* ======================= JACKIE EMAIL WORKFLOW ======================= */
+
+const DD_JACKIE_ACCESS_API =
+    'https://lowmargin.mtoysystems.com/api/get_email_list.php?list=DD_Buttons_Jackie';
+
+let ddJackieWorkflowRunning = false;
+let ddJackieAccessPromise = null;
+
+function ddJackieIdentityVariants(value) {
+    const variants = new Set();
+
+    function add(raw) {
+        if (raw === null || raw === undefined) return;
+        const text = String(raw).replace(/\s+/g, ' ').trim().toLowerCase();
+        if (!text) return;
+        variants.add(text);
+
+        const angleEmail = text.match(/<\s*([^<>\s]+@[^<>\s]+)\s*>/)?.[1];
+        if (angleEmail) add(angleEmail);
+
+        if (text.includes('\\')) add(text.split('\\').pop());
+        if (text.includes('@')) add(text.split('@')[0]);
+    }
+
+    add(value);
+    return variants;
+}
+
+function ddJackieCollectAllowedIdentities(payload) {
+    const values = [];
+    const identityKeys = [
+        'name', 'full_name', 'display_name', 'username', 'user_name',
+        'windows_username', 'login', 'domainname', 'value', 'email'
+    ];
+    const containerKeys = [
+        'names', 'members', 'items', 'entries', 'users', 'usernames',
+        'emails', 'recipients', 'allowed', 'values', 'list',
+        'data', 'to', 'cc', 'bcc'
+    ];
+
+    function walk(value, allowString = true) {
+        if (typeof value === 'string') {
+            if (allowString && value.trim()) {
+                value.split(/[;,\r\n]+/).forEach(part => {
+                    if (part.trim()) values.push(part.trim());
+                });
+            }
+            return;
+        }
+
+        if (Array.isArray(value)) {
+            value.forEach(item => walk(item, true));
+            return;
+        }
+
+        if (!value || typeof value !== 'object') return;
+
+        identityKeys.forEach(key => {
+            if (typeof value[key] === 'string' && value[key].trim()) {
+                values.push(value[key]);
+            }
+        });
+        containerKeys.forEach(key => {
+            if (value[key] !== undefined) walk(value[key], true);
+        });
+    }
+
+    if (Array.isArray(payload) || typeof payload === 'string') walk(payload, true);
+    else walk(payload, false);
+
+    const identities = new Set();
+    values.forEach(value => {
+        ddJackieIdentityVariants(value).forEach(variant => identities.add(variant));
+    });
+    return identities;
+}
+
+function ddJackieRequestAccessList() {
+    return new Promise((resolve, reject) => {
+        const url = `${DD_JACKIE_ACCESS_API}&_=${Date.now()}`;
+
+        if (typeof GM_xmlhttpRequest === 'function') {
+            GM_xmlhttpRequest({
+                method: 'GET',
+                url,
+                headers: { Accept: 'application/json' },
+                timeout: 15000,
+                onload: response => {
+                    try {
+                        if (response.status < 200 || response.status >= 300) {
+                            reject(new Error(`Blind Send access API returned HTTP ${response.status}`));
+                            return;
+                        }
+                        resolve(JSON.parse(response.responseText));
+                    } catch (error) {
+                        reject(error);
+                    }
+                },
+                onerror: () => reject(new Error('Blind Send access API request failed')),
+                ontimeout: () => reject(new Error('Blind Send access API request timed out'))
+            });
+            return;
+        }
+
+        fetch(url, { cache: 'no-store', credentials: 'omit' })
+            .then(response => {
+                if (!response.ok) throw new Error(`Blind Send access API returned HTTP ${response.status}`);
+                return response.json();
+            })
+            .then(resolve, reject);
+    });
+}
+
+function ddJackieGetXrm() {
+    try {
+        if (typeof unsafeWindow !== 'undefined' && unsafeWindow.Xrm) return unsafeWindow.Xrm;
+    } catch (e) {}
+
+    try {
+        if (window.Xrm) return window.Xrm;
+    } catch (e) {}
+
+    return null;
+}
+
+function ddJackieGetSignedInEmailFromPage() {
+    for (const doc of getAllAccessibleDynamicsDocuments()) {
+        let accountEmail = null;
+        try { accountEmail = doc.querySelector('#mectrl_currentAccount_secondary'); } catch (e) {}
+
+        const text = String(accountEmail?.innerText || accountEmail?.textContent || '').trim();
+        const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
+        if (email) return email;
+    }
+
+    return '';
+}
+
+async function ddJackieGetCurrentUserIdentities() {
+    const identitySource = await ddJackieWaitFor(
+        () => {
+            const accountEmail = ddJackieGetSignedInEmailFromPage();
+            const xrm = ddJackieGetXrm();
+            return accountEmail || xrm ? { accountEmail, xrm } : null;
+        },
+        15000,
+        250,
+        'Dynamics user information was not available.'
+    );
+    const xrm = identitySource.xrm;
+    const context = xrm?.Utility?.getGlobalContext?.();
+    const userSettings = context?.userSettings;
+    const values = [identitySource.accountEmail, ddJackieGetSignedInEmailFromPage()].filter(Boolean);
+
+    if (userSettings?.userName) values.push(userSettings.userName);
+
+    const userId = String(userSettings?.userId || '').replace(/[{}]/g, '');
+    if (userId && xrm?.WebApi?.retrieveRecord) {
+        try {
+            const record = await xrm.WebApi.retrieveRecord(
+                'systemuser',
+                userId,
+                '?$select=domainname,internalemailaddress,fullname'
+            );
+            ['domainname', 'internalemailaddress', 'fullname'].forEach(key => {
+                if (record?.[key]) values.push(record[key]);
+            });
+        } catch (error) {
+            console.warn('Blind Send could not read the full Dynamics user record.', error);
+        }
+    }
+
+    const identities = new Set();
+    values.forEach(value => {
+        ddJackieIdentityVariants(value).forEach(variant => identities.add(variant));
+    });
+    return identities;
+}
+
+function ddJackieCurrentUserIsAllowed() {
+    if (ddJackieAccessPromise) return ddJackieAccessPromise;
+
+    ddJackieAccessPromise = Promise.all([
+        ddJackieRequestAccessList(),
+        ddJackieGetCurrentUserIdentities()
+    ])
+        .then(([payload, currentUserIdentities]) => {
+            const allowedIdentities = ddJackieCollectAllowedIdentities(payload);
+            const allowed = Array.from(currentUserIdentities).some(identity =>
+                allowedIdentities.has(identity)
+            );
+
+            console.log(
+                allowed
+                    ? 'Blind Send button enabled for the signed-in Dynamics user.'
+                    : 'Blind Send button hidden: signed-in Dynamics user is not on DD_Buttons_Jackie.'
+            );
+            return allowed;
+        })
+        .catch(error => {
+            // Fail closed: if either lookup fails, do not expose the Blind Send button.
+            console.warn('Blind Send button hidden because access could not be verified.', error);
+            return false;
+        });
+
+    return ddJackieAccessPromise;
+}
+
+function ddJackieAddAuthorizedButton(buttonContainer) {
+    ddJackieCurrentUserIsAllowed().then(allowed => {
+        if (!allowed) return;
+
+        const currentContainer = buttonContainer?.isConnected
+            ? buttonContainer
+            : document.getElementById('custom-button-container');
+
+        if (!currentContainer || document.getElementById('mtoy-jackie-button')) return;
+
+        const jackieButton = createModernButton('Blind Send', '#ec4899', '#f472b6', runJackieWorkflow);
+        jackieButton.id = 'mtoy-jackie-button';
+        currentContainer.appendChild(jackieButton);
+    });
+}
+
+function ddJackieDelay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function ddJackieWaitFor(getValue, timeout = 30000, interval = 250, errorMessage = 'Timed out waiting for Dynamics.') {
+    return new Promise((resolve, reject) => {
+        const startedAt = Date.now();
+
+        function check() {
+            let value = null;
+            try { value = getValue(); } catch (e) {}
+
+            if (value) {
+                resolve(value);
+                return;
+            }
+
+            if (Date.now() - startedAt >= timeout) {
+                reject(new Error(errorMessage));
+                return;
+            }
+
+            setTimeout(check, interval);
+        }
+
+        check();
+    });
+}
+
+function ddJackieFindVisibleElement(selector) {
+    const matches = [];
+
+    for (const doc of getAllAccessibleDynamicsDocuments()) {
+        let found = [];
+        try { found = Array.from(doc.querySelectorAll(selector)); } catch (e) {}
+
+        for (const el of found) {
+            if (!el || !elementIsActuallyVisible(el)) continue;
+            if (el.disabled || el.getAttribute?.('aria-disabled') === 'true') continue;
+            matches.push(el);
+        }
+    }
+
+    return matches.length ? matches[matches.length - 1] : null;
+}
+
+function ddJackieFindEmailConfirmationButton() {
+    return ddJackieFindVisibleElement(
+        '[id^="gtt_referral\\|NoRelationship\\|Form\\|gtt\\.gtt_referral\\.EmailConfirmation\\.Command"][id*="-button"], ' +
+        '[id*=".EmailConfirmation.Command"][id*="-button"], ' +
+        'button[aria-label="Email Confirmation"], ' +
+        'button[title="Email Confirmation"]'
+    );
+}
+
+function ddJackieFindSubjectInput(requireValue = false) {
+    for (const doc of getAllAccessibleDynamicsDocuments()) {
+        let candidates = [];
+        try {
+            candidates = Array.from(doc.querySelectorAll(
+                'input[data-id="subject.fieldControl-text-box-text"], ' +
+                'input[aria-label="Subject"]'
+            ));
+        } catch (e) {
+            continue;
+        }
+
+        for (let i = candidates.length - 1; i >= 0; i--) {
+            const input = candidates[i];
+            if (!elementIsActuallyVisible(input)) continue;
+            if (requireValue && !String(input.value || '').trim()) continue;
+            return input;
+        }
+    }
+
+    return null;
+}
+
+function ddJackieFindEmailSaveButton() {
+    const candidates = [];
+
+    for (const doc of getAllAccessibleDynamicsDocuments()) {
+        let found = [];
+        try {
+            found = Array.from(doc.querySelectorAll(
+                '[id*="SavePrimary"], ' +
+                'button[data-id$=".Save"], ' +
+                'button[aria-label="Save"]'
+            ));
+        } catch (e) {
+            continue;
+        }
+
+        for (const button of found) {
+            if (!elementIsActuallyVisible(button)) continue;
+            if (button.disabled || button.getAttribute('aria-disabled') === 'true') continue;
+
+            const label = String(
+                button.getAttribute('aria-label') ||
+                button.getAttribute('title') ||
+                button.innerText ||
+                button.textContent ||
+                ''
+            ).replace(/\s+/g, ' ').trim().toLowerCase();
+
+            if (label.includes('save & close') || label.includes('save and close')) continue;
+            candidates.push(button);
+        }
+    }
+
+    return candidates.length ? candidates[candidates.length - 1] : null;
+}
+
+function ddJackieFindTransportRecipient() {
+    const matches = [];
+
+    for (const doc of getAllAccessibleDynamicsDocuments()) {
+        let checks = [];
+        try {
+            checks = Array.from(doc.querySelectorAll(
+                'input[type="checkbox"][onclick*="AddOrRemoveRecipient"]'
+            ));
+        } catch (e) {
+            continue;
+        }
+
+        for (const input of checks) {
+            const row = input.closest?.('tr');
+            if (!row) continue;
+
+            const text = String(row.innerText || row.textContent || '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            const lower = text.toLowerCase();
+
+            let score = 99;
+            if (/service provider\s*-\s*transporter/i.test(text)) score = 0;
+            else if (lower.includes('service provider') && lower.includes('transport')) score = 1;
+            else if (/\btransport(?:er|ation)?\b/i.test(text)) score = 2;
+
+            if (score < 99 && !lower.includes('interpreter')) {
+                matches.push({ input, row, text, score });
+            }
+        }
+    }
+
+    matches.sort((a, b) => a.score - b.score);
+    return matches[0] || null;
+}
+
+function ddJackieIsTransportRecipientSelected() {
+    return getSelectedReferralRecipients().some(item => {
+        const selectedText = getRecipientSearchText(item);
+        return (
+            /service provider\s*-\s*transporter/i.test(selectedText) ||
+            /\btransport(?:er|ation)?\b/i.test(selectedText)
+        );
+    });
+}
+
+function ddJackieFindCheckboxLabel(checkBox, labelText) {
+    const doc = checkBox?.ownerDocument;
+    if (!doc) return null;
+
+    if (checkBox.id) {
+        try {
+            const exact = Array.from(doc.querySelectorAll('label')).find(label =>
+                label.htmlFor === checkBox.id
+            );
+            if (exact) return exact;
+        } catch (e) {}
+    }
+
+    try {
+        const containingLabel = checkBox.closest('label');
+        if (containingLabel) return containingLabel;
+    } catch (e) {}
+
+    try {
+        return Array.from(doc.querySelectorAll('label')).find(label =>
+            String(label.innerText || label.textContent || '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toLowerCase()
+                .includes(String(labelText || '').toLowerCase())
+        ) || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function ddJackieCheckboxIsClickable(checkBox) {
+    if (!checkBox || !elementIsActuallyVisible(checkBox)) return false;
+    if (checkBox.disabled || checkBox.getAttribute?.('aria-disabled') === 'true') return false;
+
+    try {
+        const style = checkBox.ownerDocument?.defaultView?.getComputedStyle(checkBox);
+        if (style?.pointerEvents === 'none') return false;
+    } catch (e) {}
+
+    return true;
+}
+
+async function ddJackieEnsureTransportRecipientSelected() {
+    const startedAt = Date.now();
+    let attempts = 0;
+
+    while (Date.now() - startedAt < 20000) {
+        const transportRecipient = ddJackieFindTransportRecipient();
+
+        if (transportRecipient?.input?.checked || ddJackieIsTransportRecipientSelected()) {
+            // Require the selection to survive a Dynamics iframe rerender.
+            await ddJackieDelay(700);
+            if (ddJackieIsTransportRecipientSelected()) return true;
+        }
+
+        if (ddJackieCheckboxIsClickable(transportRecipient?.input)) {
+            attempts++;
+            try { transportRecipient.input.click(); } catch (e) {}
+
+            // Some Dynamics web-resource builds bind the working click handler to
+            // the label rather than retaining a programmatic input click.
+            await ddJackieDelay(450);
+            if (!ddJackieIsTransportRecipientSelected() && attempts % 2 === 0) {
+                const label = ddJackieFindCheckboxLabel(transportRecipient.input, 'transporter');
+                try { label?.click(); } catch (e) {}
+            }
+        }
+
+        await ddJackieDelay(650);
+    }
+
+    throw new Error('The Transport recipient could not be selected.');
+}
+
+function ddJackieEmailShowsSaved() {
+    for (const doc of getAllAccessibleDynamicsDocuments()) {
+        let statuses = [];
+        try { statuses = Array.from(doc.querySelectorAll('[data-id="header_saveStatus"]')); } catch (e) {}
+
+        if (statuses.some(status =>
+            /\bsaved\b/i.test(String(status.innerText || status.textContent || ''))
+        )) return true;
+    }
+
+    return false;
+}
+
+function ddJackieSetInputValue(input, newValue) {
+    const view = input?.ownerDocument?.defaultView || window;
+    const prototype = view.HTMLInputElement?.prototype;
+    const nativeSetter = prototype && Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+
+    if (nativeSetter) nativeSetter.call(input, newValue);
+    else input.value = newValue;
+
+    try {
+        input.dispatchEvent(new view.InputEvent('input', {
+            bubbles: true,
+            inputType: 'insertText',
+            data: '~*'
+        }));
+    } catch (e) {
+        input.dispatchEvent(new view.Event('input', { bubbles: true }));
+    }
+
+    input.dispatchEvent(new view.Event('change', { bubbles: true }));
+}
+
+async function ddJackiePrefixSubject() {
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const subjectInput = await ddJackieWaitFor(
+            () => ddJackieFindSubjectInput(true),
+            15000,
+            250,
+            'The email subject field did not load.'
+        );
+
+        const currentSubject = String(subjectInput.value || '');
+        if (currentSubject.startsWith('~*')) return currentSubject;
+
+        ddJackieSetInputValue(subjectInput, `~*${currentSubject}`);
+        await ddJackieDelay(300);
+
+        const updatedInput = ddJackieFindSubjectInput(false);
+        if (String(updatedInput?.value || '').startsWith('~*')) {
+            return updatedInput.value;
+        }
+    }
+
+    throw new Error('Dynamics did not keep the ~* subject prefix.');
+}
+
+async function runJackieWorkflow() {
+    if (ddJackieWorkflowRunning) {
+        showCenteredOverlayMessage('Blind Send is already working on this email.', false, 2500);
+        return;
+    }
+
+    ddJackieWorkflowRunning = true;
+    const jackieButton = document.getElementById('mtoy-jackie-button');
+    if (jackieButton) {
+        jackieButton.disabled = true;
+        jackieButton.innerText = 'Blind Send...';
+    }
+
+    try {
+        const emailConfirmationButton = ddJackieFindEmailConfirmationButton();
+        if (!emailConfirmationButton) {
+            throw new Error('Email Confirmation button not found. Open a referral and try again.');
+        }
+
+        showCenteredOverlayMessage('Blind Send is opening Email Confirmation...', true, 2200);
+        emailConfirmationButton.click();
+
+        // The subject is unique to the email form, so this cannot accidentally use
+        // the referral form's Save button while Dynamics is still navigating.
+        await ddJackieWaitFor(
+            () => ddJackieFindSubjectInput(true),
+            60000,
+            300,
+            'Email Confirmation did not finish loading. If Dynamics showed an unsaved-changes prompt, make your choice and click Blind Send again.'
+        );
+
+        const saveButton = await ddJackieWaitFor(
+            ddJackieFindEmailSaveButton,
+            15000,
+            250,
+            'The email loaded, but its Save button was not found.'
+        );
+        saveButton.click();
+
+        // Wait for the first save to settle. The confirmation and recipient iframes
+        // often rerender immediately after this status changes to Saved.
+        await ddJackieDelay(800);
+        try {
+            await ddJackieWaitFor(ddJackieEmailShowsSaved, 12000, 250);
+        } catch (e) {
+            // Some Dynamics builds do not expose header_saveStatus on the email form.
+            // The extra settling delay below remains the fallback in that case.
+        }
+        await ddJackieDelay(900);
+
+        await ddJackieWaitFor(
+            () => {
+                const transport = ddJackieFindTransportRecipient();
+                return ddJackieCheckboxIsClickable(transport?.input) ? transport : null;
+            },
+            30000,
+            250,
+            'The email finished loading, but the Transport recipient did not become clickable after saving.'
+        );
+
+        // Blind Send intentionally leaves all Confirmation Form checkboxes untouched.
+        await ddJackieEnsureTransportRecipientSelected();
+        await ddJackiePrefixSubject();
+
+        showCenteredOverlayMessage('Blind Send setup complete: Transport recipient and ~* subject are ready.', true, 4500);
+    } catch (error) {
+        console.error('Blind Send workflow failed:', error);
+        showCenteredOverlayMessage(
+            `Blind Send stopped: ${error?.message || error}`,
+            false,
+            6500
+        );
+    } finally {
+        ddJackieWorkflowRunning = false;
+        const currentButton = document.getElementById('mtoy-jackie-button');
+        if (currentButton) {
+            currentButton.disabled = false;
+            currentButton.innerText = 'Blind Send';
+        }
+    }
+}
+
 /*
  * When a safeguard rule removes Client/Driver Confirmation, Dynamics opens a
  * second confirmation dialog asking whether to remove the Confirmation Form
@@ -5703,6 +6305,7 @@ function showTemplateReminderPopup(message) {
             buttonContainer.appendChild(button1);
             buttonContainer.appendChild(button4);
             buttonContainer.appendChild(button5);
+            ddJackieAddAuthorizedButton(buttonContainer);
 
             searchBox.parentNode.insertBefore(buttonContainer, searchBox.nextSibling);
             console.log('Buttons created and inserted next to #searchBoxLiveRegion.');
