@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.11
+// @version      1.3.7.15
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay.
@@ -1903,6 +1903,146 @@
       }
     }
 
+    /* ================= ADDITIONAL SERVICES / ANCILLARY FEE WARNING ================= */
+    let ancillaryCurrentReferralKey = '';
+    let ancillaryCheckCompletedThisVisit = false;
+    let ancillaryControlsFirstSeenAt = 0;
+    let ancillaryLastSignature = '';
+
+    function getAncillaryReferralKey() {
+      // Only treat an actual Referral form as eligible for this warning.
+      const entityName = (
+        document.querySelector('[data-id="entity_name_span"]')?.textContent || ''
+      ).trim();
+      const header = document.querySelector('[id^="formHeaderTitle"]');
+      const headerText = (header?.textContent || '').trim();
+      const looksLikeReferral = /referral/i.test(entityName) || /\b\d+-\d+-\d+\b/.test(headerText);
+      if (!looksLikeReferral) return '';
+
+      try {
+        const url = new URL(location.href);
+        const id = url.searchParams.get('id');
+        if (id) return `id:${id.toLowerCase()}`;
+      } catch {}
+
+      return headerText ? `header:${headerText.toLowerCase()}` : '';
+    }
+
+    function findAdditionalServicesControl() {
+      const exactRoot = document.querySelector('#dataSetRoot_Subgrid_2');
+      if (exactRoot && /additional services/i.test(exactRoot.textContent || '')) return exactRoot;
+
+      const roots = document.querySelectorAll('[id^="dataSetRoot_"], [data-id^="dataSetRoot_"]');
+      return [...roots].find(root => {
+        const heading = root.querySelector('h1, h2, h3, h4, [role="heading"]');
+        return /^additional services$/i.test((heading?.textContent || '').trim());
+      }) || null;
+    }
+
+    function showAncillaryFeeWarning() {
+      if (document.getElementById('mtoy-ancillary-fee-warning')) return;
+
+      const backdrop = document.createElement('div');
+      backdrop.id = 'mtoy-ancillary-fee-warning';
+      backdrop.style.cssText = `
+        position:fixed; inset:0; z-index:2147483647;
+        display:flex; align-items:center; justify-content:center;
+        background:rgba(0,0,0,.48); padding:20px; box-sizing:border-box;
+      `;
+
+      const box = document.createElement('div');
+      box.setAttribute('role', 'alertdialog');
+      box.setAttribute('aria-modal', 'true');
+      box.style.cssText = `
+        width:min(540px, 92vw); background:#fff; color:#111827;
+        border:3px solid #d97706; border-radius:12px; padding:24px;
+        box-shadow:0 18px 55px rgba(0,0,0,.4); text-align:center;
+        font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      `;
+
+      const message = document.createElement('div');
+      message.textContent = 'Ancillary fees found please check PO to ensure items are listed';
+      message.style.cssText = 'font-size:22px;font-weight:700;line-height:1.35;margin-bottom:22px;';
+
+      const ok = document.createElement('button');
+      ok.type = 'button';
+      ok.textContent = 'OK';
+      ok.style.cssText = `
+        min-width:110px; padding:10px 24px; border:0; border-radius:8px;
+        background:#d97706; color:#fff; font-size:16px; font-weight:700; cursor:pointer;
+      `;
+      ok.addEventListener('click', () => backdrop.remove());
+
+      box.append(message, ok);
+      backdrop.appendChild(box);
+      document.body.appendChild(backdrop);
+      setTimeout(() => ok.focus(), 0);
+    }
+
+    function checkAncillaryFeesOnReferralLoad() {
+      const referralKey = getAncillaryReferralKey();
+
+      if (!referralKey) {
+        ancillaryCurrentReferralKey = '';
+        ancillaryCheckCompletedThisVisit = false;
+        ancillaryControlsFirstSeenAt = 0;
+        ancillaryLastSignature = '';
+        document.getElementById('mtoy-ancillary-fee-warning')?.remove();
+        return;
+      }
+
+      if (referralKey !== ancillaryCurrentReferralKey) {
+        ancillaryCurrentReferralKey = referralKey;
+        ancillaryCheckCompletedThisVisit = false;
+        ancillaryControlsFirstSeenAt = 0;
+        ancillaryLastSignature = '';
+        document.getElementById('mtoy-ancillary-fee-warning')?.remove();
+      }
+
+      if (ancillaryCheckCompletedThisVisit) return;
+
+      // This reminder applies only to CareWorks referrals. Keep waiting while
+      // the payer lookup is still rendering so the initial load is not missed.
+      const payer = careWorksGetPayerText();
+      if (!payer.toLowerCase().includes('careworks')) return;
+
+      const root = findAdditionalServicesControl();
+      if (!root) return;
+
+      const loadFeeId = '0e98ce8f-7597-ed11-aad1-000d3a3412c9';
+      const toggles = [...root.querySelectorAll('input.nncb-control[type="checkbox"], input[type="checkbox"]')]
+        .filter(toggle => {
+          const identity = `${toggle.id || ''} ${toggle.value || ''}`.toLowerCase();
+          if (identity.includes(loadFeeId)) return false;
+
+          // Label fallback in case Dynamics changes the Load Fee record GUID.
+          const row = toggle.closest('div[style*="flex"]') || toggle.parentElement?.parentElement;
+          const label = row?.querySelector('.nncb-switch-label');
+          return (label?.textContent || '').trim().toLowerCase() !== 'load fee';
+        });
+      if (!toggles.length) return;
+
+      const signature = toggles
+        .map(toggle => `${toggle.id || toggle.value || 'toggle'}:${toggle.checked ? 1 : 0}`)
+        .join('|');
+
+      // Dynamics builds this custom control in stages. Wait until its values
+      // have remained unchanged briefly so an initially unchecked render does
+      // not hide a saved selection that appears a moment later.
+      if (signature !== ancillaryLastSignature) {
+        ancillaryLastSignature = signature;
+        ancillaryControlsFirstSeenAt = Date.now();
+        return;
+      }
+
+      if (!ancillaryControlsFirstSeenAt || Date.now() - ancillaryControlsFirstSeenAt < 1000) return;
+
+      ancillaryCheckCompletedThisVisit = true;
+      if (toggles.some(toggle => toggle.checked || toggle.getAttribute('aria-checked') === 'true')) {
+        showAncillaryFeeWarning();
+      }
+    }
+
     // ─── Entry point: wait for Dynamics to render a reliable landmark before injecting.
     // A fixed delay isn't reliable — Dynamics can take anywhere from 1s to 10s+ depending
     // on load. We watch for #searchBoxLiveRegion (the nav search bar) which is one of the
@@ -1929,6 +2069,7 @@
         insertJbaBannerIfNeeded();
         insertVipBannerIfNeeded();
         checkCareWorksJurisdiction();
+        checkAncillaryFeesOnReferralLoad();
         isInSearchUIWrapper();
       }, 200);
     });
@@ -1945,6 +2086,7 @@
       observeRateStatusChanges();
       insertJbaBannerIfNeeded();
       insertVipBannerIfNeeded();
+      checkAncillaryFeesOnReferralLoad();
       isInSearchUIWrapper();
       attempts++;
       if (attempts > 20) clearInterval(tryInit);
@@ -1958,6 +2100,7 @@
       }
     }, true);
     setInterval(checkCareWorksJurisdiction, 1200);
+    setInterval(checkAncillaryFeesOnReferralLoad, 500);
 
     if (document.title.includes('Email:')) {
       waitForMoniqueInIframe();
