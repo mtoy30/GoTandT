@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.9
+// @version      1.3.7.22
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay.
@@ -20,6 +20,7 @@
 // @grant        GM_getValue
 // @grant        GM_deleteValue
 // @grant        GM_xmlhttpRequest
+// @grant        unsafeWindow
 // @connect      lowmargin.mtoysystems.com
 // @run-at       document-start
 // ==/UserScript==
@@ -1908,6 +1909,7 @@
     let ancillaryCheckCompletedThisVisit = false;
     let ancillaryControlsFirstSeenAt = 0;
     let ancillaryLastSignature = '';
+    let ancillaryStageControl = null;
 
     function getAncillaryReferralKey() {
       // Only treat an actual Referral form as eligible for this warning.
@@ -1937,6 +1939,103 @@
         const heading = root.querySelector('h1, h2, h3, h4, [role="heading"]');
         return /^additional services$/i.test((heading?.textContent || '').trim());
       }) || null;
+    }
+
+    function findElementAcrossOpenShadowRoots(selector) {
+      const roots = [document];
+      const seenRoots = new Set();
+
+      while (roots.length) {
+        const root = roots.shift();
+        if (!root || seenRoots.has(root)) continue;
+        seenRoots.add(root);
+
+        try {
+          const match = root.querySelector(selector);
+          if (match) return match;
+
+          for (const element of root.querySelectorAll('*')) {
+            if (element.shadowRoot && !seenRoots.has(element.shadowRoot)) {
+              roots.push(element.shadowRoot);
+            }
+          }
+        } catch {}
+      }
+
+      return null;
+    }
+
+    function getDynamicsHeaderStageText() {
+      const pageWindows = [];
+
+      try {
+        if (typeof unsafeWindow !== 'undefined') {
+          pageWindows.push(unsafeWindow);
+          if (unsafeWindow.top && unsafeWindow.top !== unsafeWindow) pageWindows.push(unsafeWindow.top);
+        }
+      } catch {}
+
+      pageWindows.push(window);
+      try {
+        if (window.top && window.top !== window) pageWindows.push(window.top);
+      } catch {}
+
+      for (const pageWindow of pageWindows) {
+        try {
+          const page = pageWindow?.Xrm?.Page;
+          if (!page) continue;
+
+          const readAttributeText = attribute => {
+            if (!attribute) return '';
+            return String(
+              attribute.getText?.() ||
+              attribute.getSelectedOption?.()?.text ||
+              ''
+            ).trim();
+          };
+
+          let text = readAttributeText(page.getAttribute?.('gtt_stage'));
+          if (text) return text;
+
+          text = readAttributeText(page.getControl?.('header_gtt_stage')?.getAttribute?.());
+          if (text) return text;
+
+          const controls = page.ui?.controls?.get?.() || [];
+          for (const control of controls) {
+            const name = String(control?.getName?.() || '');
+            if (!name.startsWith('header_gtt_stage')) continue;
+            text = readAttributeText(control.getAttribute?.());
+            if (text) return text;
+          }
+        } catch {}
+      }
+
+      return '';
+    }
+
+    function isProviderAssignmentHeaderStage() {
+      // Prefer the actual Dynamics field value. This avoids depending on how
+      // the header web components and their shadow roots are rendered.
+      const dynamicsStage = getDynamicsHeaderStageText();
+      if (dynamicsStage) return dynamicsStage.toLowerCase() === 'provider assignment';
+
+      // DOM fallback for cases where Xrm.Page has not initialized yet.
+      if (!ancillaryStageControl?.isConnected) {
+        ancillaryStageControl = findElementAcrossOpenShadowRoots(
+          'uci-header-control-list-item[data-name="header_gtt_stage"]'
+        );
+      }
+      if (!ancillaryStageControl) return false;
+
+      // The value and label live inside this component's own open shadow root.
+      const root = ancillaryStageControl.shadowRoot || ancillaryStageControl;
+      const value = root.querySelector(
+        'div.value-text[slot="value"][data-id="0"], div.value-text[slot="value"]'
+      );
+      const label = root.querySelector('div.label[slot="label"]');
+
+      return (label?.textContent || '').trim().toLowerCase() === 'stage' &&
+        (value?.textContent || '').trim().toLowerCase() === 'provider assignment';
     }
 
     function showAncillaryFeeWarning() {
@@ -2000,6 +2099,10 @@
       }
 
       if (ancillaryCheckCompletedThisVisit) return;
+
+      // Only run when the top Stage field says Provider Assignment. In later
+      // workflow stages this same field changes to values such as Active.
+      if (!isProviderAssignmentHeaderStage()) return;
 
       // This reminder applies only to CareWorks referrals. Keep waiting while
       // the payer lookup is still rendering so the initial load is not missed.
