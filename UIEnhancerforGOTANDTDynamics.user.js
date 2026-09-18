@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.23
+// @version      1.3.7.26
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
-// @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay.
+// @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel.
 // @author       Michael Toy
+// @match        https://health.uber.com/*
 // @match        https://*.powerapps.com/*
 // @match        https://*.powerplatform.com/*
 // @match        https://gotandt.crm.dynamics.com/*
@@ -2235,4 +2236,2580 @@
     setTimeout(waitForDynamicsLandmark, DYNAMICS_INIT_DELAY);
   }
 
+})();
+
+
+/* =====================================================================================
+   PART D — UBER HEALTH: Paste Ride Data / Excel auto-start (from version 1.3)
+   Isolated from the existing UIEnhancer features and limited to Uber Health.
+   ===================================================================================== */
+(function () {
+    'use strict';
+
+    if (location.hostname !== 'health.uber.com') return;
+
+    function startUberHealth() {
+    'use strict';
+
+    const BUTTON_ID = 'gotandt-uber-paste-button';
+
+    // ============================================================
+// EXCEL AUTO-START
+// Open Today's Activity -> Create New -> Single Ride -> Paste
+// ============================================================
+
+async function autoStartRideFromExcel() {
+
+    const params =
+        new URLSearchParams(
+            window.location.search
+        );
+
+    if (
+        params.get('gotandtAuto') !== '1'
+    ) {
+        return;
+    }
+
+    console.log(
+        'Uber Health: Excel auto-start detected.'
+    );
+
+    /*
+     * Remove the flag immediately so Uber SPA navigation or
+     * a refresh does not cause the ride setup to run twice.
+     */
+    try {
+
+        const url =
+            new URL(
+                window.location.href
+            );
+
+        url.searchParams.delete(
+            'gotandtAuto'
+        );
+
+        window.history.replaceState(
+            {},
+            '',
+            url.pathname +
+            url.search +
+            url.hash
+        );
+
+    } catch (e) {
+        console.log(
+            'Could not remove auto-start URL flag.',
+            e
+        );
+    }
+
+    try {
+
+        // --------------------------------------------------------
+        // WAIT FOR TODAY'S ACTIVITY PAGE
+        // --------------------------------------------------------
+
+        await sleep(800);
+
+        // --------------------------------------------------------
+        // CREATE NEW
+        // --------------------------------------------------------
+
+        let createNew = null;
+
+        const createStart =
+            Date.now();
+
+        while (
+            Date.now() - createStart <
+            15000
+        ) {
+
+            createNew =
+                document.querySelector(
+                    'button[aria-label="Create new ride or delivery"]'
+                );
+
+            if (
+                createNew &&
+                isVisible(createNew)
+            ) {
+                break;
+            }
+
+            await sleep(150);
+        }
+
+        if (!createNew) {
+
+            throw new Error(
+                'Could not find Uber Create new button.'
+            );
+        }
+
+        console.log(
+            'Uber Health: clicking Create new.'
+        );
+
+        simulateRealClick(
+            createNew
+        );
+
+        // --------------------------------------------------------
+        // SINGLE RIDE
+        // --------------------------------------------------------
+
+        let singleRide = null;
+
+        const singleStart =
+            Date.now();
+
+        while (
+            Date.now() - singleStart <
+            7000
+        ) {
+
+            singleRide =
+                document.querySelector(
+                    'li[aria-label="Single ride"][role="option"]'
+                );
+
+            if (
+                singleRide &&
+                isVisible(singleRide)
+            ) {
+                break;
+            }
+
+            await sleep(100);
+        }
+
+        if (!singleRide) {
+
+            throw new Error(
+                'Could not find Single ride option.'
+            );
+        }
+
+        console.log(
+            'Uber Health: selecting Single ride.'
+        );
+
+        simulateRealClick(
+            singleRide
+        );
+
+        // --------------------------------------------------------
+        // WAIT FOR NEW RIDE FORM
+        // --------------------------------------------------------
+
+        console.log(
+            'Uber Health: waiting for New ride setup.'
+        );
+
+        await waitForElement(
+            'input[data-testid="pickupAddress_0"]',
+            15000
+        );
+
+        /*
+         * Give Uber a little extra time to finish mounting
+         * the form before starting our existing automation.
+         */
+        await sleep(700);
+
+        // --------------------------------------------------------
+        // CLICK OUR PASTE BUTTON
+        // --------------------------------------------------------
+
+        const pasteButton =
+            document.getElementById(
+                BUTTON_ID
+            );
+
+        if (!pasteButton) {
+
+            throw new Error(
+                'Could not find Paste Ride Data button.'
+            );
+        }
+
+        console.log(
+            'Uber Health: automatically clicking Paste Ride Data.'
+        );
+
+        pasteButton.click();
+
+    } catch (err) {
+
+        console.error(
+            'Uber Health Excel auto-start error:',
+            err
+        );
+
+        alert(
+            'Uber Health Auto Start Error\n\n' +
+            err.message
+        );
+    }
+}
+
+    // ============================================================
+    // BASIC HELPERS
+    // ============================================================
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function isVisible(el) {
+        if (!el) return false;
+
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+
+        return (
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            style.opacity !== '0' &&
+            rect.width > 0 &&
+            rect.height > 0
+        );
+    }
+
+    function cleanText(text) {
+        return (text || '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    async function waitForElement(selector, timeout = 10000) {
+
+        const start = Date.now();
+
+        while (Date.now() - start < timeout) {
+
+            const elements = [
+                ...document.querySelectorAll(selector)
+            ];
+
+            const visible =
+                elements.find(isVisible);
+
+            if (visible) {
+                return visible;
+            }
+
+            await sleep(100);
+        }
+
+        throw new Error(
+            'Could not find Uber element:\n' +
+            selector
+        );
+    }
+
+    // ============================================================
+    // REAL CLICK
+    // ============================================================
+
+    function simulateRealClick(el) {
+
+        if (!el) return;
+
+        el.scrollIntoView({
+            block: 'nearest'
+        });
+
+        const rect =
+            el.getBoundingClientRect();
+
+        const clientX =
+            rect.left + rect.width / 2;
+
+        const clientY =
+            rect.top + rect.height / 2;
+
+        // GM grants put this combined script in Tampermonkey's sandbox.
+        // Construct pointer/mouse events with the real page Window, not its sandbox proxy.
+        const pageWindow = typeof unsafeWindow !== 'undefined'
+            ? unsafeWindow
+            : el.ownerDocument.defaultView;
+
+        const common = {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            view: pageWindow,
+            clientX,
+            clientY,
+            button: 0
+        };
+
+        try {
+            el.dispatchEvent(
+                new pageWindow.PointerEvent(
+                    'pointerdown',
+                    {
+                        ...common,
+                        buttons: 1,
+                        pointerId: 1,
+                        pointerType: 'mouse',
+                        isPrimary: true
+                    }
+                )
+            );
+        } catch (e) {}
+
+        el.dispatchEvent(
+            new pageWindow.MouseEvent(
+                'mousedown',
+                {
+                    ...common,
+                    buttons: 1
+                }
+            )
+        );
+
+        try {
+            el.dispatchEvent(
+                new pageWindow.PointerEvent(
+                    'pointerup',
+                    {
+                        ...common,
+                        buttons: 0,
+                        pointerId: 1,
+                        pointerType: 'mouse',
+                        isPrimary: true
+                    }
+                )
+            );
+        } catch (e) {}
+
+        el.dispatchEvent(
+            new pageWindow.MouseEvent(
+                'mouseup',
+                {
+                    ...common,
+                    buttons: 0
+                }
+            )
+        );
+
+        el.click();
+    }
+
+    // ============================================================
+    // REACT INPUT
+    // ============================================================
+
+    function setReactInputValue(input, value) {
+
+        if (!input) return;
+
+        const setter =
+            Object.getOwnPropertyDescriptor(
+                HTMLInputElement.prototype,
+                'value'
+            ).set;
+
+        setter.call(input, value);
+
+        input.dispatchEvent(
+            new InputEvent(
+                'input',
+                {
+                    bubbles: true,
+                    cancelable: true,
+                    inputType: 'insertText',
+                    data: value
+                }
+            )
+        );
+
+        input.dispatchEvent(
+            new Event(
+                'change',
+                {
+                    bubbles: true
+                }
+            )
+        );
+    }
+
+    function pressKey(input, key) {
+
+        let code = 0;
+
+        if (key === 'ArrowDown') code = 40;
+        if (key === 'Enter') code = 13;
+        if (key === 'Escape') code = 27;
+
+        const options = {
+            key,
+            code: key,
+            keyCode: code,
+            which: code,
+            bubbles: true,
+            cancelable: true
+        };
+
+        input.dispatchEvent(
+            new KeyboardEvent(
+                'keydown',
+                options
+            )
+        );
+
+        input.dispatchEvent(
+            new KeyboardEvent(
+                'keyup',
+                options
+            )
+        );
+    }
+
+    // ============================================================
+    // TEXT FINDER
+    // ============================================================
+
+    function findClickableByText(text) {
+
+        const wanted =
+            cleanText(text).toLowerCase();
+
+        const clickable = [
+            ...document.querySelectorAll(
+                'button, [role="button"], [role="tab"], [role="radio"], label'
+            )
+        ].filter(isVisible);
+
+        for (const el of clickable) {
+
+            const current =
+                cleanText(
+                    el.textContent
+                ).toLowerCase();
+
+            if (current === wanted) {
+                return el;
+            }
+        }
+
+        const inner = [
+            ...document.querySelectorAll(
+                'div, span'
+            )
+        ].filter(isVisible);
+
+        for (const el of inner) {
+
+            const current =
+                cleanText(
+                    el.textContent
+                ).toLowerCase();
+
+            if (current !== wanted) {
+                continue;
+            }
+
+            const parent =
+                el.closest(
+                    'button, [role="button"], [role="tab"], [role="radio"], label'
+                );
+
+            if (parent) {
+                return parent;
+            }
+
+            return el;
+        }
+
+        return null;
+    }
+
+    // ============================================================
+    // ADDRESS NORMALIZATION
+    // ============================================================
+
+    function normalizeAddress(text) {
+
+        return (text || '')
+            .toLowerCase()
+            .replace(/[.,#]/g, ' ')
+            .replace(/\bstreet\b/g, 'st')
+            .replace(/\bavenue\b/g, 'ave')
+            .replace(/\broad\b/g, 'rd')
+            .replace(/\bdrive\b/g, 'dr')
+            .replace(/\bboulevard\b/g, 'blvd')
+            .replace(/\blane\b/g, 'ln')
+            .replace(/\bcourt\b/g, 'ct')
+            .replace(/\bplace\b/g, 'pl')
+            .replace(/\bparkway\b/g, 'pkwy')
+            .replace(/\bhighway\b/g, 'hwy')
+            .replace(/\bnorth\b/g, 'n')
+            .replace(/\bsouth\b/g, 's')
+            .replace(/\beast\b/g, 'e')
+            .replace(/\bwest\b/g, 'w')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function getAddressParts(address) {
+
+        const normalized =
+            normalizeAddress(address);
+
+        const words =
+            normalized
+                .split(' ')
+                .filter(Boolean);
+
+        const houseMatch =
+            normalized.match(
+                /^\d+[a-z]?/i
+            );
+
+        const zipMatch =
+            normalized.match(
+                /\b\d{5}(?:-\d{4})?\b/
+            );
+
+        return {
+            normalized,
+            words,
+            houseNumber:
+                houseMatch
+                    ? houseMatch[0]
+                    : '',
+            zip:
+                zipMatch
+                    ? zipMatch[0].substring(0, 5)
+                    : ''
+        };
+    }
+
+    // ============================================================
+    // ADDRESS MATCH SCORING
+    // ============================================================
+
+    function scoreAddressOption(
+        optionText,
+        requestedAddress
+    ) {
+
+        const option =
+            normalizeAddress(
+                optionText
+            );
+
+        const requested =
+            getAddressParts(
+                requestedAddress
+            );
+
+        let score = 0;
+
+        // House number
+        if (requested.houseNumber) {
+
+            const optionHouse =
+                option.match(
+                    /^\d+[a-z]?/i
+                );
+
+            if (
+                optionHouse &&
+                optionHouse[0] ===
+                    requested.houseNumber
+            ) {
+                score += 100;
+
+            } else if (
+                option.includes(
+                    requested.houseNumber + ' '
+                )
+            ) {
+                score += 80;
+
+            } else {
+                score -= 100;
+            }
+        }
+
+        // ZIP
+        if (
+            requested.zip &&
+            option.includes(
+                requested.zip
+            )
+        ) {
+            score += 150;
+        }
+
+        // Words
+        for (
+            const word of requested.words
+        ) {
+
+            if (word.length <= 1) {
+                continue;
+            }
+
+            if (/^\d{5}$/.test(word)) {
+                continue;
+            }
+
+            if (
+                option.includes(word)
+            ) {
+                score += 10;
+            }
+        }
+
+        // Near exact
+        if (
+            option.includes(
+                requested.normalized
+            )
+        ) {
+            score += 250;
+        }
+
+        return score;
+    }
+
+    function chooseBestAddressOption(
+        options,
+        requestedAddress
+    ) {
+
+        let best = null;
+        let bestScore = -Infinity;
+
+        for (const option of options) {
+
+            const text =
+                cleanText(
+                    option.textContent
+                );
+
+            const score =
+                scoreAddressOption(
+                    text,
+                    requestedAddress
+                );
+
+            console.log(
+                'Uber address suggestion:',
+                text,
+                'score:',
+                score
+            );
+
+            if (score > bestScore) {
+                best = option;
+                bestScore = score;
+            }
+        }
+
+        if (bestScore < 30) {
+            return null;
+        }
+
+        console.log(
+            'Uber best match:',
+            best
+                ? cleanText(best.textContent)
+                : 'NONE',
+            bestScore
+        );
+
+        return best;
+    }
+
+    // ============================================================
+    // ADDRESS AUTOCOMPLETE
+    // ============================================================
+
+    function getAddressListbox(input) {
+
+        const listId =
+            input.getAttribute(
+                'aria-controls'
+            );
+
+        if (listId) {
+
+            const listbox =
+                document.getElementById(
+                    listId
+                );
+
+            if (
+                listbox &&
+                isVisible(listbox)
+            ) {
+                return listbox;
+            }
+        }
+
+        const listboxes = [
+            ...document.querySelectorAll(
+                '[role="listbox"]'
+            )
+        ].filter(isVisible);
+
+        if (listboxes.length) {
+
+            return listboxes[
+                listboxes.length - 1
+            ];
+        }
+
+        return null;
+    }
+
+    function getAddressOptions(input) {
+
+        const listbox =
+            getAddressListbox(input);
+
+        if (!listbox) {
+            return [];
+        }
+
+        let options = [
+            ...listbox.querySelectorAll(
+                '[role="option"]'
+            )
+        ].filter(isVisible);
+
+        if (!options.length) {
+
+            options = [
+                ...listbox.querySelectorAll(
+                    'li, [data-baseweb="menu-item"]'
+                )
+            ].filter(isVisible);
+        }
+
+        return options;
+    }
+
+    async function waitForMatchingAddress(
+        input,
+        requestedAddress,
+        timeout = 10000
+    ) {
+
+        const start = Date.now();
+
+        while (
+            Date.now() - start <
+            timeout
+        ) {
+
+            const options =
+                getAddressOptions(
+                    input
+                );
+
+            if (options.length) {
+
+                const best =
+                    chooseBestAddressOption(
+                        options,
+                        requestedAddress
+                    );
+
+                if (best) {
+                    return best;
+                }
+            }
+
+            await sleep(200);
+        }
+
+        throw new Error(
+            'Uber did not return a matching address for:\n\n' +
+            requestedAddress
+        );
+    }
+
+    async function addressWasCommitted(
+        input,
+        timeout = 5000
+    ) {
+
+        const start = Date.now();
+
+        while (
+            Date.now() - start <
+            timeout
+        ) {
+
+            const label =
+                (
+                    input.getAttribute(
+                        'aria-label'
+                    ) || ''
+                ).toLowerCase();
+
+            const expanded =
+                input.getAttribute(
+                    'aria-expanded'
+                );
+
+            if (
+                label.includes(
+                    'selected'
+                ) &&
+                expanded === 'false'
+            ) {
+                return true;
+            }
+
+            await sleep(100);
+        }
+
+        return false;
+    }
+
+    async function enterAddress(
+        input,
+        address,
+        fieldName
+    ) {
+
+        input.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+
+        await sleep(250);
+
+        input.focus();
+
+        setReactInputValue(
+            input,
+            ''
+        );
+
+        pressKey(
+            input,
+            'Escape'
+        );
+
+        await sleep(350);
+
+        setReactInputValue(
+            input,
+            address
+        );
+
+        await sleep(700);
+
+        const bestOption =
+            await waitForMatchingAddress(
+                input,
+                address
+            );
+
+        const selectedText =
+            cleanText(
+                bestOption.textContent
+            );
+
+        console.log(
+            fieldName,
+            'selecting:',
+            selectedText
+        );
+
+        simulateRealClick(
+            bestOption
+        );
+
+        const committed =
+            await addressWasCommitted(
+                input
+            );
+
+        if (!committed) {
+
+            throw new Error(
+                'Uber found "' +
+                selectedText +
+                '" but did not accept it.'
+            );
+        }
+
+        await sleep(900);
+    }
+
+    // ============================================================
+    // ROUND TRIP
+    // ============================================================
+
+    async function selectRoundTrip() {
+
+        let button =
+            document.querySelector(
+                'button[data-baseweb="tab"][id$="-tab-RoundTrip"]'
+            );
+
+        if (!button) {
+
+            button =
+                findClickableByText(
+                    'Round-trip'
+                );
+        }
+
+        if (!button) {
+
+            throw new Error(
+                'Could not find Round-trip.'
+            );
+        }
+
+        if (
+            button.getAttribute(
+                'aria-selected'
+            ) !== 'true'
+        ) {
+
+            simulateRealClick(
+                button
+            );
+
+            await sleep(750);
+        }
+    }
+
+    // ============================================================
+    // FUTURE RIDE
+    // ============================================================
+
+    async function selectFutureRide() {
+
+        const button =
+            findClickableByText(
+                'Future ride'
+            );
+
+        if (!button) {
+
+            throw new Error(
+                'Could not find Future ride.'
+            );
+        }
+
+        button.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+
+        await sleep(250);
+
+        simulateRealClick(
+            button
+        );
+
+        await sleep(650);
+    }
+
+    // ============================================================
+    // CHOOSE DATE & TIME
+    // ============================================================
+
+    async function selectChooseDateAndTime() {
+
+        const target =
+            findClickableByText(
+                'Choose date & time'
+            );
+
+        if (!target) {
+
+            throw new Error(
+                'Could not find Choose date & time.'
+            );
+        }
+
+        target.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+
+        await sleep(250);
+
+        simulateRealClick(
+            target
+        );
+
+        // Wait until the date input appears
+        await waitForElement(
+            'input[aria-label="Select a date."], input#date',
+            5000
+        );
+
+        await sleep(500);
+    }
+
+    // ============================================================
+    // DATE PARSING
+    // ============================================================
+
+    const MONTH_NAMES = [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December'
+    ];
+
+    function parseExcelDate(dateText) {
+
+        const parts =
+            (dateText || '')
+                .split('/');
+
+        if (parts.length !== 3) {
+
+            throw new Error(
+                'Invalid Excel date: ' +
+                dateText
+            );
+        }
+
+        const month =
+            parseInt(
+                parts[0],
+                10
+            );
+
+        const day =
+            parseInt(
+                parts[1],
+                10
+            );
+
+        let year =
+            parseInt(
+                parts[2],
+                10
+            );
+
+        if (year < 100) {
+            year += 2000;
+        }
+
+        return {
+            month,
+            day,
+            year
+        };
+    }
+
+// ============================================================
+// GET ALL VISIBLE UBER CALENDAR DATE CELLS
+// ============================================================
+
+function getVisibleCalendarCells() {
+
+    return [
+        ...document.querySelectorAll(
+            '[role="gridcell"][aria-label]'
+        )
+    ].filter(el => {
+
+        if (!isVisible(el)) {
+            return false;
+        }
+
+        const label =
+            el.getAttribute('aria-label') || '';
+
+        /*
+         * Do NOT require the label to start with "Choose".
+         *
+         * Normal dates may say:
+         * Choose Thursday, September 3rd 2026. It's available.
+         *
+         * Today's/currently selected date may have different
+         * wording such as Selected / Today.
+         */
+        return (
+            /\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/i.test(label) &&
+            /\b20\d{2}\b/.test(label)
+        );
+    });
+}
+
+
+// ============================================================
+// FIND CALENDAR POPUP
+// ============================================================
+
+function findCalendarRoot() {
+
+    const cells =
+        getVisibleCalendarCells();
+
+    if (!cells.length) {
+        return null;
+    }
+
+    /*
+     * Start at the first date cell and walk upward until
+     * we find a container containing a reasonable number
+     * of Uber calendar gridcells.
+     */
+    let current =
+        cells[0].parentElement;
+
+    while (
+        current &&
+        current !== document.body
+    ) {
+
+        const count =
+            current.querySelectorAll(
+                '[role="gridcell"][aria-label]'
+            ).length;
+
+        if (count >= 7) {
+            return current;
+        }
+
+        current =
+            current.parentElement;
+    }
+
+    /*
+     * Calendar definitely exists even if we couldn't
+     * identify its exact outer wrapper.
+     */
+    return cells[0].parentElement;
+}
+
+
+// ============================================================
+// WAIT FOR CALENDAR
+// ============================================================
+
+async function waitForCalendar(timeout = 5000) {
+
+    const start =
+        Date.now();
+
+    while (
+        Date.now() - start <
+        timeout
+    ) {
+
+        const cells =
+            getVisibleCalendarCells();
+
+        if (cells.length) {
+
+            console.log(
+                'Uber Health: calendar opened.',
+                cells.length,
+                'date cells found.'
+            );
+
+            return findCalendarRoot();
+        }
+
+        await sleep(100);
+    }
+
+    return null;
+}
+
+
+// ============================================================
+// OPEN CALENDAR
+// ============================================================
+
+async function openCalendar() {
+
+    const dateInput =
+        await waitForElement(
+            'input#date, input[aria-label="Select a date."]'
+        );
+
+    dateInput.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+    });
+
+    await sleep(200);
+
+    /*
+     * Your actual Uber date input responds to click,
+     * so use a normal click first.
+     */
+    dateInput.focus();
+    dateInput.click();
+
+    let calendar =
+        await waitForCalendar(
+            2000
+        );
+
+    if (calendar) {
+        return calendar;
+    }
+
+    /*
+     * Fallback to our full pointer/mouse click sequence.
+     */
+    simulateRealClick(
+        dateInput
+    );
+
+    calendar =
+        await waitForCalendar(
+            3000
+        );
+
+    if (!calendar) {
+
+        throw new Error(
+            'Uber date calendar did not open.'
+        );
+    }
+
+    return calendar;
+}
+
+
+// ============================================================
+// READ CURRENT CALENDAR MONTH / YEAR
+// ============================================================
+
+function getCalendarMonthYear(
+    calendar
+) {
+
+    /*
+     * We can determine the displayed month/year directly
+     * from Uber's actual aria-labels:
+     *
+     * Choose Thursday, September 3rd 2026. It's available.
+     */
+
+    const cells =
+        getVisibleCalendarCells();
+
+    if (!cells.length) {
+        return null;
+    }
+
+    for (const cell of cells) {
+
+        const label =
+            cell.getAttribute(
+                'aria-label'
+            ) || '';
+
+        const match =
+            label.match(
+                /,\s*(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?\s+(20\d{2})/i
+            );
+
+        if (match) {
+
+            const month =
+                MONTH_NAMES.findIndex(
+                    m =>
+                        m.toLowerCase() ===
+                        match[1].toLowerCase()
+                ) + 1;
+
+            return {
+                month: month,
+                year:
+                    parseInt(
+                        match[2],
+                        10
+                    )
+            };
+        }
+    }
+
+    return null;
+}
+
+
+// ============================================================
+// FIND CALENDAR NEXT / PREVIOUS ARROW
+// ============================================================
+
+function getCalendarArrow(
+    calendar,
+    direction
+) {
+
+    /*
+     * First try semantic labels.
+     */
+    const labelled = [
+        ...document.querySelectorAll(
+            '[aria-label], [title]'
+        )
+    ].filter(isVisible);
+
+    for (const el of labelled) {
+
+        const label =
+            (
+                el.getAttribute(
+                    'aria-label'
+                ) ||
+                el.getAttribute(
+                    'title'
+                ) ||
+                ''
+            ).toLowerCase();
+
+        if (
+            direction === 'next' &&
+            (
+                label.includes(
+                    'next month'
+                ) ||
+                label === 'next'
+            )
+        ) {
+
+            return (
+                el.closest(
+                    'button, [role="button"]'
+                ) ||
+                el
+            );
+        }
+
+        if (
+            direction === 'previous' &&
+            (
+                label.includes(
+                    'previous month'
+                ) ||
+                label.includes(
+                    'prev month'
+                )
+            )
+        ) {
+
+            return (
+                el.closest(
+                    'button, [role="button"]'
+                ) ||
+                el
+            );
+        }
+    }
+
+    /*
+     * Fallback:
+     * use the popup containing the date cells and find
+     * its SVG/icon click targets.
+     */
+    const root =
+        calendar ||
+        findCalendarRoot();
+
+    if (!root) {
+        return null;
+    }
+
+    const iconTargets = [];
+
+    const svgs = [
+        ...root.querySelectorAll(
+            'svg'
+        )
+    ].filter(isVisible);
+
+    for (const svg of svgs) {
+
+        const clickable =
+            svg.closest(
+                'button, [role="button"], [tabindex]'
+            ) ||
+            svg.parentElement;
+
+        if (
+            clickable &&
+            isVisible(clickable) &&
+            !iconTargets.includes(
+                clickable
+            )
+        ) {
+            iconTargets.push(
+                clickable
+            );
+        }
+    }
+
+    if (!iconTargets.length) {
+        return null;
+    }
+
+    iconTargets.sort(
+        (a, b) =>
+            a.getBoundingClientRect().left -
+            b.getBoundingClientRect().left
+    );
+
+    if (
+        direction === 'previous'
+    ) {
+        return iconTargets[0];
+    }
+
+    return iconTargets[
+        iconTargets.length - 1
+    ];
+}
+
+
+// ============================================================
+// MOVE CALENDAR TO CORRECT MONTH / YEAR
+// ============================================================
+
+async function moveCalendarToMonth(
+    targetMonth,
+    targetYear
+) {
+
+    let calendar =
+        await waitForCalendar();
+
+    if (!calendar) {
+
+        throw new Error(
+            'Uber calendar disappeared.'
+        );
+    }
+
+    for (
+        let attempt = 0;
+        attempt < 36;
+        attempt++
+    ) {
+
+        const current =
+            getCalendarMonthYear(
+                calendar
+            );
+
+        if (!current) {
+
+            throw new Error(
+                'Could not determine Uber calendar month/year.'
+            );
+        }
+
+        console.log(
+            'Uber calendar:',
+            current.month,
+            current.year,
+            'Target:',
+            targetMonth,
+            targetYear
+        );
+
+        if (
+            current.month ===
+                targetMonth &&
+            current.year ===
+                targetYear
+        ) {
+
+            return calendar;
+        }
+
+        const currentValue =
+            current.year * 12 +
+            current.month;
+
+        const targetValue =
+            targetYear * 12 +
+            targetMonth;
+
+        const direction =
+            targetValue >
+                currentValue
+                ? 'next'
+                : 'previous';
+
+        const arrow =
+            getCalendarArrow(
+                calendar,
+                direction
+            );
+
+        if (!arrow) {
+
+            throw new Error(
+                'Could not find Uber calendar ' +
+                direction +
+                ' arrow.'
+            );
+        }
+
+        simulateRealClick(
+            arrow
+        );
+
+        await sleep(500);
+
+        calendar =
+            await waitForCalendar(
+                3000
+            );
+
+        if (!calendar) {
+
+            throw new Error(
+                'Uber calendar disappeared while changing months.'
+            );
+        }
+    }
+
+    throw new Error(
+        'Could not navigate Uber calendar to requested month.'
+    );
+}
+
+
+// ============================================================
+// CREATE DAY ORDINAL REGEX
+// ============================================================
+
+function getDayOrdinalPattern(
+    day
+) {
+
+    /*
+     * Uber uses:
+     *
+     * 1st
+     * 2nd
+     * 3rd
+     * 4th
+     *
+     * etc.
+     */
+
+    return (
+        String(day) +
+        '(?:st|nd|rd|th)?'
+    );
+}
+
+
+// ============================================================
+// FIND EXACT UBER DATE CELL
+// ============================================================
+
+function findCalendarDay(
+    day,
+    month,
+    year
+) {
+
+    const monthName =
+        MONTH_NAMES[
+            month - 1
+        ];
+
+    const dayPattern =
+        getDayOrdinalPattern(
+            day
+        );
+
+    const dateRegex =
+        new RegExp(
+            '\\b' +
+            monthName +
+            '\\s+' +
+            dayPattern +
+            '\\s+' +
+            year +
+            '\\b',
+            'i'
+        );
+
+    const cells =
+        getVisibleCalendarCells();
+
+    console.log(
+        'Searching Uber calendar for:',
+        monthName,
+        day,
+        year
+    );
+
+    for (const cell of cells) {
+
+        const label =
+            cell.getAttribute(
+                'aria-label'
+            ) || '';
+
+        console.log(
+            'Uber date cell:',
+            label
+        );
+
+        if (
+            dateRegex.test(
+                label
+            )
+        ) {
+
+            /*
+             * Do not select an unavailable date.
+             */
+            if (
+                /unavailable|not available/i.test(
+                    label
+                )
+            ) {
+
+                throw new Error(
+                    'Uber shows ' +
+                    monthName +
+                    ' ' +
+                    day +
+                    ', ' +
+                    year +
+                    ' as unavailable.'
+                );
+            }
+
+            return cell;
+        }
+    }
+
+    return null;
+}
+
+
+// ============================================================
+// SELECT B3 DATE
+// ============================================================
+
+async function selectRideDate(dateText) {
+
+    const target =
+        parseExcelDate(
+            dateText
+        );
+
+    console.log(
+        'Uber requested ride date:',
+        target
+    );
+
+    // --------------------------------------------------------
+    // CHECK WHETHER B3 IS TODAY
+    // --------------------------------------------------------
+
+    const now =
+        new Date();
+
+    const isToday =
+        target.month ===
+            (now.getMonth() + 1) &&
+        target.day ===
+            now.getDate() &&
+        target.year ===
+            now.getFullYear();
+
+    const dateInput =
+        await waitForElement(
+            'input#date, input[aria-label="Select a date."]'
+        );
+
+    const currentUberValue =
+        (dateInput.value || '')
+            .trim()
+            .toLowerCase();
+
+    /*
+     * Uber already defaults Future Ride to Today.
+     *
+     * If Excel B3 is today AND Uber currently says Today,
+     * there is nothing to select. Leave it alone.
+     */
+    if (
+        isToday &&
+        currentUberValue === 'today'
+    ) {
+
+        console.log(
+            'Uber Health: B3 is today and Uber is already set to Today.'
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // OTHERWISE OPEN CALENDAR
+    // --------------------------------------------------------
+
+    let calendar =
+        await openCalendar();
+
+    // --------------------------------------------------------
+    // MOVE TO REQUESTED MONTH/YEAR
+    // --------------------------------------------------------
+
+    calendar =
+        await moveCalendarToMonth(
+            target.month,
+            target.year
+        );
+
+    // --------------------------------------------------------
+    // FIND DATE CELL
+    // --------------------------------------------------------
+
+    const dayCell =
+        findCalendarDay(
+            target.day,
+            target.month,
+            target.year
+        );
+
+    if (!dayCell) {
+
+        throw new Error(
+            'Could not find ' +
+            MONTH_NAMES[
+                target.month - 1
+            ] +
+            ' ' +
+            target.day +
+            ', ' +
+            target.year +
+            ' in Uber calendar.'
+        );
+    }
+
+    console.log(
+        'Uber Health selecting date:',
+        dayCell.getAttribute(
+            'aria-label'
+        )
+    );
+
+    // --------------------------------------------------------
+    // CLICK DATE
+    // --------------------------------------------------------
+
+    simulateRealClick(
+        dayCell
+    );
+
+    await sleep(700);
+
+    /*
+     * If the calendar remains open, try a regular click
+     * on Uber's actual gridcell.
+     */
+    if (
+        getVisibleCalendarCells()
+            .length > 0
+    ) {
+
+        dayCell.click();
+
+        await sleep(500);
+    }
+
+    console.log(
+        'Uber Health date selection completed:',
+        dateText
+    );
+}
+
+// ============================================================
+// UBER TIME SELECTION
+// ============================================================
+
+function normalizeUberTime(text) {
+
+    const match =
+        (text || '')
+            .trim()
+            .match(
+                /(\d{1,2}):(\d{2})\s*(AM|PM)/i
+            );
+
+    if (!match) {
+        return null;
+    }
+
+    return (
+        parseInt(match[1], 10) +
+        ':' +
+        match[2] +
+        ' ' +
+        match[3].toUpperCase()
+    );
+}
+
+
+// ============================================================
+// GET FIRST LEG TIME INPUT
+// ============================================================
+
+async function getFirstLegTimeInput(
+    timeout = 5000
+) {
+
+    const start = Date.now();
+
+    while (
+        Date.now() - start <
+        timeout
+    ) {
+
+        const input =
+            document.querySelector(
+                'input[id="tripLegs.0.time"]'
+            );
+
+        if (
+            input &&
+            isVisible(input)
+        ) {
+            return input;
+        }
+
+        await sleep(100);
+    }
+
+    throw new Error(
+        'Could not find Uber first-leg time field.'
+    );
+}
+
+
+// ============================================================
+// GET THE LISTBOX BELONGING TO THIS TIME FIELD
+// ============================================================
+
+function getTimeListbox(input) {
+
+    const listId =
+        input.getAttribute(
+            'aria-controls'
+        );
+
+    if (listId) {
+
+        const list =
+            document.getElementById(
+                listId
+            );
+
+        if (
+            list &&
+            isVisible(list)
+        ) {
+            return list;
+        }
+    }
+
+    /*
+     * Fallback if Uber changes the generated ID.
+     */
+    const visibleLists = [
+        ...document.querySelectorAll(
+            '[role="listbox"]'
+        )
+    ].filter(isVisible);
+
+    if (visibleLists.length) {
+
+        return visibleLists[
+            visibleLists.length - 1
+        ];
+    }
+
+    return null;
+}
+
+
+// ============================================================
+// TYPE TIME LIKE A USER
+// ============================================================
+
+async function typeUberTime(
+    input,
+    requestedTime
+) {
+
+    const wanted =
+        normalizeUberTime(
+            requestedTime
+        );
+
+    if (!wanted) {
+
+        throw new Error(
+            'Invalid pickup time from Excel: ' +
+            requestedTime
+        );
+    }
+
+    input.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+    });
+
+    await sleep(200);
+
+    input.focus();
+
+    /*
+     * Clear whatever is currently in the search input.
+     */
+    setReactInputValue(
+        input,
+        ''
+    );
+
+    await sleep(200);
+
+    /*
+     * Build the value a character at a time.
+     *
+     * This more closely resembles manually typing into
+     * Uber's BaseWeb combobox and causes its filtering
+     * logic to update correctly.
+     */
+    let typed = '';
+
+    for (const character of wanted) {
+
+        typed += character;
+
+        const nativeSetter =
+            Object.getOwnPropertyDescriptor(
+                HTMLInputElement.prototype,
+                'value'
+            ).set;
+
+        nativeSetter.call(
+            input,
+            typed
+        );
+
+        input.dispatchEvent(
+            new InputEvent(
+                'input',
+                {
+                    bubbles: true,
+                    cancelable: true,
+                    inputType:
+                        'insertText',
+                    data:
+                        character
+                }
+            )
+        );
+
+        await sleep(35);
+    }
+
+    input.dispatchEvent(
+        new Event(
+            'change',
+            {
+                bubbles: true
+            }
+        )
+    );
+
+    await sleep(500);
+
+    return wanted;
+}
+
+
+// ============================================================
+// FIND EXACT UBER TIME OPTION
+// ============================================================
+
+async function waitForTimeOption(
+    input,
+    requestedTime,
+    timeout = 7000
+) {
+
+    const wanted =
+        normalizeUberTime(
+            requestedTime
+        );
+
+    const start =
+        Date.now();
+
+    while (
+        Date.now() - start <
+        timeout
+    ) {
+
+        const listbox =
+            getTimeListbox(
+                input
+            );
+
+        if (listbox) {
+
+            const options = [
+                ...listbox.querySelectorAll(
+                    '[role="option"]'
+                )
+            ].filter(isVisible);
+
+            for (const option of options) {
+
+                const optionText =
+                    cleanText(
+                        option.textContent
+                    );
+
+                const optionTime =
+                    normalizeUberTime(
+                        optionText
+                    );
+
+                console.log(
+                    'Uber time option:',
+                    optionText
+                );
+
+                /*
+                 * This intentionally ignores the
+                 * timezone suffix.
+                 *
+                 * Excel:
+                 * 9:30 AM
+                 *
+                 * Uber:
+                 * 9:30 AM EDT
+                 */
+                if (
+                    optionTime === wanted
+                ) {
+
+                    return option;
+                }
+            }
+        }
+
+        await sleep(100);
+    }
+
+    return null;
+}
+
+
+// ============================================================
+// VERIFY UBER ACCEPTED THE TIME
+// ============================================================
+
+async function waitForTimeCommitted(
+    input,
+    requestedTime,
+    timeout = 5000
+) {
+
+    const wanted =
+        normalizeUberTime(
+            requestedTime
+        );
+
+    const start =
+        Date.now();
+
+    while (
+        Date.now() - start <
+        timeout
+    ) {
+
+        /*
+         * After selection your HTML shows:
+         *
+         * aria-label="Selected 9:55 AM EDT. "
+         */
+        const label =
+            input.getAttribute(
+                'aria-label'
+            ) || '';
+
+        const selectedTime =
+            normalizeUberTime(
+                label
+            );
+
+        if (
+            selectedTime === wanted
+        ) {
+            return true;
+        }
+
+        await sleep(100);
+    }
+
+    return false;
+}
+
+
+// ============================================================
+// SELECT B5 PICKUP TIME
+// ============================================================
+
+async function selectRideTime(
+    requestedTime
+) {
+
+    if (!requestedTime) {
+        return;
+    }
+
+    const wanted =
+        normalizeUberTime(
+            requestedTime
+        );
+
+    if (!wanted) {
+
+        throw new Error(
+            'Invalid pickup time from Excel: ' +
+            requestedTime
+        );
+    }
+
+    console.log(
+        'Uber requested pickup time:',
+        wanted
+    );
+
+    // --------------------------------------------------------
+    // GET ACTUAL UBER COMBOBOX
+    // --------------------------------------------------------
+
+    const input =
+        await getFirstLegTimeInput();
+
+    /*
+     * Clicking the time field opens Uber's list.
+     */
+    input.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+    });
+
+    await sleep(200);
+
+    simulateRealClick(
+        input
+    );
+
+    await sleep(300);
+
+    // --------------------------------------------------------
+    // TYPE B5 INTO UBER
+    // --------------------------------------------------------
+
+    await typeUberTime(
+        input,
+        wanted
+    );
+
+    // --------------------------------------------------------
+    // WAIT FOR EXACT MATCH
+    // --------------------------------------------------------
+
+    const option =
+        await waitForTimeOption(
+            input,
+            wanted
+        );
+
+    if (!option) {
+
+        throw new Error(
+            'Uber did not return pickup time ' +
+            wanted +
+            '.'
+        );
+    }
+
+    const optionText =
+        cleanText(
+            option.textContent
+        );
+
+    console.log(
+        'Uber selecting pickup time:',
+        optionText
+    );
+
+    // --------------------------------------------------------
+    // SELECT ACTUAL LI role="option"
+    // --------------------------------------------------------
+
+    simulateRealClick(
+        option
+    );
+
+    await sleep(500);
+
+    // --------------------------------------------------------
+    // VERIFY
+    // --------------------------------------------------------
+
+    const committed =
+        await waitForTimeCommitted(
+            input,
+            wanted
+        );
+
+    if (!committed) {
+
+        /*
+         * A normal click is worth a second attempt
+         * because the option itself is Uber's true
+         * role="option" element.
+         */
+        option.click();
+
+        await sleep(400);
+
+        const secondCheck =
+            await waitForTimeCommitted(
+                input,
+                wanted,
+                2500
+            );
+
+        if (!secondCheck) {
+
+            throw new Error(
+                'Uber showed ' +
+                optionText +
+                ' but did not accept the time.'
+            );
+        }
+    }
+
+    console.log(
+        'Uber Health pickup time selected:',
+        optionText
+    );
+}
+
+    // ============================================================
+    // MAIN PASTE ROUTINE
+    // ============================================================
+
+    async function pasteRide() {
+
+        const pasteButton =
+            document.getElementById(
+                BUTTON_ID
+            );
+
+        try {
+
+            pasteButton.disabled = true;
+
+            pasteButton.textContent =
+                'Reading Clipboard...';
+
+            // ----------------------------------------------------
+            // READ EXCEL JSON
+            // ----------------------------------------------------
+
+            const clipboardText =
+                await navigator.clipboard.readText();
+
+            if (!clipboardText) {
+
+                throw new Error(
+                    'Clipboard is empty.'
+                );
+            }
+
+            let ride;
+
+            try {
+
+                ride =
+                    JSON.parse(
+                        clipboardText
+                    );
+
+            } catch (e) {
+
+                throw new Error(
+                    'Clipboard does not contain valid Uber ride data. ' +
+                    'Click the Uber button in Excel again.'
+                );
+            }
+
+            console.log(
+                'Uber Health ride data:',
+                ride
+            );
+
+            if (
+                !ride.pickupAddress ||
+                !ride.dropoffAddress
+            ) {
+
+                throw new Error(
+                    'Pickup or dropoff address is missing from Excel.'
+                );
+            }
+
+            if (!ride.date) {
+
+                throw new Error(
+                    'Ride date is missing from Excel B3.'
+                );
+            }
+
+            if (!ride.pickupTime) {
+
+                throw new Error(
+                    'Pickup time is missing from Excel B5.'
+                );
+            }
+
+            // ----------------------------------------------------
+            // ROUND TRIP
+            // ----------------------------------------------------
+
+            pasteButton.textContent =
+                'Selecting Round Trip...';
+
+            await selectRoundTrip();
+
+            // ----------------------------------------------------
+            // PICKUP ADDRESS
+            // ----------------------------------------------------
+
+            pasteButton.textContent =
+                'Entering Pickup...';
+
+            const pickup =
+                await waitForElement(
+                    'input[data-testid="pickupAddress_0"]'
+                );
+
+            await enterAddress(
+                pickup,
+                ride.pickupAddress,
+                'pickup'
+            );
+
+            // ----------------------------------------------------
+            // DROPOFF ADDRESS
+            // ----------------------------------------------------
+
+            pasteButton.textContent =
+                'Entering Dropoff...';
+
+            const dropoff =
+                await waitForElement(
+                    'input[data-testid="dropoffAddress_0_0"]'
+                );
+
+            await enterAddress(
+                dropoff,
+                ride.dropoffAddress,
+                'dropoff'
+            );
+
+            // ----------------------------------------------------
+            // FUTURE RIDE
+            // ----------------------------------------------------
+
+            pasteButton.textContent =
+                'Selecting Future Ride...';
+
+            await selectFutureRide();
+
+            // ----------------------------------------------------
+            // CHOOSE DATE & TIME
+            // ----------------------------------------------------
+
+            pasteButton.textContent =
+                'Choosing Date & Time...';
+
+            await selectChooseDateAndTime();
+
+            // ----------------------------------------------------
+            // B3 DATE
+            // ----------------------------------------------------
+
+            pasteButton.textContent =
+                'Setting Ride Date...';
+
+            await selectRideDate(
+                ride.date
+            );
+
+            // ----------------------------------------------------
+            // B5 PICKUP TIME
+            // ----------------------------------------------------
+
+            pasteButton.textContent =
+                'Setting Pickup Time...';
+
+            await selectRideTime(
+                ride.pickupTime
+            );
+
+            // ----------------------------------------------------
+            // DONE
+            // ----------------------------------------------------
+
+            pasteButton.textContent =
+                'Ride Data Entered ✓';
+
+            console.log(
+                'Uber Health first leg completed.'
+            );
+
+        } catch (err) {
+
+            console.error(
+                'Uber Health Paste Ride error:',
+                err
+            );
+
+            alert(
+                'Uber Health Paste Ride Error\n\n' +
+                err.message
+            );
+
+            pasteButton.textContent =
+                'Paste Ride Data';
+
+        } finally {
+
+            pasteButton.disabled = false;
+        }
+    }
+
+    // ============================================================
+    // ADD BUTTON
+    // ============================================================
+
+function addPasteButton() {
+
+    if (
+        document.getElementById(
+            BUTTON_ID
+        )
+    ) {
+        return;
+    }
+
+    const button =
+        document.createElement(
+            'button'
+        );
+
+    button.id =
+        BUTTON_ID;
+
+    button.type =
+        'button';
+
+    button.textContent =
+        'Paste Ride Data';
+
+    // Keep button available for automation,
+    // but hide it from the user.
+    button.style.display =
+        'none';
+
+    button.addEventListener(
+        'click',
+        pasteRide
+    );
+
+    document.body.appendChild(
+        button
+    );
+}
+
+    // ============================================================
+    // KEEP BUTTON PRESENT
+    // ============================================================
+
+    addPasteButton();
+
+    const observer =
+        new MutationObserver(
+            function () {
+                addPasteButton();
+            }
+        );
+
+    observer.observe(
+        document.documentElement,
+        {
+            childList: true,
+            subtree: true
+        }
+    );
+
+    // ============================================================
+    // CHECK WHETHER EXCEL OPENED UBER
+    // ============================================================
+
+    setTimeout(
+        function () {
+            autoStartRideFromExcel();
+        },
+        500
+    );
+
+
+    }
+
+    // UIEnhancer runs at document-start; Uber needs the page body before adding its button.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startUberHealth, { once: true });
+    } else {
+        startUberHealth();
+    }
 })();
