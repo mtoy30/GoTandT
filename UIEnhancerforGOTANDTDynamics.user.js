@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.26
+// @version      1.3.7.27
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel.
@@ -4537,6 +4537,30 @@ async function selectRideTime(
     // MAIN PASTE ROUTINE
     // ============================================================
 
+    // Wait for foreground clipboard access; never retry the form-filling steps.
+    async function readUberRideClipboard(timeoutMs = 15000) {
+        const deadline = Date.now() + timeoutMs;
+        const focused = () => document.visibilityState === 'visible' && document.hasFocus();
+        while (Date.now() < deadline) {
+            if (!focused()) {
+                await new Promise(resolve => setTimeout(resolve, 150));
+                continue;
+            }
+            try {
+                return await navigator.clipboard.readText();
+            } catch (error) {
+                if (!focused() || /not focused|document.*focus/i.test(error.message || '')) {
+                    await new Promise(resolve => setTimeout(resolve, 150));
+                    continue;
+                }
+                if (error.name === 'NotAllowedError') {
+                    throw new Error('Clipboard access was blocked. Allow clipboard access for Uber Health in your browser, then run the Excel macro again.');
+                }
+                throw error;
+            }
+        }
+        throw new Error('Uber Health did not stay focused. Close any Excel notice, keep the Uber Health page active, and run the Excel macro again.');
+    }
     async function pasteRide() {
 
         const pasteButton =
@@ -4556,7 +4580,7 @@ async function selectRideTime(
             // ----------------------------------------------------
 
             const clipboardText =
-                await navigator.clipboard.readText();
+                await readUberRideClipboard();
 
             if (!clipboardText) {
 
