@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.2.29
+// @version      4.2.31
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -666,7 +666,114 @@ function showCalculatorBox() {
     }
 }
 
-function showCalculatorUI() {
+// LMS owns calculator thresholds. Each opening uses a fresh, validated snapshot.
+const LMS_MARGIN_SETTINGS_URL = 'https://lowmargin.mtoysystems.com/api/margin_settings.php';
+let lmsMarginOpenSequence = 0;
+
+function validateLmsMarginSettings(data) {
+    if (!data || data.ok !== true || data.schema_version !== 1 || !Array.isArray(data.rules) || !data.default) {
+        throw new Error('LMS returned invalid margin settings.');
+    }
+    const prefixes = new Set();
+    for (const rule of [data.default, ...data.rules]) {
+        if (!rule || typeof rule.header_prefix !== 'string' || prefixes.has(rule.header_prefix)) {
+            throw new Error('LMS returned invalid header rules.');
+        }
+        prefixes.add(rule.header_prefix);
+        for (const mode of ['regular', 'higher']) {
+            const range = rule[mode];
+            if (!range || !['approval_max', 'red_max', 'green_min'].every(key =>
+                typeof range[key] === 'number' && Number.isFinite(range[key]) && range[key] >= -10000 && range[key] <= 100
+            ) || range.red_max >= range.green_min) {
+                throw new Error('LMS returned invalid margin ranges.');
+            }
+        }
+    }
+    if (data.default.header_prefix !== '' || data.rules.some(rule => rule.header_prefix === '')) {
+        throw new Error('LMS returned an invalid default rule.');
+    }
+    return data;
+}
+
+function fetchLmsMarginSettings() {
+    return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+            method: 'GET',
+            url: `${LMS_MARGIN_SETTINGS_URL}?_=${Date.now()}`,
+            headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' },
+            withCredentials: true,
+            anonymous: false,
+            timeout: 15000,
+            onload(response) {
+                try {
+                    if (response.status === 401) throw new Error('Sign into LMS, then reopen the margin calculator.');
+                    if (response.status !== 200) throw new Error(`LMS margin settings request failed (HTTP ${response.status}).`);
+                    resolve(validateLmsMarginSettings(JSON.parse(response.responseText)));
+                } catch (error) {
+                    reject(new Error(error instanceof SyntaxError ? 'LMS did not return settings. Sign into LMS and try again.' : error.message));
+                }
+            },
+            onerror: () => reject(new Error('Could not reach LMS. Reopen the calculator to try again.')),
+            ontimeout: () => reject(new Error('LMS settings request timed out. Reopen the calculator to try again.')),
+            onabort: () => reject(new Error('LMS settings request was cancelled.'))
+        });
+    });
+}
+
+function findLmsMarginRule(settings, headerText) {
+    return settings.rules.filter(rule => headerText.startsWith(rule.header_prefix))
+        .sort((a, b) => b.header_prefix.length - a.header_prefix.length)[0] || settings.default;
+}
+
+function lmsMarginStatus(rawMargin, range) {
+    if (!Number.isFinite(rawMargin)) return { color: 'black', approval: false };
+    const margin = Number(rawMargin.toFixed(2));
+    return {
+        color: margin <= range.red_max ? 'red' : margin < range.green_min ? 'goldenrod' : 'green',
+        approval: margin <= range.approval_max
+    };
+}
+
+async function showCalculatorUI() {
+    const sequence = ++lmsMarginOpenSequence;
+    document.getElementById('calcBox')?.remove();
+    document.getElementById('lmsMarginLoading')?.remove();
+    const panel = document.createElement('div');
+    panel.id = 'lmsMarginLoading';
+    Object.assign(panel.style, { position: 'fixed', top: '10%', right: '20px', zIndex: '10001',
+        background: 'white', color: 'black', border: '2px solid #333', borderRadius: '10px', padding: '20px', maxWidth: '420px' });
+    const status = document.createElement('p');
+    status.textContent = 'Loading current margin settings from LMS…';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = 'Close';
+    close.onclick = () => { if (sequence === lmsMarginOpenSequence) ++lmsMarginOpenSequence; panel.remove(); };
+    panel.append(status, close);
+    document.body.appendChild(panel);
+    try {
+        const settings = await fetchLmsMarginSettings();
+        if (sequence !== lmsMarginOpenSequence || !panel.isConnected) return;
+        if (!document.title.includes('Referral: Information:')) {
+            status.textContent = 'Return to a referral and reopen the calculator.';
+            return;
+        }
+        panel.remove();
+        renderCalculatorUI(settings);
+    } catch (error) {
+        if (sequence !== lmsMarginOpenSequence || !panel.isConnected) return;
+        status.textContent = `${error.message} Current thresholds are required before calculating.`;
+        const login = document.createElement('a');
+        login.href = LMS_LOGIN_URL;
+        login.target = '_blank';
+        login.rel = 'noopener noreferrer';
+        login.textContent = 'Open LMS';
+        login.style.marginLeft = '12px';
+        panel.appendChild(login);
+    }
+}
+
+
+function renderCalculatorUI(marginSettings) {
     const existing = document.getElementById("calcBox");
     if (existing) existing.remove();
 
@@ -1865,29 +1972,13 @@ labelRow.appendChild(rightGroup);
         }
 
         const margin = 100 - ((paidAmount / totalBilled) * 100);
-        let marginColor = "black";
-        if (margin <= 24.99) marginColor = "red";
-        else if (margin < 35) marginColor = "goldenrod";
-        else marginColor = "green";
-
-const headerElement = document.querySelector('[id^="formHeaderTitle"]');
-const headerText = headerElement?.textContent?.trim() || "";
-
-// Determine margin threshold
-let marginThreshold = 24.99;
-if (/^(133\-|202\-|9616\-)/.test(headerText)) {
-    marginThreshold = 19.99;
-} else if (headerText.startsWith("999-")) {
-    marginThreshold = 29.99;
-} else if (headerText.startsWith("4474-")) {
-    marginThreshold = 19.99;
-} else if (headerText.startsWith("212-")) {
-    marginThreshold = 49.99;
-}
-
-let approvalNote = margin <= marginThreshold
-    ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>`
-    : "";
+        const headerElement = document.querySelector('[id^="formHeaderTitle"]');
+        const headerText = headerElement?.textContent?.trim() || "";
+        const marginRule = findLmsMarginRule(marginSettings, headerText);
+        const regularStatus = lmsMarginStatus(margin, marginRule.regular);
+        const marginColor = regularStatus.color;
+        const approvalNote = regularStatus.approval
+            ? '<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>' : '';
 
 const milesLine =
   rateType === "mile"
@@ -1907,7 +1998,7 @@ ${loadFeeLine}
 <span style="color:${marginColor};font-weight:bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
 `;
 
-        const target = totalBilled * (1 - 0.35);
+        const target = totalBilled * (1 - marginRule.regular.green_min / 100);
         targetLabel.innerHTML = `<span>Target to pay this or less: $${target.toFixed(2)}</span>`;
 
         const transportProducts = ["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS"];
@@ -2015,27 +2106,15 @@ if (!isNaN(enteredValue)) {
 }
 });
 
+        if (!Number.isFinite(higherTotal) || higherTotal <= 0) {
+            higherResult.innerText = 'Enter higher billing rates to calculate their margin.';
+            return;
+        }
         const higherMargin = 100 - ((paidAmount / higherTotal) * 100);
-        let higherMarginColor = "black";
-        if (higherMargin <= 24.99) higherMarginColor = "red";
-        else if (higherMargin < 35) higherMarginColor = "goldenrod";
-        else higherMarginColor = "green";
-
-// Determine margin threshold
-let highermarginThreshold = 34.99;
-if (/^(133\-|202\-|9616\-)/.test(headerText)) {
-    highermarginThreshold = 24.99;
-} else if (headerText.startsWith("999-")) {
-    highermarginThreshold = 29.99;
-} else if (headerText.startsWith("4474-")) {
-    highermarginThreshold = 19.99;
-} else if (headerText.startsWith("212-")) {
-    highermarginThreshold = 49.99;
-}
-
-let higherApprovalNote = higherMargin <= highermarginThreshold
-    ? `<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>`
-    : "";
+        const higherStatus = lmsMarginStatus(higherMargin, marginRule.higher);
+        const higherMarginColor = higherStatus.color;
+        const higherApprovalNote = higherStatus.approval
+            ? '<br><span style="color: red; font-weight: bold;">Seek Management Approval</span>' : '';
 
         higherResult.innerHTML = `
             <span>Total Using Higher Rates: $${higherTotal.toFixed(2)}</span>
