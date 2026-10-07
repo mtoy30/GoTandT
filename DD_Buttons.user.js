@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      4.2.31
+// @version      4.2.33
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Custom script for Dynamics 365 CRM page with multiple button functionalities
@@ -3709,7 +3709,7 @@ function validateEmailConfirmations(showAlert = true, enforceInterpreterRecipien
     // the selected recipient type instead of blindly preferring Interpreter.
     //
     // Examples:
-    //   Service Provider - Interpreter -> keep Interpreter
+    //   Service Provider - Interpreter -> allow Driver or Interpreter (one at a time)
     //   Service Provider - Transporter -> keep Driver
     //   Adjuster / Customer Contact / Authorized -> keep Client
     // If more than one checked form is individually valid (for example a generic
@@ -3734,7 +3734,7 @@ function validateEmailConfirmations(showAlert = true, enforceInterpreterRecipien
 
         const isCompatible = (key) => {
             if (key === 'interpreter') return !!interpreterRecipient;
-            if (key === 'driver') return !interpreterRecipient && !hasClientTypeRecipient;
+            if (key === 'driver') return !hasClientTypeRecipient;
             if (key === 'client') return !interpreterRecipient && !hasTransportRecipient;
             return false;
         };
@@ -3812,10 +3812,10 @@ function validateEmailConfirmations(showAlert = true, enforceInterpreterRecipien
         return false;
     }
 
-    // RULE 3: If an Interpreter recipient is selected, Client and Driver
-    // Confirmation are not allowed. This mirrors the existing positive-match
-    // Transport/Adjuster safeguards: act only when the matching recipient is found.
-    if (interpreterRecipient && (clientCheck?.checked || driverCheck?.checked)) {
+    // RULE 3: An Interpreter recipient may use Driver or Interpreter Confirmation,
+    // one at a time. Client Confirmation is not allowed. Act only when the
+    // matching recipient is found, as with the Transport/Adjuster safeguards.
+    if (interpreterRecipient && clientCheck?.checked) {
         mtoyEmailSafeguardHandling = true;
         try {
             const removed = [];
@@ -3823,16 +3823,12 @@ function validateEmailConfirmations(showAlert = true, enforceInterpreterRecipien
                 setConfirmationUnchecked(clientCheck);
                 removed.push('Client Confirmation');
             }
-            if (driverCheck?.checked) {
-                setConfirmationUnchecked(driverCheck);
-                removed.push('Driver Confirmation');
-            }
 
             if (showAlert && removed.length) {
                 alert(
                     'EMAIL CONFIRMATION SAFEGUARD\n\n' +
                     `Selected recipient: ${interpreterRecipient.text}\n\n` +
-                    'An Interpreter recipient can only use Interpreter Confirmation.\n\n' +
+                    'An Interpreter recipient can use either Driver Confirmation or Interpreter Confirmation, one at a time. Client Confirmation is not allowed.\n\n' +
                     `${removed.join(' and ')} ${removed.length > 1 ? 'have' : 'has'} been unchecked.`
                 );
             }
