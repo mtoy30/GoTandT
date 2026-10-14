@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.27
+// @version      1.3.7.28
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel.
@@ -1286,7 +1286,7 @@
       if (!banner) {
         banner = document.createElement('div');
         banner.id = 'itinerary-change-banner';
-        banner.textContent = 'STOP PENDING CHANGED DO NOT STAFF YET';
+        banner.textContent = 'STOP PENDING CHANGES DO NOT STAFF YET';
         banner.style.backgroundColor = '#d32f2f';
         banner.style.color = 'white';
         banner.style.padding = '5px';
