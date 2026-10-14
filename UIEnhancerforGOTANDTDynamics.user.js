@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.28
+// @version      1.3.7.32
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel.
@@ -1303,7 +1303,25 @@
       cleanupFormBannerStack();
     }
 
+    function getClaimPayerName() {
+      const payer =
+        document.querySelector('[data-id="Claim.gtt_payerid.fieldControl-LookupResultsDropdown_gtt_payerid_selected_tag_text"]') ||
+        document.querySelector('[data-id="Claim.gtt_payerid.fieldControl-LookupResultsDropdown_gtt_payerid_selected_tag"]');
+      return (
+        payer?.getAttribute('title') ||
+        payer?.textContent ||
+        ''
+      ).trim();
+    }
+
     function checkItineraryChangeBanner() {
+      const payerName = getClaimPayerName();
+
+      if (payerName !== 'Care IQ - Payer' || !isProviderAssignmentHeaderStage()) {
+        removeItineraryChangeBanner();
+        return;
+      }
+
       const button = document.querySelector(itinerarySelector);
       if (!button) {
         removeItineraryChangeBanner();
@@ -1320,6 +1338,50 @@
 
       if (currentValue === itineraryChangeText) insertItineraryChangeBanner();
       else removeItineraryChangeBanner();
+    }
+
+    function checkQuotedTripBanner() {
+      const transport = document.querySelector(
+        'button[data-id="gtt_transporttype.fieldControl-option-set-select"]'
+      );
+      const rateStatus = document.querySelector(
+        'button[data-id="gtt_authorizedratestatus.fieldControl-option-set-select"]'
+      );
+      const readValue = button => (
+        button?.value ||
+        button?.getAttribute('value') ||
+        button?.getAttribute('title') ||
+        button?.textContent ||
+        ''
+      ).trim();
+      const transportType = readValue(transport);
+      const qualifies = getClaimPayerName() === 'Care IQ - Payer' &&
+        transportType !== '' &&
+        transportType !== 'Ambulatory' &&
+        transportType !== 'Wheelchair' &&
+        readValue(rateStatus) === 'Rates Approved' &&
+        isProviderAssignmentHeaderStage();
+
+      let banner = document.getElementById('quoted-trip-banner');
+      if (!qualifies) {
+        if (banner) {
+          banner.remove();
+          cleanupFormBannerStack();
+        }
+        return;
+      }
+
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'quoted-trip-banner';
+        banner.textContent = 'Quoted trip please confirm in timeline that quote was accepted.';
+        banner.style.backgroundColor = '#d32f2f';
+        banner.style.color = 'white';
+        banner.style.fontWeight = 'bold';
+        banner.style.textAlign = 'center';
+        banner.style.borderRadius = '5px';
+      }
+      placeFormBanner(banner);
     }
 
     function highlightAllRowsGlobal() {
@@ -2165,6 +2227,7 @@
       debounceTimer = setTimeout(() => {
         checkStatusAndInsertBanner();
         checkItineraryChangeBanner();
+        checkQuotedTripBanner();
         highlightAllRowsGlobal();
         addLegend();
         adjustSpacing();
@@ -2183,6 +2246,7 @@
     const tryInit = setInterval(() => {
       checkStatusAndInsertBanner();
       checkItineraryChangeBanner();
+      checkQuotedTripBanner();
       highlightAllRowsGlobal();
       addLegend();
       adjustSpacing();
@@ -2205,6 +2269,11 @@
     }, true);
     setInterval(checkCareWorksJurisdiction, 1200);
     setInterval(checkAncillaryFeesOnReferralLoad, 500);
+    // Also catch Stage changes inside the header component's shadow root.
+    setInterval(() => {
+      checkItineraryChangeBanner();
+      checkQuotedTripBanner();
+    }, 500);
 
     if (document.title.includes('Email:')) {
       waitForMoniqueInIframe();
