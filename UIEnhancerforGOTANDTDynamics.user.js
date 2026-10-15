@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.34
+// @version      1.3.7.37
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel.
@@ -493,7 +493,7 @@
 
     const YOURNAME_OPTIONS = [
       'Annejulia Villegas-Torres','Ashley Oliver','Christian Antunez','Christina Armstrong',
-      'Damaris Olmeda','David Hobbs','Jeremy Rivera','Kaiza Blair','Kevin Roberts','Melantony Burks',
+      'Damaris Olmeda','David Hobbs','Jeremy Rivera','Kazia Blair','Kevin Roberts','Melantony Burks',
       'Michael Toy','Naomi Picklesimer','Tonyjay Matias','Yuri Nichols'
     ];
 
@@ -1195,10 +1195,11 @@
           maxWidth: '100%',
           boxSizing: 'border-box',
           margin: '0',
-          minHeight: compact ? '19px' : '23px',
-          padding: compact ? '2px 6px' : '3px 6px',
-          fontSize: compact ? '11px' : '12px',
-          lineHeight: compact ? '15px' : '17px'
+          minHeight: '26px',
+          padding: '3px 6px',
+          fontFamily: 'Aptos, Calibri, Arial, sans-serif',
+          fontSize: '15pt',
+          lineHeight: '20px'
         });
       });
     }
@@ -1268,9 +1269,10 @@
     }
 
     function checkStatusAndInsertBanner() {
+      const pendingQuoteBannerShown = checkQuotedTripBanner();
       const button = document.querySelector(buttonSelector);
       if (!button) return;
-      if (button.textContent.includes(statusText)) insertBanner();
+      if (button.textContent.includes(statusText) && !pendingQuoteBannerShown) insertBanner();
       else removeBanner();
     }
 
@@ -1355,11 +1357,17 @@
         ''
       ).trim();
       const transportType = readValue(transport);
+      const currentRateStatus = readValue(rateStatus);
+      const message = currentRateStatus === 'Rates Approved'
+        ? 'Quoted trip please confirm in timeline that quote was accepted.'
+        : currentRateStatus === statusText
+          ? 'This is a QUOTED trip and should be Rates Approved to populate billing for QUOTE'
+          : '';
       const qualifies = getClaimPayerName() === 'Care IQ - Payer' &&
         transportType !== '' &&
         transportType !== 'Ambulatory' &&
         transportType !== 'Wheelchair' &&
-        readValue(rateStatus) === 'Rates Approved' &&
+        message !== '' &&
         isProviderAssignmentHeaderStage();
 
       let banner = document.getElementById('quoted-trip-banner');
@@ -1374,14 +1382,18 @@
       if (!banner) {
         banner = document.createElement('div');
         banner.id = 'quoted-trip-banner';
-        banner.textContent = 'Quoted trip please confirm in timeline that quote was accepted.';
         banner.style.backgroundColor = '#d32f2f';
         banner.style.color = 'white';
         banner.style.fontWeight = 'bold';
         banner.style.textAlign = 'center';
         banner.style.borderRadius = '5px';
       }
-      placeFormBanner(banner);
+      banner.textContent = message;
+      banner.style.backgroundColor = currentRateStatus === 'Rates Approved'
+      ? '#C71585' // Dark pink
+      : '#d32f2f'; // Red for the pending quoted-trip message
+      const placed = placeFormBanner(banner);
+      return placed && currentRateStatus === statusText;
     }
 
     function highlightAllRowsGlobal() {
