@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.33
+// @version      1.3.7.34
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel.
@@ -493,7 +493,7 @@
 
     const YOURNAME_OPTIONS = [
       'Annejulia Villegas-Torres','Ashley Oliver','Christian Antunez','Christina Armstrong',
-      'Cooper Turner','Damaris Olmeda','David Hobbs','Jeremy Rivera','Kazia Blair','Kevin Roberts','Melantony Burks',
+      'Cooper Turner','Damaris Olmeda','David Hobbs','Jeremy Rivera','Kaiza Blair','Kevin Roberts','Melantony Burks',
       'Michael Toy','Naomi Picklesimer','Tonyjay Matias','Yuri Nichols'
     ];
 
@@ -1397,11 +1397,7 @@
       rows.forEach(row => {
         if (row.dataset.highlightedGlobal) return;
         const text = row.textContent?.toLowerCase() || '';
-        if (text.includes("pending - rate authorization requested")) {
-          row.style.backgroundColor = 'lightblue';
-        } else if (text.includes("rates approved")) {
-          row.style.backgroundColor = 'plum';
-        } else if (vipTerms.some(term => text.includes(term))) {
+        if (vipTerms.some(term => text.includes(term))) {
           row.style.backgroundColor = 'gold';
         } else if (text.includes("first") || text.includes("surgery")) {
           row.style.backgroundColor = 'lightgreen';
@@ -1500,10 +1496,6 @@
       legend.appendChild(createLegendChip('Evaluations', 'gold'));
       legend.appendChild(createLegendChip('First Time/Surgery', 'lightgreen'));
       legend.appendChild(createLegendChip('Airport', 'lightcoral'));
-      if (type === "default") {
-        legend.appendChild(createLegendChip('Pending Rate Approval', 'lightblue'));
-        legend.appendChild(createLegendChip('Rates Approved', 'plum'));
-      }
       if (type === "-confirm") {
         legend.appendChild(createLegendChip('Pickup/Appt Time Passed', '#FFDAB9'));
       }
