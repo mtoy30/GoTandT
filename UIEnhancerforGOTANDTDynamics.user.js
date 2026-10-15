@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.32
+// @version      1.3.7.33
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel.
@@ -493,7 +493,7 @@
 
     const YOURNAME_OPTIONS = [
       'Annejulia Villegas-Torres','Ashley Oliver','Christian Antunez','Christina Armstrong',
-      'Cooper Turner','Damaris Olmeda','David Hobbs','Jeremy Rivera','Kevin Roberts','Melantony Burks',
+      'Cooper Turner','Damaris Olmeda','David Hobbs','Jeremy Rivera','Kazia Blair','Kevin Roberts','Melantony Burks',
       'Michael Toy','Naomi Picklesimer','Tonyjay Matias','Yuri Nichols'
     ];
 
