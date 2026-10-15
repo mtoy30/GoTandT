@@ -493,7 +493,7 @@
 
     const YOURNAME_OPTIONS = [
       'Annejulia Villegas-Torres','Ashley Oliver','Christian Antunez','Christina Armstrong',
-      'Cooper Turner','Damaris Olmeda','David Hobbs','Jeremy Rivera','Kaiza Blair','Kevin Roberts','Melantony Burks',
+      'Damaris Olmeda','David Hobbs','Jeremy Rivera','Kaiza Blair','Kevin Roberts','Melantony Burks',
       'Michael Toy','Naomi Picklesimer','Tonyjay Matias','Yuri Nichols'
     ];
 
