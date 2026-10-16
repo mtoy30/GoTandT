@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.17
+// @version      1.3.7.38
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel.
@@ -1342,6 +1342,9 @@
       else removeItineraryChangeBanner();
     }
 
+    // Both quote messages start November 2, 2026 at midnight Eastern (EST).
+    const PENDING_QUOTE_START_AT = Date.parse('2026-11-02T00:00:00-05:00');
+
     function checkQuotedTripBanner() {
       const transport = document.querySelector(
         'button[data-id="gtt_transporttype.fieldControl-option-set-select"]'
@@ -1360,10 +1363,11 @@
       const currentRateStatus = readValue(rateStatus);
       const message = currentRateStatus === 'Rates Approved'
         ? 'Quoted trip please confirm in timeline that quote was accepted.'
-        : currentRateStatus === statusText
+        : currentRateStatus === statusText && Date.now() >= PENDING_QUOTE_START_AT
           ? 'This is a QUOTED trip and should be Rates Approved to populate billing for QUOTE'
           : '';
-      const qualifies = getClaimPayerName() === 'Care IQ - Payer' &&
+      const qualifies = Date.now() >= PENDING_QUOTE_START_AT &&
+        getClaimPayerName() === 'Care IQ - Payer' &&
         transportType !== '' &&
         transportType !== 'Ambulatory' &&
         transportType !== 'Wheelchair' &&
@@ -2276,7 +2280,7 @@
     // Also catch Stage changes inside the header component's shadow root.
     setInterval(() => {
       checkItineraryChangeBanner();
-      checkQuotedTripBanner();
+      checkStatusAndInsertBanner();
     }, 500);
 
     if (document.title.includes('Email:')) {
