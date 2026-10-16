@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.38
+// @version      1.3.7.39
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel.
@@ -1655,21 +1655,40 @@
     }
 
     function insertJbaBannerIfNeeded() {
-      const titleText = document.title;
-      const providerDiv = Array.from(document.querySelectorAll('div[role="presentation"]'))
-        .find(el => el.textContent.trim() === "Provider Assignment");
-      const header = document.querySelector(headerSelector);
-      if (!titleText.includes("7327-") || !providerDiv || document.getElementById("jba-banner")) return;
-      const banner = document.createElement("div");
-      banner.id = "jba-banner";
-      banner.textContent = "JBA file usually needs QUOTE please provide full breakdown and totals";
-      banner.style.backgroundColor = "#f8d7da";
-      banner.style.color = "#721c24";
-      banner.style.padding = "6px";
-      banner.style.fontWeight = "bold";
-      banner.style.textAlign = "center";
-      banner.style.borderRadius = "5px";
-      if (header) placeFormBanner(banner);
+      // Match the current referral in the visible Dynamics header, with the
+      // browser title as a fallback. Do not depend on legacy formHeaderTitle IDs.
+      const visibleReferral = (
+        document.querySelector('[data-lp-id="form-header-title"] h1')?.textContent ||
+        document.querySelector('[data-id="form-header-title"]')?.textContent ||
+        document.querySelector('[id^="formHeaderTitle_"]')?.textContent ||
+        ''
+      ).trim();
+      const referralText = visibleReferral || document.title || '';
+      const matchesJba = /(?:^|\D)7327-\d+/i.test(referralText);
+      const atProviderStage = isProviderAssignmentHeaderStage();
+
+      let banner = document.getElementById('jba-banner');
+      if (!matchesJba || !atProviderStage) {
+        if (banner) {
+          banner.remove();
+          cleanupFormBannerStack();
+        }
+        return;
+      }
+
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'jba-banner';
+        banner.textContent = 'JBA file usually needs QUOTE please provide full breakdown and totals';
+        banner.style.backgroundColor = '#f8d7da';
+        banner.style.color = '#721c24';
+        banner.style.padding = '6px';
+        banner.style.fontWeight = 'bold';
+        banner.style.textAlign = 'center';
+        banner.style.borderRadius = '5px';
+      }
+      // Recheck placement on every pass because Dynamics redraws the header.
+      placeFormBanner(banner);
     }
 
     function insertVipBannerIfNeeded() {
