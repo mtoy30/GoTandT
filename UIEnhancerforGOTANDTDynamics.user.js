@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      1.3.7.39
+// @version      1.3.7.42
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel.
@@ -1400,6 +1400,80 @@
       return placed && currentRateStatus === statusText;
     }
 
+    // Shared by row highlighting and the legend so the colors always match.
+    const RATE_STATUS_COLORS = {
+      pending: '#B3D9FF',          // Blue: all referrals
+      approved: '#D8B4F8',         // Purple: other referrals
+      approved133: '#80CBC4'       // Teal: referrals starting with 133-
+    };
+    const globalRowHighlights = new WeakMap();
+
+    function normalizeGridColumnName(value) {
+      return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
+
+    function matchesRateGridColumn(element, kind) {
+      const names = kind === 'referral'
+        ? ['referral', 'referralnumber', 'referralno', 'referralid']
+        : ['rateapprovalstatus', 'ratestatus'];
+      return ['col-id', 'data-attribute-name', 'data-field', 'data-id', 'aria-label', 'title']
+        .some(attribute => {
+          const identity = normalizeGridColumnName(element.getAttribute(attribute));
+          return names.some(name => identity === name || identity === 'gtt' + name || identity === 'new' + name);
+        });
+    }
+
+    function rateGridCellText(cell) {
+      const text = (cell.innerText || cell.textContent || '').trim();
+      if (text) return text;
+      const label = cell.querySelector('[title], [aria-label]') || cell;
+      return (label.getAttribute('title') || label.getAttribute('aria-label') || '').trim();
+    }
+
+    function rateStatusKind(value) {
+      const text = String(value || '').replace(/\s+/g, ' ').trim();
+      if (/^(?:Pending Rates?|Pending\s*-\s*RATE Authorization Requested)$/i.test(text)) return 'pending';
+      if (/^Rates Approved$/i.test(text)) return 'approved';
+      return '';
+    }
+
+    function readRateGridColumn(row, kind, headerCache) {
+      const cells = Array.from(row.querySelectorAll('[role="gridcell"], [role="cell"], td, div[col-id]'));
+      let cell = cells.find(candidate => matchesRateGridColumn(candidate, kind));
+      if (!cell) {
+        // Resolve the visible column heading in this grid, not a fixed column
+        // position: users can reorder columns, and dashboards have several grids.
+        const grid = row.closest('[role="grid"], [role="treegrid"], table, .ag-root') || row.parentElement;
+        if (grid) {
+          if (!headerCache.has(grid)) {
+            headerCache.set(grid, Array.from(grid.querySelectorAll('[role="columnheader"], th')));
+          }
+          const header = headerCache.get(grid).find(candidate => {
+            const name = normalizeGridColumnName(candidate.innerText || candidate.textContent);
+            const names = kind === 'referral'
+              ? ['referral', 'referralnumber', 'referralno', 'referralid']
+              : ['rateapprovalstatus', 'ratestatus'];
+            return names.includes(name) || matchesRateGridColumn(candidate, kind);
+          });
+          if (header) {
+            cell = cells.find(candidate => ['col-id', 'aria-colindex', 'data-field', 'data-attribute-name']
+              .some(attribute => header.hasAttribute(attribute) &&
+                candidate.getAttribute(attribute) === header.getAttribute(attribute)));
+            // Native tables can omit column indices; use the matching header's
+            // position only when this is an ordinary table row with real cells.
+            if (!cell && row.tagName === 'TR' && header.parentElement?.cells) {
+              cell = row.cells?.[header.cellIndex];
+            }
+          }
+        }
+      }
+      if (cell) return rateGridCellText(cell);
+      // Some grids omit the status heading. Accept only a complete status in
+      // a single cell; never infer a referral prefix from unrelated row text.
+      if (kind === 'status') return cells.map(rateGridCellText).find(text => rateStatusKind(text)) || '';
+      return '';
+    }
+
     function highlightAllRowsGlobal() {
       const vipTerms = [
         "defense medical exam -  always vip !!","defense medical exam -  always vip!!",
@@ -1408,17 +1482,26 @@
         "qme - qualified medical exam) vip!!","ame - agreed medical evaluation",
         "evaluation","fce - long appt.!!!!!"
       ];
-      const rows = document.querySelectorAll('div[role="row"]');
+      const rows = document.querySelectorAll('div[role="row"], tr');
+      const headerCache = new Map();
       const now = new Date();
       rows.forEach(row => {
-        if (row.dataset.highlightedGlobal) return;
+        if (isInSearchUI(row) || row.querySelector('[role="columnheader"], th')) return;
+        let state = globalRowHighlights.get(row);
+        if (!state) {
+          state = { base: row.style.backgroundColor, applied: row.style.backgroundColor, color: '' };
+          globalRowHighlights.set(row, state);
+        } else if (row.style.backgroundColor !== state.applied) {
+          state.base = row.style.backgroundColor;
+        }
+        let color = '';
         const text = row.textContent?.toLowerCase() || '';
         if (vipTerms.some(term => text.includes(term))) {
-          row.style.backgroundColor = 'gold';
-        } else if (text.includes("first") || text.includes("surgery")) {
-          row.style.backgroundColor = 'lightgreen';
+          color = 'gold';
+        } else if (text.includes("surgery")) {
+          color = 'lightgreen';
         } else if (text.includes("airport pickup/dropoff") || text.includes("airport dropoff/pickup")) {
-          row.style.backgroundColor = 'lightcoral';
+          color = 'lightcoral';
         }
         const timeCols = ["gtt_localizedpickuptime", "gtt_localizedappttime"];
         const minutesDelay = 5;
@@ -1431,13 +1514,26 @@
               const dateStr = label.getAttribute('aria-label');
               const dateVal = new Date(dateStr);
               if (!isNaN(dateVal.getTime()) && dateVal < threshold) {
-                row.style.backgroundColor = '#FFDAB9';
+                color = '#FFDAB9';
                 break;
               }
             }
           }
         }
-        row.dataset.highlightedGlobal = "true";
+        const rateKind = rateStatusKind(readRateGridColumn(row, 'status', headerCache));
+        const referral = readRateGridColumn(row, 'referral', headerCache)
+          .replace(/^Referral(?:\s*(?:Number|No\.?|ID|#))?\s*:\s*/i, '').trim();
+        if (rateKind) {
+          // Rate status takes precedence over the other row colors.
+          color = RATE_STATUS_COLORS[rateKind === 'approved' && referral.startsWith('133-') ? 'approved133' : rateKind];
+        }
+        // Recalculate recycled rows, and restore their original background when
+        // neither their new status nor the other highlight rules apply.
+        if (state.color !== color || row.style.backgroundColor !== state.applied) {
+          row.style.backgroundColor = color || state.base;
+          state.applied = row.style.backgroundColor;
+          state.color = color;
+        }
       });
     }
 
@@ -1510,8 +1606,11 @@
       legend.style.boxSizing = 'border-box';
       legend.style.textAlign = 'left';
       legend.appendChild(createLegendChip('Evaluations', 'gold'));
-      legend.appendChild(createLegendChip('First Time/Surgery', 'lightgreen'));
+      legend.appendChild(createLegendChip('Surgery', 'lightgreen'));
       legend.appendChild(createLegendChip('Airport', 'lightcoral'));
+      legend.appendChild(createLegendChip('Pending Rates', RATE_STATUS_COLORS.pending));
+      legend.appendChild(createLegendChip('Rates Approved', RATE_STATUS_COLORS.approved));
+      legend.appendChild(createLegendChip('Rates Approved (Review)', RATE_STATUS_COLORS.approved133));
       if (type === "-confirm") {
         legend.appendChild(createLegendChip('Pickup/Appt Time Passed', '#FFDAB9'));
       }
@@ -2267,7 +2366,7 @@
         isInSearchUIWrapper();
       }, 200);
     });
-    globalObserver.observe(document.body, { childList: true, subtree: true });
+    globalObserver.observe(document.body, { childList: true, characterData: true, subtree: true });
 
     let attempts = 0;
     const tryInit = setInterval(() => {
