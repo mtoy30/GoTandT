@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      5.0.1
+// @version      5.0.2
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Dynamics buttons: DD_Buttons_Lead members get admin tools; other users get regular tools.
@@ -22,6 +22,8 @@
 
 // Both role selection and Blind Send use this shared access check.
 const DD_LEAD_LIST = 'DD_Buttons_Lead';
+// Show the API payer warning from November 2, 2026, at local midnight.
+const DD_PAYER_API_WARNING_START = new Date(2026, 10, 2).getTime();
 const DD_BLIND_SEND_LIST = 'DD_Buttons_Jackie';
 const DD_EMAIL_LIST_API = 'https://lowmargin.mtoysystems.com/api/get_email_list.php';
 const ddAccessListPromises = new Map();
@@ -2838,7 +2840,7 @@ function copyClaimantName() {
 // Require confirmation before opening manual email options for API payers.
 function handlePayerEmailsClick() {
     const headerTitle = document.querySelector('[id^="formHeaderTitle"]')?.textContent?.trim() || "";
-    if (!headerTitle.startsWith("133-")) {
+    if (!headerTitle.startsWith("133-") || Date.now() < DD_PAYER_API_WARNING_START) {
         copyBoth();
         return;
     }
@@ -2871,7 +2873,7 @@ function handlePayerEmailsClick() {
 
     const message = document.createElement("p");
     message.id = "payerApiWarningMessage";
-    message.textContent = "This payer uses API do you want to proceed sending manual request";
+    message.textContent = "This payer uses an API do you want to proceed sending manual request";
     message.style.cssText = "font-size:16px;line-height:1.5;margin:0 0 18px;";
     modal.appendChild(message);
 
@@ -8869,7 +8871,7 @@ function copyClaimantName() {
 // Require confirmation before opening manual email options for API payers.
 function handlePayerEmailsClick() {
     const headerTitle = document.querySelector('[id^="formHeaderTitle"]')?.textContent?.trim() || "";
-    if (!headerTitle.startsWith("133-")) {
+    if (!headerTitle.startsWith("133-") || Date.now() < DD_PAYER_API_WARNING_START) {
         copyBoth();
         return;
     }
