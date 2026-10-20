@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      2.0.0
+// @version      2.1.3
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
-// @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel.
+// @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel; shared LMS RUSH alerts for active monitoring users.
 // @author       Michael Toy
 // @match        https://health.uber.com/*
 // @match        https://*.powerapps.com/*
@@ -24,6 +24,10 @@
 // @grant        unsafeWindow
 // @connect      lowmargin.mtoysystems.com
 // @run-at       document-start
+// @grant        GM_addValueChangeListener
+// @grant        GM_notification
+// @grant        GM_openInTab
+// @grant        GM_registerMenuCommand
 // ==/UserScript==
 
 (function () {
@@ -5031,4 +5035,410 @@ function addPasteButton() {
     } else {
         startUberHealth();
     }
+})();
+
+// ============================================================================
+// RUSH WATCH — LMS shared alerts. Only active, API-confirmed users see the panel.
+// ============================================================================
+(function () {
+  'use strict';
+  if (window.top !== window.self ||
+      !['gotandt.crm.dynamics.com','gttqap2.crm.dynamics.com'].includes(location.hostname)) return;
+  function startRushWatch() {
+
+  const API = 'https://lowmargin.mtoysystems.com/api/rush_watch.php';
+  const ROOT = 'gtt-rush-shared-v2:';
+  const HOST = location.hostname, BASE = ROOT + HOST + ':';
+  const TAB = Date.now().toString(36) + Math.random().toString(36).slice(2);
+  const CACHE = BASE + 'response', LEASE = BASE + 'poller';
+  let settings = {enabled:true, title_match:'~Transport (RUSH)', refresh_seconds:60, poll_seconds:5};
+  let email = '', alerts = [], authorized = false, authorizedUntil = 0, setupMessage = null;
+  let scope = '', signature = '', stableSince = 0, enteredAt = 0;
+  let nextRefresh = 0, nextPublish = 0, publishBusy = false, nextPoll = 0, pollBusy = false;
+  let expanded = false, status = 'Starting', serverStatus = 'Not connected', lastScan = 0;
+  let panel, body, toggle, statusNode, list, connection, keyInput, identityNode, desktopButton, dismissAllButton;
+  let lastRows = '', unread = 0, claimBusy = false;
+  let chain = Promise.resolve();
+  let scanPending=true, scanTimer=0, permissionBusy=false, scanStarted=0;
+  let diagnosticsRoot=null, diagnosticsList=null;
+  const ACTIVITY=BASE+'activity';
+
+  const getKey = () => String(GM_getValue(ROOT + 'key','')).trim();
+  function findEmail() {
+    const priorEmail = email;
+    // Same signed-in account element used for Blind Send. No Windows username guessing.
+    const account = document.getElementById('mectrl_currentAccount_secondary');
+    const text = (account?.textContent || '').trim().toLowerCase();
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
+      email = text;
+      GM_setValue(BASE + 'email', {email, at:Date.now()});
+    } else {
+      const cached = GM_getValue(BASE + 'email', null);
+      if (cached && Date.now() - cached.at < 12*60*60*1000) email = cached.email;
+      else email = '';
+    }
+    if (priorEmail && priorEmail !== email) revoke('Dynamics account changed; checking access.');
+    return email;
+  }
+  function target() {
+    return document.title.toLowerCase().includes(settings.title_match.toLowerCase()) &&
+      new URLSearchParams(location.search).get('pagetype') === 'entitylist';
+  }
+  function viewId() { return new URLSearchParams(location.search).get('viewid') || 'rush'; }
+  function records() {
+    const result = new Map();
+    for (const a of document.querySelectorAll('a[href*="etn=gtt_referral"]')) {
+      if (!a.closest('[role="row"], tr, .ag-row, [data-row-index]')) continue;
+      const number = (a.getAttribute('aria-label') || a.textContent || '').trim();
+      if (!/^\d+-\d+(?:-\d+)?$/.test(number)) continue;
+      const url = new URL(a.href, location.href);
+      if (url.origin === location.origin && url.searchParams.get('etn') === 'gtt_referral')
+        result.set(number, {number, url:url.href});
+    }
+    return [...result.values()];
+  }
+  function loading() {
+    return [...document.querySelectorAll('[role="grid"][aria-busy="true"], [role="progressbar"]')]
+      .some(e => e.getClientRects().length > 0);
+  }
+  function emptyList() {
+    return [...document.querySelectorAll('[role="grid"],[role="treegrid"]')]
+      .some(g => /no (?:records|rows|data)|there (?:are|is) no/i.test(g.textContent || '')) ||
+      /no records (?:available|found)|we didn't find anything to show here/i.test(document.body.innerText);
+  }
+  function request(action, extra = {}) {
+    // Serial requests in each tab, including dismissals.
+    const run = () => new Promise((resolve,reject) => {
+      const key = getKey(), account = findEmail();
+      if (!key) return reject(new Error('Open Connect LMS and paste the connection key.'));
+      if (!account) return reject(new Error('Open your Dynamics profile menu once so the signed-in email can be read.'));
+      GM_xmlhttpRequest({
+        method:'POST', url:API, timeout:20000,
+        headers:{'Content-Type':'application/json', 'X-Rush-Key':key},
+        data:JSON.stringify({action,host:HOST,email:account,...extra}),
+        onload:r=>{
+          try {
+            const data = JSON.parse(r.responseText);
+            if(r.status<200 || r.status>=300 || !data.ok) throw new Error(data.error || 'LMS request failed ('+r.status+').');
+            const confirmed = {...data, receivedAt:Date.now(), forEmail:account, keyTag:key.slice(-12)};
+            GM_setValue(CACHE,confirmed);
+            apply(confirmed); resolve(confirmed);
+          } catch(e){reject(e);}
+        },
+        onerror:()=>reject(new Error('Cannot reach LMS. Check connection and Tampermonkey permission.')),
+        ontimeout:()=>reject(new Error('LMS request timed out.'))
+      });
+    });
+    const task = chain.then(run);
+    chain = task.catch(()=>{});
+    return task.catch(e => {
+      const denied={ok:false,forEmail:email,keyTag:getKey().slice(-12),receivedAt:Date.now(),error:e.message};
+      GM_setValue(CACHE,denied); apply(denied); throw e;
+    });
+  }
+  function revoke(reason) {
+    authorized=false;authorizedUntil=0;alerts=[];
+    serverStatus=reason || 'RUSH Watch access is not confirmed.';
+    if(panel)panel.hidden=true;
+    if(setupMessage)setupMessage.textContent=serverStatus;
+  }
+  function apply(data) {
+    if(!data || data.forEmail!==email || data.keyTag!==getKey().slice(-12))return;
+    const maxAge=Math.max(30000,(Number(data.settings?.poll_seconds)||5)*4000);
+    if(!data.ok || !data.receivedAt || Date.now()-data.receivedAt>maxAge){
+      revoke(data.error || 'Waiting for a fresh LMS access check.');return;
+    }
+    authorized=true;authorizedUntil=data.receivedAt+maxAge;
+    if(data.settings)settings=data.settings;
+    const previous=new Set(alerts.map(a=>String(a.id)));
+    alerts=Array.isArray(data.alerts)?data.alerts:[];
+    serverStatus='Connected as '+email;
+    if(alerts.some(a=>!previous.has(String(a.id))))expanded=true;
+    if(!panel)mount();
+    panel.hidden=false;
+    if(setupMessage)setupMessage.textContent='Connected. Your LMS user is active.';
+    render();
+    serviceList();
+  }
+  function refresh() {
+    if(!authorized || !target() || !settings.enabled || publishBusy)return;
+    const button=[...document.querySelectorAll('button,[role="button"]')].find(b=>
+      ((b.getAttribute('aria-label') || '').trim()==='Refresh' || (b.textContent || '').trim()==='Refresh') &&
+      b.getClientRects().length && !b.disabled && b.getAttribute('aria-disabled')!=='true');
+    if(!button){status='Refresh button not found or disabled';activity(status);nextRefresh=Date.now()+15000;return;}
+    nextRefresh=Date.now()+settings.refresh_seconds*1000;
+    signature=null;stableSince=Date.now();nextPublish=0;scanPending=true;scanStarted=Date.now();
+    button.click();activity('Refresh clicked');status='Refresh requested; waiting for rows';queueScan();
+  }
+  async function publish() {
+    if(!authorized || publishBusy || !getKey() || !email || !settings.enabled || !target())return;
+    if(loading()){queueScan();return;}
+    const rows=records();
+    if(!rows.length && !emptyList()){status='Waiting for referral rows or an empty-list message';queueScan();return;}
+    const sig=rows.map(r=>r.number).sort().join('|');
+    if(sig!==signature){signature=sig;stableSince=Date.now();nextPublish=0;queueScan();return;}
+    if(Date.now()-stableSince<3000 || Date.now()-enteredAt<5000 || Date.now()<nextPublish){queueScan();return;}
+    const currentScope=scope;
+    publishBusy=true;
+    nextPublish=Date.now()+settings.refresh_seconds*1000;
+    try {
+      await request('publish',{view_id:viewId(),records:rows});
+      if(scope===currentScope){lastScan=Date.now();scanPending=false;scanStarted=0;status='Watching '+rows.length+' loaded referral(s)';activity('List scan saved to LMS',rows.length);}
+    }catch(e){nextPublish=Date.now()+15000;activity('List scan failed: '+e.message);}
+    finally{publishBusy=false;if(scope===currentScope)serviceList();}
+  }
+  function isLeader() {
+    return GM_getValue(LEASE,{}).owner===TAB;
+  }
+  function claimLeader() {
+    const lease=GM_getValue(LEASE,{});
+    if(lease.owner===TAB){GM_setValue(LEASE,{owner:TAB,until:Date.now()+15000});return;}
+    if(lease.until>Date.now() || claimBusy)return;
+    claimBusy=true;
+    setTimeout(()=>{
+      const latest=GM_getValue(LEASE,{});
+      if(!latest.until || latest.until<Date.now()) GM_setValue(LEASE,{owner:TAB,until:Date.now()+15000});
+      claimBusy=false;
+    },100+Math.random()*300);
+  }
+  function notifyNew() {
+    // Only the browser poll leader creates desktop notifications.
+    const seenKey=BASE+'notified';
+    const saved=GM_getValue(seenKey,null);
+    const seen=new Set(saved || []);
+    const fresh=alerts.filter(a=>!seen.has(String(a.id)));
+    const all=[...new Set([...(saved || []),...alerts.map(a=>String(a.id))])].slice(-10000);
+    GM_setValue(seenKey,all);
+    if(!authorized || saved===null || !fresh.length || !GM_getValue(ROOT+'desktop',false))return;
+    try{GM_notification({
+      title:'New RUSH referral'+(fresh.length>1?'s':''),
+      text:fresh.map(a=>a.number).join(', '),timeout:15000,
+      onclick:()=>GM_openInTab(fresh[0].url,{active:true,insert:true})
+    });}catch(e){console.warn('[RUSH Watch]',e);}
+  }
+  async function poll(force=false) {
+    if(pollBusy || !getKey() || !email || (!force && !isLeader()) || Date.now()<nextPoll)return;
+    pollBusy=true;nextPoll=Date.now()+settings.poll_seconds*1000;
+    try{await request('poll');if(isLeader())notifyNew();}
+    catch(e){nextPoll=Date.now()+15000;}
+    finally{pollBusy=false;}
+  }
+  async function dismiss(ids, button) {
+    if(!authorized || !ids.length)return;
+    button.disabled=true;
+    try{await request('dismiss',{ids});}
+    catch(e){expanded=true;}
+    finally{button.disabled=false;render(true);}
+  }
+  function el(tag,text,parent) {
+    const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(parent)parent.append(e);return e;
+  }
+  function action(text,fn,parent) {
+    const b=el('button',text,parent);b.type='button';b.addEventListener('click',()=>fn(b));return b;
+  }
+  function render(force=false) {
+    if(!panel)return;
+    panel.hidden=!authorized;
+    if(!authorized)return;
+    const total=alerts.length;
+    dismissAllButton.hidden=total<2;
+    toggle.textContent='RUSH Referrals ('+total+')';
+    toggle.style.background=total?'#b42318':'#164e63';
+    if(total===0)expanded=false;
+    else if(total>unread)expanded=true;
+    unread=total;
+    body.hidden=!expanded;
+    identityNode.textContent=email?'Dynamics email: '+email:'Open your Dynamics profile menu once to detect your email.';
+    desktopButton.textContent='Desktop alerts: '+(GM_getValue(ROOT+'desktop',false)?'ON':'OFF');
+    const cached=GM_getValue(CACHE,{});
+    const stale=cached.receivedAt && Date.now()-cached.receivedAt>Math.max(30000,settings.poll_seconds*5000);
+    statusNode.textContent=serverStatus+(stale?' · Referrals may be out of date':'')+
+      (target()?' · '+(settings.enabled?status:'Monitoring paused in LMS')+
+       (lastScan?' · Checked '+new Date(lastScan).toLocaleTimeString():'')+
+       ' · Refresh in '+Math.max(0,Math.ceil((nextRefresh-Date.now())/1000))+'s':'');
+    const stamp=JSON.stringify(alerts);
+    if(!force && stamp===lastRows)return;lastRows=stamp;list.replaceChildren();
+    if(!total)el('p','No active RUSH referrals.',list);
+    for(const a of alerts){
+      const row=el('div',undefined,list);row.className='entry';
+      const link=el('a',a.number,row);link.href=a.url;link.target='_blank';link.rel='noopener noreferrer';
+      el('small',new Date(a.detected_at).toLocaleString(),row);
+      action('Dismiss for everyone',b=>dismiss([a.id],b),row);
+    }
+  }
+  function mount() {
+    panel=el('div',undefined,document.body);panel.id='gtt-rush-watch-test';
+    const shadow=panel.attachShadow({mode:'open'});
+    const style=el('style',undefined,shadow);
+    style.textContent=[
+      ':host{position:fixed;right:18px;bottom:18px;z-index:2147483646;font:13px Segoe UI,Arial,sans-serif;color:#172b4d}',
+      '*{box-sizing:border-box}button{cursor:pointer;border:1px solid #cbd5e1;border-radius:6px;padding:6px 9px;background:#fff;color:#172b4d;font:inherit}button:disabled{opacity:.5;cursor:wait}',
+      '.toggle{display:block;margin-left:auto;color:white;font-weight:700;padding:10px 15px;border:0;box-shadow:0 3px 12px #0003}',
+      '.body{width:410px;max-width:calc(100vw - 36px);background:white;border:1px solid #ccd5df;border-radius:9px;margin-bottom:8px;box-shadow:0 4px 24px #0003;padding:12px;max-height:80vh;overflow:auto}',
+      '[hidden]{display:none!important}.list{max-height:300px;overflow:auto}.entry{padding:9px 0;border-bottom:1px solid #e2e8f0;display:grid;grid-template-columns:1fr auto;gap:4px}',
+      'a{color:#005a9e;font-weight:700}small{grid-column:1;font-size:11px;color:#526175}.entry button{grid-column:2;grid-row:1/3}',
+      '.status,.identity{font-size:11px;color:#526175;margin:8px 0;line-height:1.5;overflow-wrap:anywhere}.tools{display:flex;gap:6px;flex-wrap:wrap}',
+      '.connection{margin:10px 0;padding:10px;background:#f1f5f9;border-radius:6px}input{width:100%;margin:6px 0;padding:7px;border:1px solid #cbd5e1;border-radius:5px}'
+    ].join('');
+    body=el('div',undefined,shadow);body.className='body';
+    el('strong','RUSH Referrals',body);
+    statusNode=el('div','',body);statusNode.className='status';
+    const tools=el('div',undefined,body);tools.className='tools';
+    dismissAllButton=action('Dismiss all for everyone',b=>dismiss(alerts.map(a=>a.id),b),tools);
+    dismissAllButton.hidden=true;
+    action('Connect LMS',()=>{
+      connection.hidden=!connection.hidden;expanded=true;render();
+    },tools);
+    desktopButton=action('',()=>{
+      GM_setValue(ROOT+'desktop',!GM_getValue(ROOT+'desktop',false));render();
+    },tools);
+    connection=el('div',undefined,body);connection.className='connection';
+    connection.hidden=!!getKey();
+    el('div','Paste the connection key from LMS RUSH Watch.',connection);
+    keyInput=el('input',undefined,connection);keyInput.type='password';keyInput.placeholder='LMS connection key';
+    keyInput.autocomplete='off';keyInput.value=getKey();
+    identityNode=el('div','',connection);identityNode.className='identity';
+    action('Save connection',()=>{
+      const key=keyInput.value.trim();
+      if(!/^[a-f0-9]{64}$/i.test(key)){serverStatus='Paste the complete 64-character connection key.';render();return;}
+      GM_setValue(ROOT+'key',key);nextPoll=nextPublish=0;
+      connection.hidden=true;revoke('Checking LMS access…');request('poll').catch(()=>{});
+    },connection);
+    action('Read account email again',()=>{
+      const account=document.getElementById('mectrl_currentAccount_secondary');
+      if(!account){serverStatus='Open the Dynamics profile menu, then click this again.';}
+      else{findEmail();nextPoll=0;serverStatus='Checking Dynamics email…';}
+      render();
+    },connection);
+    list=el('div',undefined,body);list.className='list';
+    toggle=action('',()=>{expanded=!expanded;render();},shadow);toggle.className='toggle';
+    render(true);
+  }
+  function updateScope() {
+    const id=target()?viewId():'';
+    if(scope!==id){
+      scope=id;signature=null;stableSince=enteredAt=Date.now();scanStarted=Date.now();
+      nextRefresh=Date.now()+settings.refresh_seconds*1000;nextPublish=0;lastScan=0;scanPending=true;
+    }
+  }
+  function queueScan() {
+    if(scanTimer)return;
+    scanTimer=setTimeout(()=>{scanTimer=0;resumeList();},5000);
+  }
+  async function resumeList() {
+    findEmail();
+    if(!target() || !settings.enabled || !getKey() || !email)return;
+    if(authorized && Date.now()<=authorizedUntil){serviceList();return;}
+    if(permissionBusy || Date.now()<nextPoll)return;
+    permissionBusy=true;nextPoll=Date.now()+settings.poll_seconds*1000;
+    try{await request('poll');}catch(e){activity('Access check failed: '+e.message);}
+    finally{permissionBusy=false;}
+  }
+  function serviceList() {
+    updateScope();
+    if(!authorized || Date.now()>authorizedUntil || !target() || !settings.enabled || !getKey() || !email || publishBusy)return;
+    // Finish the scan from the previous refresh before starting another refresh.
+    // This prevents background timer batching from continually restarting the settling delay.
+    if(scanPending){
+      if(scanStarted && Date.now()-scanStarted>180000){
+        activity('List scan delayed over 3 minutes; retrying refresh');scanPending=false;
+      }else{publish();return;}
+    }
+    if(Date.now()>=nextRefresh){refresh();if(scanPending)publish();}
+  }
+  function tick() {
+    findEmail();updateScope();
+    if(authorized && Date.now()>authorizedUntil)revoke('Waiting for a fresh LMS access check.');
+    if(!getKey())serverStatus='Open Connect LMS to connect this browser';
+    else if(!email)serverStatus='Open your Dynamics profile menu once to detect your email';
+    claimLeader();
+    const data=GM_getValue(CACHE,null);
+    if(data && data.receivedAt && data.receivedAt!==tick.lastCache){
+      tick.lastCache=data.receivedAt;apply(data);
+    }
+    poll(target() && (!authorized || scanPending || Date.now()>=nextRefresh));
+    serviceList();render();renderDiagnostics();
+  }
+  function openSetup() {
+    const existing=document.getElementById('gtt-rush-connect-dialog');
+    if(existing){existing.remove();setupMessage=null;}
+    const root=el('div',undefined,document.body);root.id='gtt-rush-connect-dialog';
+    const shadow=root.attachShadow({mode:'open'});
+    const style=el('style',undefined,shadow);
+    style.textContent=':host{position:fixed;inset:0;z-index:2147483647;background:#0006;display:flex;align-items:center;justify-content:center;font:14px Segoe UI,Arial,sans-serif;color:#172b4d}*{box-sizing:border-box}.box{background:white;border-radius:10px;padding:22px;width:440px;max-width:calc(100vw - 32px);box-shadow:0 8px 40px #0005}input{width:100%;padding:9px;margin:12px 0;border:1px solid #cbd5e1;border-radius:5px}button{font:inherit;cursor:pointer;padding:8px 12px;margin-right:7px;border:1px solid #cbd5e1;border-radius:5px;background:white}.message{font-size:13px;margin:12px 0;overflow-wrap:anywhere}small{display:block;color:#526175;line-height:1.5}';
+    const box=el('div',undefined,shadow);box.className='box';
+    el('strong','Connect RUSH Watch to LMS',box);
+    el('small','Open the Dynamics profile menu to read your signed-in email. Paste the connection key from the LMS RUSH Watch page.',box);
+    const input=el('input',undefined,box);input.type='password';input.placeholder='LMS connection key';input.autocomplete='off';input.value=getKey();
+    setupMessage=el('div','',box);setupMessage.className='message';
+    findEmail();setupMessage.textContent=email?'Dynamics email: '+email:'Open the Dynamics account/profile menu, then click Connect.';
+    action('Connect',async button=>{
+      const key=input.value.trim();
+      if(!/^[a-f0-9]{64}$/i.test(key)){setupMessage.textContent='Paste the complete 64-character connection key.';return;}
+      GM_setValue(ROOT+'key',key);nextPoll=nextPublish=0;revoke('Checking LMS access…');
+      button.disabled=true;
+      try{
+        await request('poll');
+        if(authorized){root.remove();setupMessage=null;}
+      }catch(e){if(setupMessage)setupMessage.textContent=e.message;}
+      finally{button.disabled=false;}
+    },box);
+    action('Close',()=>{root.remove();setupMessage=null;},box);
+  }
+  function activity(event,count=null) {
+    const entry={at:Date.now(),event,count,tab:TAB.slice(-6),view:viewId(),
+      background:document.visibilityState==='hidden'};
+    const history=GM_getValue(ACTIVITY,[]);history.push(entry);GM_setValue(ACTIVITY,history.slice(-100));
+    renderDiagnostics();
+  }
+  function renderDiagnostics() {
+    if(!diagnosticsList)return;
+    diagnosticsList.replaceChildren();
+    const history=GM_getValue(ACTIVITY,[]).slice().reverse();
+    if(!history.length)el('p','No activity recorded yet. Leave the RUSH list open and allow a refresh cycle.',diagnosticsList);
+    for(const item of history){
+      const row=el('div',undefined,diagnosticsList);row.className='row';
+      const when=new Date(item.at).toLocaleString('en-US',{timeZone:'America/New_York',timeZoneName:'short'});
+      el('strong',when+' · '+(item.background?'BACKGROUND':'VISIBLE'),row);
+      el('div',item.event+(item.count!==null?' · '+item.count+' referrals':''),row);
+      el('small','Tab '+item.tab+' · View '+item.view,row);
+    }
+  }
+  function openDiagnostics() {
+    if(diagnosticsRoot)diagnosticsRoot.remove();
+    diagnosticsRoot=el('div',undefined,document.body);diagnosticsRoot.id='gtt-rush-activity';
+    const shadow=diagnosticsRoot.attachShadow({mode:'open'});
+    const style=el('style',undefined,shadow);
+    style.textContent=':host{position:fixed;inset:0;z-index:2147483647;background:#0006;display:flex;align-items:center;justify-content:center;font:14px Segoe UI,Arial,sans-serif;color:#172b4d}.box{background:white;border-radius:10px;padding:20px;width:680px;max-width:calc(100vw - 40px);box-shadow:0 8px 40px #0005}.list{max-height:60vh;overflow:auto}.row{padding:10px 0;border-bottom:1px solid #e2e8f0}small{color:#526175;overflow-wrap:anywhere}button{cursor:pointer;margin-right:8px;padding:7px 12px;background:white;border:1px solid #cbd5e1;border-radius:5px}p{line-height:1.5}';
+    const box=el('div',undefined,shadow);box.className='box';
+    el('strong','RUSH Referrals — background activity',box);
+    el('p','Shows actual Refresh button clicks and successful LMS list submissions from this browser. BACKGROUND means the RUSH tab was hidden at that moment. A click alone does not confirm Dynamics finished loading.',box);
+    action('Clear log',()=>{GM_setValue(ACTIVITY,[]);renderDiagnostics();},box);
+    action('Close',()=>{diagnosticsRoot.remove();diagnosticsRoot=null;diagnosticsList=null;},box);
+    diagnosticsList=el('div',undefined,box);diagnosticsList.className='list';renderDiagnostics();
+  }
+  GM_addValueChangeListener(CACHE,(_k,_old,data)=>{findEmail();apply(data);});
+  GM_registerMenuCommand('RUSH Watch: Connect LMS',openSetup);
+  GM_registerMenuCommand('RUSH Watch: refresh list now',refresh);
+  GM_registerMenuCommand('RUSH Watch: Background activity',openDiagnostics);
+  GM_addValueChangeListener(ACTIVITY,renderDiagnostics);
+  const gridObserver=new MutationObserver(changes=>{
+    if(!target() || !authorized)return;
+    const changed=changes.some(m=>m.target.nodeType===1 && m.target.closest('[role="grid"],[role="treegrid"]'));
+    if(!changed)return;
+    if(!loading()){
+      const sig=records().map(r=>r.number).sort().join('|');
+      if(sig!==signature){scanPending=true;scanStarted=scanStarted||Date.now();}
+    }
+    if(scanPending){serviceList();queueScan();}
+  });
+  gridObserver.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['aria-busy']});
+  tick();setInterval(tick,2000);
+
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startRushWatch, {once:true});
+  } else {
+    startRushWatch();
+  }
 })();
