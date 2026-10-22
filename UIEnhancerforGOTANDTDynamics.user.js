@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      2.1.4
+// @version      2.1.5
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel; shared LMS RUSH alerts for active monitoring users.
@@ -5057,7 +5057,7 @@ function addPasteButton() {
   let scope = '', signature = '', stableSince = 0, enteredAt = 0;
   let nextRefresh = 0, nextPublish = 0, publishBusy = false, nextPoll = 0, pollBusy = false;
   let expanded = false, status = 'Starting', serverStatus = 'Not connected', lastScan = 0;
-  let panel, body, toggle, statusNode, list, connection, keyInput, identityNode, desktopButton, dismissAllButton;
+  let panel, body, toggle, statusNode, list, connection, keyInput, identityNode, desktopButton, dismissAllButton, connectLmsButton;
   let lastRows = '', unread = 0, claimBusy = false;
   let chain = Promise.resolve();
   let scanPending=true, scanTimer=0, permissionBusy=false, scanStarted=0;
@@ -5347,6 +5347,7 @@ function addPasteButton() {
   function render(force=false) {
     if(!panel)return;
     panel.hidden=!authorized;
+    if(connectLmsButton)connectLmsButton.hidden=authorized;
     if(!authorized)return;
     const total=alerts.length;
     dismissAllButton.hidden=total<2;
@@ -5395,7 +5396,7 @@ function addPasteButton() {
     const tools=el('div',undefined,body);tools.className='tools';
     dismissAllButton=action('Dismiss all for everyone',b=>dismiss(alerts.map(a=>a.id),b),tools);
     dismissAllButton.hidden=true;
-    action('Connect LMS',()=>{
+    connectLmsButton=action('Connect LMS',()=>{
       connection.hidden=!connection.hidden;expanded=true;render();
     },tools);
     desktopButton=action('',()=>{
