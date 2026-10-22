@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      2.1.3
+// @version      2.1.4
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel; shared LMS RUSH alerts for active monitoring users.
@@ -24,6 +24,7 @@
 // @grant        unsafeWindow
 // @connect      lowmargin.mtoysystems.com
 // @run-at       document-start
+// @grant        GM_removeValueChangeListener
 // @grant        GM_addValueChangeListener
 // @grant        GM_notification
 // @grant        GM_openInTab
@@ -5063,6 +5064,112 @@ function addPasteButton() {
   let diagnosticsRoot=null, diagnosticsList=null;
   const ACTIVITY=BASE+'activity';
 
+
+  // Per-account placement is shared by Tampermonkey across tabs and windows.
+  // Store relative coordinates so the control stays reachable on different monitors.
+  let placement={x:0.5,y:1}, placementKey='', placementListener=null;
+  let placementFrame=0, dragState=null, suppressDragClick=false;
+  function clampPlacement(value,min,max){return Math.max(min,Math.min(max,value));}
+  function readPlacement(value){
+    return value && Number.isFinite(value.x) && Number.isFinite(value.y)
+      ? {x:clampPlacement(value.x,0,1),y:clampPlacement(value.y,0,1)}
+      : {x:0.5,y:1};
+  }
+  function syncPlacementAccount(){
+    const key=email?ROOT+'placement:'+email.toLowerCase():'';
+    if(key===placementKey)return;
+    if(placementListener!==null)GM_removeValueChangeListener(placementListener);
+    placementKey=key;placement=readPlacement(key?GM_getValue(key,null):null);
+    if(key)placementListener=GM_addValueChangeListener(key,(_key,_old,value)=>{
+      // A remote tab's latest saved placement also wins after an in-progress drag.
+      if(dragState){dragState.remote=value;return;}
+      placement=readPlacement(value);schedulePlacement();
+    });
+    else placementListener=null;
+    schedulePlacement();
+  }
+  function placementGeometry(){
+    const rect=toggle.getBoundingClientRect();
+    const width=window.innerWidth,height=window.innerHeight;
+    const marginX=Math.min(18,Math.max(0,(width-rect.width)/2));
+    const marginY=Math.min(18,Math.max(0,(height-rect.height)/2));
+    return {width,height,buttonWidth:rect.width,buttonHeight:rect.height,
+      minX:marginX+rect.width/2,maxX:width-marginX-rect.width/2,
+      minY:marginY+rect.height,maxY:height-marginY};
+  }
+  function placePanel(){
+    if(!panel || !toggle || panel.hidden)return;
+    const g=placementGeometry();
+    const x=g.minX+placement.x*Math.max(0,g.maxX-g.minX);
+    const y=g.minY+placement.y*Math.max(0,g.maxY-g.minY);
+    panel.style.left=x+'px';panel.style.top=y+'px';
+    if(body.hidden)return;
+    const bodyWidth=Math.min(410,Math.max(0,g.width-16));
+    body.style.width=bodyWidth+'px';
+    body.style.left=(clampPlacement(x-bodyWidth/2,8,Math.max(8,g.width-bodyWidth-8))-x)+'px';
+    const above=Math.max(0,y-g.buttonHeight-16);
+    const below=Math.max(0,g.height-y-16);
+    // Prefer opening above; open below when the saved button is near the top.
+    const openAbove=above>=Math.min(body.scrollHeight,320) || above>=below;
+    body.style.maxHeight=Math.max(0,Math.min(g.height*0.8,openAbove?above:below))+'px';
+    body.style.bottom=openAbove?(g.buttonHeight+8)+'px':'auto';
+    body.style.top=openAbove?'auto':'8px';
+  }
+  function schedulePlacement(){
+    if(placementFrame)return;
+    placementFrame=requestAnimationFrame(()=>{placementFrame=0;placePanel();});
+  }
+  function enablePanelDragging(){
+    toggle.title='Drag to move RUSH Referrals. Click to expand or minimize.';
+    toggle.addEventListener('click',event=>{
+      if(suppressDragClick && event.detail!==0){
+        suppressDragClick=false;event.preventDefault();event.stopImmediatePropagation();
+      }
+    },true);
+    toggle.addEventListener('pointerdown',event=>{
+      if(event.button!==0 || !authorized)return;
+      suppressDragClick=false;
+      const g=placementGeometry();
+      dragState={id:event.pointerId,startX:event.clientX,startY:event.clientY,
+        x:g.minX+placement.x*Math.max(0,g.maxX-g.minX),
+        y:g.minY+placement.y*Math.max(0,g.maxY-g.minY),
+        moved:false,before:{...placement}};
+      toggle.setPointerCapture(event.pointerId);
+    });
+    toggle.addEventListener('pointermove',event=>{
+      if(!dragState || event.pointerId!==dragState.id)return;
+      const dx=event.clientX-dragState.startX,dy=event.clientY-dragState.startY;
+      if(!dragState.moved && Math.hypot(dx,dy)<5)return;
+      dragState.moved=true;suppressDragClick=true;
+      const g=placementGeometry();
+      placement={x:g.maxX>g.minX?clampPlacement((dragState.x+dx-g.minX)/(g.maxX-g.minX),0,1):0.5,
+        y:g.maxY>g.minY?clampPlacement((dragState.y+dy-g.minY)/(g.maxY-g.minY),0,1):1};
+      placePanel();event.preventDefault();
+    });
+    function finishDrag(event,cancelled){
+      if(!dragState || event.pointerId!==dragState.id)return;
+      const finished=dragState;dragState=null;
+      if(cancelled)placement=readPlacement(finished.remote || finished.before);
+      else if(finished.moved && placementKey)GM_setValue(placementKey,{...placement});
+      else if(finished.remote)placement=readPlacement(finished.remote);
+      if(toggle.hasPointerCapture(event.pointerId))toggle.releasePointerCapture(event.pointerId);
+      schedulePlacement();
+    }
+    toggle.addEventListener('pointerup',event=>finishDrag(event,false));
+    toggle.addEventListener('pointercancel',event=>finishDrag(event,true));
+    toggle.addEventListener('lostpointercapture',event=>finishDrag(event,true));
+    window.addEventListener('resize',schedulePlacement);
+    if(typeof ResizeObserver!=='undefined'){
+      const observer=new ResizeObserver(schedulePlacement);observer.observe(toggle);observer.observe(body);
+    }
+    syncPlacementAccount();schedulePlacement();
+  }
+  function resetPlacement(){
+    findEmail();syncPlacementAccount();placement={x:0.5,y:1};
+    if(placementKey)GM_setValue(placementKey,{...placement});
+    schedulePlacement();
+  }
+
   const getKey = () => String(GM_getValue(ROOT + 'key','')).trim();
   function findEmail() {
     const priorEmail = email;
@@ -5078,6 +5185,7 @@ function addPasteButton() {
       else email = '';
     }
     if (priorEmail && priorEmail !== email) revoke('Dynamics account changed; checking access.');
+    syncPlacementAccount();
     return email;
   }
   function target() {
@@ -5248,6 +5356,7 @@ function addPasteButton() {
     else if(total>unread)expanded=true;
     unread=total;
     body.hidden=!expanded;
+    schedulePlacement();
     identityNode.textContent=email?'Dynamics email: '+email:'Open your Dynamics profile menu once to detect your email.';
     desktopButton.textContent='Desktop alerts: '+(GM_getValue(ROOT+'desktop',false)?'ON':'OFF');
     const cached=GM_getValue(CACHE,{});
@@ -5271,10 +5380,10 @@ function addPasteButton() {
     const shadow=panel.attachShadow({mode:'open'});
     const style=el('style',undefined,shadow);
     style.textContent=[
-      ':host{position:fixed;right:18px;bottom:18px;z-index:2147483646;font:13px Segoe UI,Arial,sans-serif;color:#172b4d}',
+      ':host{position:fixed;left:50%;top:calc(100vh - 18px);width:0;height:0;z-index:2147483646;font:13px Segoe UI,Arial,sans-serif;color:#172b4d}',
       '*{box-sizing:border-box}button{cursor:pointer;border:1px solid #cbd5e1;border-radius:6px;padding:6px 9px;background:#fff;color:#172b4d;font:inherit}button:disabled{opacity:.5;cursor:wait}',
-      '.toggle{display:block;margin-left:auto;color:white;font-weight:700;padding:10px 15px;border:0;box-shadow:0 3px 12px #0003}',
-      '.body{width:410px;max-width:calc(100vw - 36px);background:white;border:1px solid #ccd5df;border-radius:9px;margin-bottom:8px;box-shadow:0 4px 24px #0003;padding:12px;max-height:80vh;overflow:auto}',
+      '.toggle{position:absolute;left:0;bottom:0;transform:translateX(-50%);white-space:nowrap;touch-action:none;user-select:none;cursor:move;display:block;color:white;font-weight:700;padding:10px 15px;border:0;box-shadow:0 3px 12px #0003}',
+      '.body{position:absolute;left:0;bottom:50px;box-sizing:border-box;width:410px;max-width:calc(100vw - 36px);background:white;border:1px solid #ccd5df;border-radius:9px;margin-bottom:8px;box-shadow:0 4px 24px #0003;padding:12px;max-height:80vh;overflow:auto}',
       '[hidden]{display:none!important}.list{max-height:300px;overflow:auto}.entry{padding:9px 0;border-bottom:1px solid #e2e8f0;display:grid;grid-template-columns:1fr auto;gap:4px}',
       'a{color:#005a9e;font-weight:700}small{grid-column:1;font-size:11px;color:#526175}.entry button{grid-column:2;grid-row:1/3}',
       '.status,.identity{font-size:11px;color:#526175;margin:8px 0;line-height:1.5;overflow-wrap:anywhere}.tools{display:flex;gap:6px;flex-wrap:wrap}',
@@ -5312,6 +5421,7 @@ function addPasteButton() {
     },connection);
     list=el('div',undefined,body);list.className='list';
     toggle=action('',()=>{expanded=!expanded;render();},shadow);toggle.className='toggle';
+    enablePanelDragging();
     render(true);
   }
   function updateScope() {
@@ -5421,6 +5531,7 @@ function addPasteButton() {
   GM_registerMenuCommand('RUSH Watch: Connect LMS',openSetup);
   GM_registerMenuCommand('RUSH Watch: refresh list now',refresh);
   GM_registerMenuCommand('RUSH Watch: Background activity',openDiagnostics);
+  GM_registerMenuCommand('RUSH Watch: Reset position to bottom center',resetPlacement);
   GM_addValueChangeListener(ACTIVITY,renderDiagnostics);
   const gridObserver=new MutationObserver(changes=>{
     if(!target() || !authorized)return;
