@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      2.1.5
+// @version      2.1.6
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel; shared LMS RUSH alerts for active monitoring users.
@@ -5371,7 +5371,13 @@ function addPasteButton() {
     if(!total)el('p','No active RUSH referrals.',list);
     for(const a of alerts){
       const row=el('div',undefined,list);row.className='entry';
-      const link=el('a',a.number,row);link.href=a.url;link.target='_blank';link.rel='noopener noreferrer';
+      const referralActions=el('div',undefined,row);referralActions.className='referral-actions';
+      const link=el('a',a.number,referralActions);link.href=a.url;link.target='_blank';link.rel='noopener noreferrer';
+      const sendButton=action('Send to DD',()=>{
+        const subject='Rush ('+a.number+')';
+        window.location.href='mailto:driverdeveloper@gotandt.com?subject='+encodeURIComponent(subject);
+      },referralActions);
+      sendButton.className='send-dd';sendButton.title='Open an email to Driver Developer';
       el('small',new Date(a.detected_at).toLocaleString(),row);
       action('Dismiss for everyone',b=>dismiss([a.id],b),row);
     }
@@ -5387,6 +5393,7 @@ function addPasteButton() {
       '.body{position:absolute;left:0;bottom:50px;box-sizing:border-box;width:410px;max-width:calc(100vw - 36px);background:white;border:1px solid #ccd5df;border-radius:9px;margin-bottom:8px;box-shadow:0 4px 24px #0003;padding:12px;max-height:80vh;overflow:auto}',
       '[hidden]{display:none!important}.list{max-height:300px;overflow:auto}.entry{padding:9px 0;border-bottom:1px solid #e2e8f0;display:grid;grid-template-columns:1fr auto;gap:4px}',
       'a{color:#005a9e;font-weight:700}small{grid-column:1;font-size:11px;color:#526175}.entry button{grid-column:2;grid-row:1/3}',
+      '.referral-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0}.entry .send-dd{font-size:11px;padding:4px 6px;white-space:nowrap;grid-column:auto;grid-row:auto}',
       '.status,.identity{font-size:11px;color:#526175;margin:8px 0;line-height:1.5;overflow-wrap:anywhere}.tools{display:flex;gap:6px;flex-wrap:wrap}',
       '.connection{margin:10px 0;padding:10px;background:#f1f5f9;border-radius:6px}input{width:100%;margin:6px 0;padding:7px;border:1px solid #cbd5e1;border-radius:5px}'
     ].join('');
