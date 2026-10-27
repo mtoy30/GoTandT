@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      2.1.6
+// @version      2.1.7
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel; shared LMS RUSH alerts for active monitoring users.
@@ -1347,8 +1347,8 @@
       else removeItineraryChangeBanner();
     }
 
-    // Both quote messages start November 2, 2026 at midnight Eastern (EST).
-    const PENDING_QUOTE_START_AT = Date.parse('2026-11-02T00:00:00-05:00');
+    // Both quote messages start November 10, 2026 at midnight Eastern (EST).
+    const PENDING_QUOTE_START_AT = Date.parse('2026-11-10T00:00:00-05:00');
 
     function checkQuotedTripBanner() {
       const transport = document.querySelector(
