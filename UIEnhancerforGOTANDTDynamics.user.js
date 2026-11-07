@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      2.1.7
+// @version      2.2.0
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel; shared LMS RUSH alerts for active monitoring users.
@@ -1288,12 +1288,11 @@
       observer.observe(button, { childList: true, subtree: true, characterData: true });
     }
 
-    function insertItineraryChangeBanner() {
+    function insertItineraryChangeBanner(approved = false) {
       let banner = document.getElementById('itinerary-change-banner');
       if (!banner) {
         banner = document.createElement('div');
         banner.id = 'itinerary-change-banner';
-        banner.textContent = 'STOP PENDING CHANGES DO NOT STAFF YET';
         banner.style.backgroundColor = '#d32f2f';
         banner.style.color = 'white';
         banner.style.padding = '5px';
@@ -1301,6 +1300,11 @@
         banner.style.textAlign = 'center';
         banner.style.borderRadius = '5px';
       }
+      const message = approved
+        ? 'Changes Approved please move back to appropriate stage.'
+        : 'STOP PENDING CHANGES DO NOT STAFF YET\n\nMove stage to Pending Itinerary Change';
+      if (banner.textContent !== message) banner.textContent = message;
+      banner.style.whiteSpace = 'pre-line';
       placeFormBanner(banner);
     }
 
@@ -1324,7 +1328,7 @@
     function checkItineraryChangeBanner() {
       const payerName = getClaimPayerName();
 
-      if (payerName !== 'Care IQ - Payer' || !isProviderAssignmentHeaderStage()) {
+      if (payerName !== 'Care IQ - Payer') {
         removeItineraryChangeBanner();
         return;
       }
@@ -1343,7 +1347,12 @@
         ''
       ).trim();
 
-      if (currentValue === itineraryChangeText) insertItineraryChangeBanner();
+      if (currentValue === itineraryChangeText && isProviderAssignmentHeaderStage()) {
+        insertItineraryChangeBanner();
+      } else if (currentValue === 'Itinerary Change Approved' &&
+                 isHeaderStage('Pending Itinerary Change')) {
+        insertItineraryChangeBanner(true);
+      }
       else removeItineraryChangeBanner();
     }
 
@@ -1409,9 +1418,19 @@
     const RATE_STATUS_COLORS = {
       pending: '#B3D9FF',          // Blue: all referrals
       approved: '#D8B4F8',         // Purple: other referrals
-      approved133: '#80CBC4'       // Teal: referrals starting with 133-
+      approved133: '#C71585'       // Teal: referrals starting with 133-
     };
     const globalRowHighlights = new WeakMap();
+
+    const reviewRowStyle = document.createElement('style');
+      reviewRowStyle.textContent = `
+        .mtoy-review-row,
+        .mtoy-review-row * {
+          color: #000000 !important;
+          font-weight: bold !important;
+        }
+      `;
+      document.head.appendChild(reviewRowStyle);
 
     function normalizeGridColumnName(value) {
       return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1528,10 +1547,18 @@
         const rateKind = rateStatusKind(readRateGridColumn(row, 'status', headerCache));
         const referral = readRateGridColumn(row, 'referral', headerCache)
           .replace(/^Referral(?:\s*(?:Number|No\.?|ID|#))?\s*:\s*/i, '').trim();
-        if (rateKind) {
-          // Rate status takes precedence over the other row colors.
-          color = RATE_STATUS_COLORS[rateKind === 'approved' && referral.startsWith('133-') ? 'approved133' : rateKind];
-        }
+        const isReviewRow = rateKind === 'approved' &&
+                    referral.startsWith('133-');
+
+          if (rateKind) {
+              // Rate status takes precedence over other row colors.
+              color = RATE_STATUS_COLORS[
+                  isReviewRow ? 'approved133' : rateKind
+              ];
+          }
+
+          // Black bold text only for Rates Approved (Review)
+          row.classList.toggle('mtoy-review-row', isReviewRow);
         // Recalculate recycled rows, and restore their original background when
         // neither their new status nor the other highlight rules apply.
         if (state.color !== color || row.style.backgroundColor !== state.applied) {
@@ -2208,10 +2235,14 @@
     }
 
     function isProviderAssignmentHeaderStage() {
+      return isHeaderStage('Provider Assignment');
+    }
+
+    function isHeaderStage(expectedStage) {
       // Prefer the actual Dynamics field value. This avoids depending on how
       // the header web components and their shadow roots are rendered.
       const dynamicsStage = getDynamicsHeaderStageText();
-      if (dynamicsStage) return dynamicsStage.toLowerCase() === 'provider assignment';
+      if (dynamicsStage) return dynamicsStage.toLowerCase() === expectedStage.toLowerCase();
 
       // DOM fallback for cases where Xrm.Page has not initialized yet.
       if (!ancillaryStageControl?.isConnected) {
@@ -2229,7 +2260,7 @@
       const label = root.querySelector('div.label[slot="label"]');
 
       return (label?.textContent || '').trim().toLowerCase() === 'stage' &&
-        (value?.textContent || '').trim().toLowerCase() === 'provider assignment';
+        (value?.textContent || '').trim().toLowerCase() === expectedStage.toLowerCase();
     }
 
     function showAncillaryFeeWarning() {
