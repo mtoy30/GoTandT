@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      5.0.3
+// @version      5.0.4
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Dynamics buttons: DD_Buttons_Lead members get admin tools; other users get regular tools.
@@ -1884,7 +1884,8 @@ function getTransportPreviewAmount() {
                 "Load Fee": normalizeHigherRateValueForAuth("Load Fee"),
                 "Cancel Fee": noShowValue,
                 "Dead Miles": normalizeHigherRateValueForAuth("Miscellaneous Dead Miles"),
-                "Tolls": normalizeHigherRateValueForAuth("Tolls")
+                "Tolls": normalizeHigherRateValueForAuth("Tolls"),
+                "Additional Passenger Fee": normalizeHigherRateValueForAuth("Additional Passenger")
             };
         }
 
