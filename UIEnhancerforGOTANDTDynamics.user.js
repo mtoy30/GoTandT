@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      2.2.0
+// @version      2.2.1
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel; shared LMS RUSH alerts for active monitoring users.
@@ -1772,7 +1772,8 @@
     }
 
     function styleNotificationWrapper() {
-      document.querySelectorAll('[id*="notificationWrapper"], [id*="message"]').forEach(element => {
+      // Dynamics form fields can also have "message" in their IDs.
+      document.querySelectorAll('[id*="notificationWrapper"], [id*="notificationWrapper"] [id*="message"]').forEach(element => {
         const text = (element.textContent || element.innerText || '').trim();
         element.style.fontWeight = 'bold';
         element.style.fontSize = '18px';
