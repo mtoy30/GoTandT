@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      2.2.1
+// @version      2.2.2
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel; shared LMS RUSH alerts for active monitoring users.
@@ -1356,6 +1356,35 @@
       else removeItineraryChangeBanner();
     }
 
+    function checkCareIQStaffingConfirmedBanner() {
+      const bannerId = 'careiq-staffing-confirmed-banner';
+      let banner = document.getElementById(bannerId);
+      const qualifies = getClaimPayerName() === 'Care IQ - Payer' &&
+        isHeaderStage('Active') &&
+        document.querySelector('input[type="checkbox"][role="switch"][aria-label="Staffing Confirmed"]')?.checked === false;
+      if (!qualifies) {
+        if (banner) {
+          banner.remove();
+          cleanupFormBannerStack();
+        }
+        return;
+      }
+
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = bannerId;
+        banner.textContent = 'Staffing Confirmed NO please confirm stage or change to YES';
+        Object.assign(banner.style, {
+          backgroundColor: '#f8bbd0',
+          color: '#000',
+          fontWeight: 'bold',
+          textAlign: 'center',
+          borderRadius: '5px'
+        });
+      }
+      placeFormBanner(banner);
+    }
+
     // Both quote messages start November 10, 2026 at midnight Eastern (EST).
     const PENDING_QUOTE_START_AT = Date.parse('2026-11-10T00:00:00-05:00');
 
@@ -2436,6 +2465,7 @@
     setInterval(() => {
       checkItineraryChangeBanner();
       checkStatusAndInsertBanner();
+      checkCareIQStaffingConfirmedBanner();
     }, 500);
 
     if (document.title.includes('Email:')) {
