@@ -373,11 +373,10 @@ function initSelectedMode() {
         return false;
     }
 
-    function ddSaveLastAuthorizedRatesGlobal(ratePayload, requestText = "") {
-        // Do not erase the last good rates when a temporary/read failure returns blank.
-        if (!ratePayload) return false;
+    function ddSaveLastAuthorizedRatesGlobal(ratePayload, requestText = "", action = "apply") {
+        if (!ratePayload && !requestText) return false;
 
-        window.ddLastAuthorizedRatePayload = { ...ratePayload };
+        window.ddLastAuthorizedRatePayload = ratePayload ? { ...ratePayload } : null;
         window.ddLastAuthorizedRateSavedAt = new Date().toISOString();
 
         const savedObject = {
@@ -385,7 +384,8 @@ function initSelectedMode() {
             url: location.href,
             title: document.title || "",
             payload: window.ddLastAuthorizedRatePayload,
-            requestText
+            requestText,
+            action
         };
 
         window.ddLastAuthorizedRateRecord = savedObject;
@@ -414,8 +414,9 @@ function initSelectedMode() {
         try {
             if (!raw) return null;
             const saved = typeof raw === "string" ? JSON.parse(raw) : raw;
-            if (saved && saved.payload) return saved;
-            if (saved && typeof saved === "object") return { payload: saved };
+            if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+                return Object.hasOwn(saved, "payload") ? saved : { payload: saved };
+            }
         } catch (e) {
             console.warn("Unable to parse saved authorized rates", key, e);
         }
@@ -447,7 +448,7 @@ function initSelectedMode() {
 
         if (record) {
             window.ddLastAuthorizedRateRecord = record;
-            window.ddLastAuthorizedRatePayload = { ...record.payload };
+            window.ddLastAuthorizedRatePayload = record.payload ? { ...record.payload } : null;
             return record;
         }
 
@@ -995,7 +996,7 @@ function initSelectedMode() {
 
 
     function addCalculatorTimelineNote(noteText, referralKey, calculator) {
-        if (!calculator.isConnected) return;
+        if (calculator && !calculator.isConnected) return;
         const stillOnReferral = () => referralKey && getRateRequestReferralKey() === referralKey;
         if (!stillOnReferral()) {
             showCenteredOverlayMessage("Could not verify the referral for the Timeline note.", false, 3500);
@@ -1005,7 +1006,10 @@ function initSelectedMode() {
         navigator.clipboard.writeText(noteText).catch(error => {
             console.warn("Could not copy the Timeline note text.", error);
         });
-        calculator.remove();
+        if (calculator) {
+            ddSaveLastAuthorizedRatesGlobal(null, noteText, "timeline");
+            calculator.remove();
+        }
         ddAuthClickDynamicsTabByLabel("General", found => {
             if (!found || !stillOnReferral()) return;
             addNoteToTimeline(noteText, stillOnReferral).catch(error => {
@@ -1112,9 +1116,28 @@ function initSelectedMode() {
 
     function applyMultiDayRates(applyRates) {
         const referralKey = getRateRequestReferralKey();
-        const { payload, requestText } = ddLoadLastAuthorizedRateRecord();
+        const { payload, requestText, action = "confirm" } = ddLoadLastAuthorizedRateRecord();
+        if (action === "timeline" && requestText) {
+            addCalculatorTimelineNote(requestText, referralKey);
+            return;
+        }
+
+        if (action === "clipboard" && requestText) {
+            GM_setClipboard(requestText);
+            showCenteredOverlayMessage("Copied the saved calculator text.", true, 1500);
+            return;
+        }
+
         if (!ddAuthAuthorizationPayloadHasAtLeastOneRate(payload)) {
-            showCenteredOverlayMessage("No saved rates found. Open Margin Calculator and use Request Rates, Apply & Staff, Homelink, or Boomerang first.", false, 3500);
+            showCenteredOverlayMessage("No saved calculator action found. Use a Margin Calculator action first.", false, 3500);
+            return;
+        }
+
+        if (action === "apply") {
+            if (requestText) GM_setClipboard(requestText);
+            applyRates(payload, () =>
+                showCenteredOverlayMessage("Please review rates. Notate and save the referral.", true, 3000)
+            );
             return;
         }
 
@@ -1122,6 +1145,7 @@ function initSelectedMode() {
             .filter(([, value]) => value !== "" && value !== null && value !== undefined)
             .map(([label, value]) => label + ": " + value)
             .join("\n");
+        if (requestText) GM_setClipboard(requestText);
         applyRates(payload, () => confirmRequestRates(noteText, referralKey));
     }
 
@@ -1816,6 +1840,7 @@ function getTransportPreviewAmount() {
             }
             const paidDisplay = paidMatch[1];
             const textToCopy = `Management aware of Transportation low margin. Ok to staff with UBER based on round trip $${paidDisplay} approx margin ${marginDisplay}%`;
+            ddSaveLastAuthorizedRatesGlobal(null, textToCopy, "clipboard");
             navigator.clipboard.writeText(textToCopy).then(() => {
                 const copiedMsg = document.createElement("div");
                 copiedMsg.innerText = `"${textToCopy}" copied!`;
@@ -2255,7 +2280,7 @@ function getTransportPreviewAmount() {
             return Object.entries(ratePayload).some(([label, value]) => label !== "Transport Rate Type" && value !== "" && value !== null && value !== undefined);
         }
 
-        function saveLastAuthorizedRatesFromCalculator(requestText) {
+        function saveLastAuthorizedRatesFromCalculator(requestText, action) {
             const ratePayload = buildAuthorizationRatePayload();
 
             if (!authorizationPayloadHasAtLeastOneRate(ratePayload)) {
@@ -2263,7 +2288,7 @@ function getTransportPreviewAmount() {
                 return false;
             }
 
-            ddSaveLastAuthorizedRatesGlobal(ratePayload, requestText);
+            ddSaveLastAuthorizedRatesGlobal(ratePayload, requestText, action);
             console.log("Saved Authorized Rates payload", window.ddLastAuthorizedRatePayload);
             return true;
         }
@@ -2364,8 +2389,7 @@ function getTransportPreviewAmount() {
                 .replace(/\bWait Time\b/g, "Wait Time per hour");
 
             calculateMargin();
-            saveLastAuthorizedRatesFromCalculator(finalText);
-            setTimeout(() => saveLastAuthorizedRatesFromCalculator(finalText), 600);
+            saveLastAuthorizedRatesFromCalculator(finalText, "confirm");
 
             navigator.clipboard.writeText(finalText).then(() => {
                 const copiedMsg = document.createElement("div");
@@ -2417,7 +2441,7 @@ function getTransportPreviewAmount() {
             const finalParts = buildPartsString(productInputs, {}, miles, loadFeeQuantity);
             const finalText = "Apply rates " + finalParts + " // Advise in Staffing email";
 
-            saveLastAuthorizedRatesFromCalculator();
+            saveLastAuthorizedRatesFromCalculator(finalText, "apply");
 
             navigator.clipboard.writeText(finalText).then(() => {
                 const copiedMsg = document.createElement("div");
@@ -2524,7 +2548,7 @@ function getTransportPreviewAmount() {
                   `Request Flat Rate of $${higherTotal.toFixed(2)}` +
                   (extras.length ? `\n${extras.join("\n")}` : "");
 
-            saveLastAuthorizedRatesFromCalculator();
+            saveLastAuthorizedRatesFromCalculator(homelinkText, "apply");
 
             navigator.clipboard.writeText(homelinkText).then(() => {
                 const copiedMsg = document.createElement("div");
@@ -2659,7 +2683,7 @@ function getTransportPreviewAmount() {
                     "\n**Secure with Boomerang and leave in provider stage until rates approved";
             }
 
-            saveLastAuthorizedRatesFromCalculator();
+            saveLastAuthorizedRatesFromCalculator(boomerangText, "confirm");
 
             navigator.clipboard.writeText(boomerangText).then(() => {
                 const copiedMsg = document.createElement("div");
@@ -6591,6 +6615,7 @@ function showTemplateReminderPopup(message) {
       }
 
       const finalText = `${prefixText} ${finalParts}`;
+      ddSaveLastAuthorizedRatesGlobal(null, finalText, "clipboard");
       GM_setClipboard(finalText);
       showMessage(`Copied: "${finalText}"`, true);
     }
