@@ -30,6 +30,7 @@ const ddAccessListPromises = new Map();
 let ddAccessUserPromise = null;
 let ddSelectedModePromise = null;
 
+// Generates different versions of a user's identity (email or username) for matching.
 function ddAccessIdentityVariants(value) {
     const variants = new Set();
 
@@ -50,6 +51,7 @@ function ddAccessIdentityVariants(value) {
     return variants;
 }
 
+// Permission/access-checking system
 function ddAccessCollectAllowedIdentities(payload) {
     const values = [];
     const identityKeys = [
@@ -99,6 +101,7 @@ function ddAccessCollectAllowedIdentities(payload) {
     return identities;
 }
 
+// Retrieves the Dynamics 365 Xrm object so the buttons can interact with it.
 function ddAccessGetXrm() {
     try {
         if (typeof unsafeWindow !== 'undefined' && unsafeWindow.Xrm) return unsafeWindow.Xrm;
@@ -191,7 +194,7 @@ function ddAccessWaitFor(getValue, timeout = 30000, interval = 250, errorMessage
         check();
     });
 }
-
+// Break
 function ddAccessGetDocuments() {
     const docs = [];
     const seen = new Set();
