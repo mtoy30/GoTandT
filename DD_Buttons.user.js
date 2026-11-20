@@ -1556,7 +1556,7 @@ function getNoShowAmountFromRow() {
     const headerElement = document.querySelector('[id^="formHeaderTitle"]');
     const headerText = headerElement?.textContent?.trim() || "";
 
-    const groupFlat = ["4474-","11525-","8814-","10837-"];
+    const groupFlat = ["4474-","11525-","8814-","10837-","9996-"];
     const group15 = ["133-","202-","9616-"];
     const group16 = [
         "9617-","145-","9548-","9337-","4234-","4403-","5219-",
