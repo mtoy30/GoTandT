@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      5.0.4
+// @version      5.1.0
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Dynamics buttons: DD_Buttons_Lead members get admin tools; other users get regular tools.
@@ -19,6 +19,9 @@
 
 (function() {
     'use strict';
+
+const DD_ASSISTANCE_FEE_LABEL = "Assistance Fee/Add Personnel";
+const DD_FUEL_SURCHARGE_LABEL = "Fuel Surcharge";
 
 // Both role selection and Blind Send use this shared access check.
 const DD_LEAD_LIST = 'DD_Buttons_Lead';
@@ -301,6 +304,26 @@ function ddCurrentUserIsOnList(listName) {
     return ddAccessListPromises.get(listName);
 }
 
+function getContractPriceForProduct(productName) {
+    const rows = document.querySelectorAll('div[row-index], [role="row"]');
+    for (const row of rows) {
+        const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
+        const priceCell = row.querySelector('[col-id="gtt_price"]');
+        if (!productCell || !priceCell) continue;
+        if ((productCell.innerText || "").trim() !== productName) continue;
+        const priceValue = parseFloat((priceCell.innerText || "").replace(/[^0-9.-]+/g, ''));
+        if (!isNaN(priceValue) && priceValue > 0) return priceValue.toFixed(2);
+    }
+    return "";
+}
+
+function readHigherRateAmount(product, inputValue) {
+    if (product === DD_FUEL_SURCHARGE_LABEL && /contract/i.test(inputValue)) {
+        return parseFloat(getContractPriceForProduct(product));
+    }
+    return parseFloat(inputValue);
+}
+
 function initSelectedMode() {
     if (!ddSelectedModePromise) {
         ddSelectedModePromise = ddCurrentUserIsOnList(DD_LEAD_LIST).then(isLead => {
@@ -350,7 +373,7 @@ function initSelectedMode() {
         return false;
     }
 
-    function ddSaveLastAuthorizedRatesGlobal(ratePayload) {
+    function ddSaveLastAuthorizedRatesGlobal(ratePayload, requestText = "") {
         // Do not erase the last good rates when a temporary/read failure returns blank.
         if (!ratePayload) return false;
 
@@ -361,22 +384,23 @@ function initSelectedMode() {
             savedAt: window.ddLastAuthorizedRateSavedAt,
             url: location.href,
             title: document.title || "",
-            payload: ratePayload
+            payload: window.ddLastAuthorizedRatePayload,
+            requestText
         };
 
+        window.ddLastAuthorizedRateRecord = savedObject;
         try {
             const savedText = JSON.stringify(savedObject);
-            const backupText = JSON.stringify(ratePayload);
 
             // GM storage is shared between all matching Dynamics tabs/windows in Tampermonkey.
             ddSafeSetGMValue(DD_LAST_AUTH_RATES_STORAGE_KEY, savedText);
-            ddSafeSetGMValue(DD_LAST_AUTH_RATES_BACKUP_KEY, backupText);
+            ddSafeSetGMValue(DD_LAST_AUTH_RATES_BACKUP_KEY, savedText);
 
             // Keep browser storage as an extra same-tab / same-origin fallback.
             localStorage.setItem(DD_LAST_AUTH_RATES_STORAGE_KEY, savedText);
-            localStorage.setItem(DD_LAST_AUTH_RATES_BACKUP_KEY, backupText);
+            localStorage.setItem(DD_LAST_AUTH_RATES_BACKUP_KEY, savedText);
             sessionStorage.setItem(DD_LAST_AUTH_RATES_STORAGE_KEY, savedText);
-            sessionStorage.setItem(DD_LAST_AUTH_RATES_BACKUP_KEY, backupText);
+            sessionStorage.setItem(DD_LAST_AUTH_RATES_BACKUP_KEY, savedText);
 
             console.log("Saved last Authorized Rates", savedObject);
             return true;
@@ -390,8 +414,8 @@ function initSelectedMode() {
         try {
             if (!raw) return null;
             const saved = typeof raw === "string" ? JSON.parse(raw) : raw;
-            if (saved && saved.payload) return saved.payload;
-            if (saved && typeof saved === "object") return saved;
+            if (saved && saved.payload) return saved;
+            if (saved && typeof saved === "object") return { payload: saved };
         } catch (e) {
             console.warn("Unable to parse saved authorized rates", key, e);
         }
@@ -408,12 +432,12 @@ function initSelectedMode() {
         return null;
     }
 
-    function ddLoadLastAuthorizedRatesGlobal() {
+    function ddLoadLastAuthorizedRateRecord() {
         // Always re-read persistent storage first.
         // Dynamics is a SPA and Multi Day Rates can stay open in the same browser tab
         // while a newer rate request is saved from another referral/tab. Returning the
         // in-memory window cache first can therefore reuse the very first payload.
-        const payload =
+        const record =
             ddParseSavedAuthorizedRates(ddSafeGetGMValue(DD_LAST_AUTH_RATES_STORAGE_KEY, null), DD_LAST_AUTH_RATES_STORAGE_KEY) ||
             ddParseSavedAuthorizedRates(ddSafeGetGMValue(DD_LAST_AUTH_RATES_BACKUP_KEY, null), DD_LAST_AUTH_RATES_BACKUP_KEY) ||
             ddReadSavedAuthorizedRatesFromStorage(localStorage, DD_LAST_AUTH_RATES_STORAGE_KEY) ||
@@ -421,13 +445,14 @@ function initSelectedMode() {
             ddReadSavedAuthorizedRatesFromStorage(sessionStorage, DD_LAST_AUTH_RATES_STORAGE_KEY) ||
             ddReadSavedAuthorizedRatesFromStorage(sessionStorage, DD_LAST_AUTH_RATES_BACKUP_KEY);
 
-        if (payload) {
-            window.ddLastAuthorizedRatePayload = { ...payload };
-            return window.ddLastAuthorizedRatePayload;
+        if (record) {
+            window.ddLastAuthorizedRateRecord = record;
+            window.ddLastAuthorizedRatePayload = { ...record.payload };
+            return record;
         }
 
         // Last-resort fallback only when persistent storage is unavailable.
-        return window.ddLastAuthorizedRatePayload || null;
+        return window.ddLastAuthorizedRateRecord || { payload: window.ddLastAuthorizedRatePayload };
     }
     window.ddLastAuthorizedRatePayload = window.ddLastAuthorizedRatePayload || null;
     window.ddLastAuthorizedRateSavedAt = window.ddLastAuthorizedRateSavedAt || null;
@@ -480,7 +505,8 @@ function initSelectedMode() {
 
     function ddAuthSetReactInputValue(input, value) {
         if (!input || value === "" || value === null || value === undefined) return false;
-        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        const inputPrototype = input.tagName === "TEXTAREA" ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+        const valueSetter = Object.getOwnPropertyDescriptor(inputPrototype, 'value')?.set;
         valueSetter ? valueSetter.call(input, value) : input.value = value;
         input.dispatchEvent(new Event('input', { bubbles: true }));
         input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -489,7 +515,13 @@ function initSelectedMode() {
     }
 
     function ddAuthFindFieldByAriaLabel(label) {
-        return document.querySelector(`input[aria-label="${CSS.escape(label)}"], textarea[aria-label="${CSS.escape(label)}"]`);
+        const field = document.querySelector(`input[aria-label="${CSS.escape(label)}"], textarea[aria-label="${CSS.escape(label)}"]`);
+        if (label !== DD_ASSISTANCE_FEE_LABEL || ddAuthVisibleElement(field)) return field;
+
+        const normalizeLabel = value => value.trim().toLowerCase().replace(/\s*\/\s*/g, "/");
+        return Array.from(document.querySelectorAll("input[aria-label], textarea[aria-label]")).find(input =>
+            ddAuthVisibleElement(input) && normalizeLabel(input.getAttribute("aria-label")) === normalizeLabel(label)
+        );
     }
 
     function ddAuthFindFieldNearVisibleLabel(label) {
@@ -693,19 +725,20 @@ function initSelectedMode() {
         return Object.entries(ratePayload).some(([label, value]) => label !== "Transport Rate Type" && value !== "" && value !== null && value !== undefined);
     }
 
-    function ddAuthApplyHigherRatesToAuthorizationFields(savedPayload) {
-        const ratePayload = savedPayload || ddLoadLastAuthorizedRatesGlobal();
+    function ddAuthApplyHigherRatesToAuthorizationFields(ratePayload, onApplied) {
 
         if (!ddAuthAuthorizationPayloadHasAtLeastOneRate(ratePayload)) {
             showCenteredOverlayMessage("No saved rates found. Open Margin Calculator and use Request Rates, Apply & Staff, Homelink, or Boomerang first.", false, 3500);
             return;
         }
 
-        ddAuthClickDynamicsTabByLabel("General", () => {
+        ddAuthClickDynamicsTabByLabel("General", found => {
+            if (!found) return;
             setTimeout(() => {
                 ddAuthSetLookupOrDropdownByLabel("Rate Approval Status", "Pending - RATE Authorization Requested", () => {
                     setTimeout(() => {
-                        ddAuthClickDynamicsTabByLabel("Authorized Rates", () => {
+                        ddAuthClickDynamicsTabByLabel("Authorized Rates", found => {
+                            if (!found) return;
                             let updatedCount = 0;
 
                             const applyTextFields = () => {
@@ -715,7 +748,7 @@ function initSelectedMode() {
                                 });
 
                                 setTimeout(() => {
-                                    showCenteredOverlayMessage("Please review rates. Notate and save the referral", true, 3000);
+                                    onApplied();
                                     console.log("Authorized Rates payload applied from saved rates", ratePayload, "Fields updated:", updatedCount);
                                 }, 900);
                             };
@@ -735,9 +768,364 @@ function initSelectedMode() {
         }, 900);
     }
 
-    window.ddApplyLastAuthorizedRates = function() {
-        ddAuthApplyHigherRatesToAuthorizationFields(ddLoadLastAuthorizedRatesGlobal());
-    };
+    function getRateRequestReferralKey() {
+        return new URLSearchParams(window.location.search).get("id") ||
+            document.querySelector('[id^="formHeaderTitle"]')?.textContent?.trim();
+    }
+
+    const authorizationNotesSelector =
+        'textarea[data-id="gtt_authorizationnotes.fieldControl-text-box-text"], textarea[aria-label="Authorization Notes"]';
+
+    async function addNoteToTimeline(noteText, stillOnReferral, { authorizationNotesUpdated = false, saveReferral = false } = {}) {
+        const openNoteSelector = 'button[id="create_module_placeholdernotescontrol"], button[aria-label^="Enter a note" i]';
+        const editorSelector = '[contenteditable="true"].ck-editor__editable, [contenteditable="true"]:has([data-cke-filler])';
+        const normalizeText = text => text.replace(/\s+/g, " ").trim();
+        const findAddNoteButton = () => Array.from(document.querySelectorAll('button[id="splitsave-button"]'))
+            .find(button => ddAuthVisibleElement(button) && normalizeText(button.textContent) === "Add note and close");
+        const canClick = button => button && !button.disabled && button.getAttribute("aria-disabled") !== "true";
+
+        async function waitForTimelineControl(find, timeout = 6000) {
+            const deadline = Date.now() + timeout;
+            while (stillOnReferral()) {
+                const result = find();
+                if (result || Date.now() >= deadline) return result;
+                await new Promise(resolve => setTimeout(resolve, 150));
+            }
+            return null;
+        }
+
+        const report = message => {
+            const prefix = authorizationNotesUpdated ? "Authorization Notes updated. " : "";
+            showCenteredOverlayMessage(prefix + message, false, 4500);
+        };
+
+        const notesField = Array.from(document.querySelectorAll(authorizationNotesSelector)).find(ddAuthVisibleElement);
+        const generalPanel = notesField?.closest('[role="tabpanel"]') ||
+            Array.from(document.querySelectorAll('[role="tabpanel"]')).find(ddAuthVisibleElement);
+        const scrollContainers = [];
+        for (let element = notesField?.parentElement || generalPanel; element; element = element.parentElement) {
+            if (/^(auto|scroll|overlay)$/.test(window.getComputedStyle(element).overflowY)) {
+                scrollContainers.push(element);
+            }
+        }
+        if (document.scrollingElement && !scrollContainers.includes(document.scrollingElement)) {
+            scrollContainers.push(document.scrollingElement);
+        }
+
+        let reachedTimeline = false;
+        const openNoteButton = await waitForTimelineControl(() => {
+            if (findAddNoteButton()) return null;
+
+            const button = Array.from(document.querySelectorAll(openNoteSelector)).find(ddAuthVisibleElement);
+            if (canClick(button)) return button;
+
+            const timeline = Array.from(document.querySelectorAll(
+                'h3[id="action_bar_header_titlenotescontrol"], h3[aria-label="Timeline" i], [data-id="notescontrol"]'
+            )).find(ddAuthVisibleElement);
+            if (timeline) {
+                if (!reachedTimeline) timeline.scrollIntoView({ block: "center", behavior: "instant" });
+                reachedTimeline = true;
+                return null;
+            }
+
+            // Dynamics can mount the Timeline only after its part of General is scrolled into view.
+            const container = scrollContainers.find(element =>
+                element.scrollTop + element.clientHeight < element.scrollHeight - 1
+            );
+            if (container) {
+                const nextTop = container.scrollTop + Math.max(1, Math.floor(container.clientHeight * 0.75));
+                container.scrollTo({ top: nextTop, behavior: "instant" });
+            }
+            return null;
+        }, 10000);
+        if (!openNoteButton || findAddNoteButton() || !stillOnReferral()) {
+            report("Could not open Enter a note in the Timeline. Add the note manually.");
+            return;
+        }
+
+        const existingEditors = new Set(Array.from(document.querySelectorAll(editorSelector)).filter(ddAuthVisibleElement));
+        openNoteButton.scrollIntoView({ block: "center" });
+        openNoteButton.click();
+
+        const editorLabel = editor => normalizeText(editor.getAttribute("aria-label") || "").toLowerCase();
+        const isTimelineNote = editor => editorLabel(editor) === "rich text editor control referral notetext";
+        const isGeneralNotes = editor => /\bgtt_referral\s+note\b/.test(editorLabel(editor));
+        const titleSelector = 'input[aria-label="Title" i], input[placeholder="Title" i]';
+
+        const findComposer = () => {
+            const button = findAddNoteButton();
+            if (!button) return null;
+
+            const labeledEditors = Array.from(document.querySelectorAll(editorSelector))
+                .filter(editor => ddAuthVisibleElement(editor) && isTimelineNote(editor));
+            if (labeledEditors.length) {
+                return labeledEditors.length === 1 ? { editor: labeledEditors[0], button } : null;
+            }
+
+            // For an unlabeled editor, require the controls from the note composer in the same section.
+            for (let section = button.parentElement;
+                section && section !== generalPanel && section !== document.body;
+                section = section.parentElement) {
+                const editors = Array.from(section.querySelectorAll(editorSelector));
+                if (editors.some(isGeneralNotes)) return null;
+                if (!Array.from(section.querySelectorAll(titleSelector)).some(ddAuthVisibleElement)) continue;
+
+                const hasCancel = Array.from(section.querySelectorAll("button")).some(control =>
+                    ddAuthVisibleElement(control) &&
+                    normalizeText(control.getAttribute("aria-label") || control.textContent || "").toLowerCase() === "cancel"
+                );
+                if (!hasCancel) continue;
+
+                const visibleEditors = editors.filter(ddAuthVisibleElement);
+                if (!visibleEditors.length) continue;
+                const [editor] = visibleEditors;
+                return visibleEditors.length === 1 && !existingEditors.has(editor) ? { editor, button } : null;
+            }
+            return null;
+        };
+
+        const expectedText = normalizeText(noteText);
+        const hasNote = editor => editor.isConnected && normalizeText(editor.innerText) === expectedText;
+        const isEmpty = editor => !normalizeText(editor.innerText) && !editor.querySelector("img, table");
+
+        let readyComposer;
+        for (const useHtml of [false, true]) {
+            const composer = await waitForTimelineControl(findComposer);
+            if (!composer || !stillOnReferral()) break;
+
+            const { editor } = composer;
+            if (!hasNote(editor)) {
+                if (!isEmpty(editor)) break;
+
+                editor.scrollIntoView({ block: "center" });
+                editor.focus();
+                if (editor.ownerDocument.activeElement !== editor ||
+                    findComposer()?.editor !== editor || !stillOnReferral() || !isEmpty(editor)) continue;
+
+                const editorDocument = editor.ownerDocument;
+                const editorWindow = editorDocument.defaultView;
+                const clipboard = new editorWindow.DataTransfer();
+                clipboard.setData("text/plain", noteText);
+                if (useHtml) {
+                    const markup = editorDocument.createElement("div");
+                    for (const line of noteText.split(/\r?\n/)) {
+                        const paragraph = editorDocument.createElement("p");
+                        paragraph.textContent = line;
+                        markup.appendChild(paragraph);
+                    }
+                    clipboard.setData("text/html", markup.innerHTML);
+                }
+                const selection = editorDocument.getSelection();
+                if (!selection) continue;
+                if (!editor.contains(selection.anchorNode) || !editor.contains(selection.focusNode)) {
+                    const caret = editorDocument.createRange();
+                    caret.selectNodeContents(editor);
+                    caret.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(caret);
+                }
+
+                // CKEditor uses the document selection when processing a paste.
+                const current = findComposer();
+                if (current?.editor !== editor || current.button !== composer.button ||
+                    editorDocument.activeElement !== editor || !isEmpty(editor) || !stillOnReferral() ||
+                    !editor.contains(selection.anchorNode) || !editor.contains(selection.focusNode)) continue;
+
+                editor.dispatchEvent(new editorWindow.ClipboardEvent("paste", {
+                    clipboardData: clipboard,
+                    bubbles: true,
+                    cancelable: true,
+                    composed: true
+                }));
+
+                if (!await waitForTimelineControl(() => hasNote(editor), 2500)) continue;
+            }
+
+            // Move focus to Save so the rich-text editor commits the pasted content.
+            composer.button.focus();
+            let contentReadySince = null;
+            readyComposer = await waitForTimelineControl(() => {
+                const current = findComposer();
+                if (!current || current.editor !== editor || !hasNote(editor) || !canClick(current.button)) {
+                    contentReadySince = null;
+                    return null;
+                }
+
+                contentReadySince ??= Date.now();
+                return Date.now() - contentReadySince >= 600 ? current : null;
+            }, 2500);
+            if (readyComposer) break;
+        }
+
+        if (!readyComposer || !stillOnReferral() || !hasNote(readyComposer.editor)) {
+            report("Could not verify the Timeline editor and note text. Review the Timeline draft before pasting manually.");
+            return;
+        }
+
+        ddAuthClickLikeUser(readyComposer.button);
+        // A slow response can leave the editor open after Dynamics has accepted the click.
+        // Wait for the composer to close, but never submit the same draft twice.
+        const editorClosed = await waitForTimelineControl(() => {
+            return !findAddNoteButton() && (!readyComposer.editor.isConnected || !ddAuthVisibleElement(readyComposer.editor));
+        }, 15000);
+        if (!editorClosed || !stillOnReferral()) {
+            report("Dynamics did not confirm the Timeline save. Check the Timeline before adding the note manually.");
+            return;
+        }
+
+
+        if (!saveReferral) {
+            showCenteredOverlayMessage("Timeline note added.", true, 3000);
+            return;
+        }
+
+        const referralSaveSelector = 'button[data-id="gtt_referral|NoRelationship|Form|Mscrm.Form.gtt_referral.Save"], button[id="gtt_referral|NoRelationship|Form|Mscrm.Form.gtt_referral.Save02-button"]';
+        const referralSaveButton = await waitForTimelineControl(() =>
+            Array.from(document.querySelectorAll(referralSaveSelector))
+                .find(button => ddAuthVisibleElement(button) && canClick(button))
+        );
+        if (!referralSaveButton || !stillOnReferral()) {
+            report("Timeline note added. Save the referral manually.");
+            return;
+        }
+
+        referralSaveButton.click();
+        showCenteredOverlayMessage("Timeline note added. Referral save requested.", true, 3500);
+    }
+
+
+    function addCalculatorTimelineNote(noteText, referralKey, calculator) {
+        if (!calculator.isConnected) return;
+        const stillOnReferral = () => referralKey && getRateRequestReferralKey() === referralKey;
+        if (!stillOnReferral()) {
+            showCenteredOverlayMessage("Could not verify the referral for the Timeline note.", false, 3500);
+            return;
+        }
+
+        navigator.clipboard.writeText(noteText).catch(error => {
+            console.warn("Could not copy the Timeline note text.", error);
+        });
+        calculator.remove();
+        ddAuthClickDynamicsTabByLabel("General", found => {
+            if (!found || !stillOnReferral()) return;
+            addNoteToTimeline(noteText, stillOnReferral).catch(error => {
+                console.warn("Could not add the Timeline note.", error);
+                showCenteredOverlayMessage("Could not add the Timeline note. Add it manually.", false, 4500);
+            });
+        });
+    }
+
+    function prependRequestRatesToAuthorizationNotes(requestText, referralKey) {
+        const stillOnReferral = () => referralKey && getRateRequestReferralKey() === referralKey;
+        const addTimelineNote = authorizationNotesUpdated => {
+            addNoteToTimeline(requestText, stillOnReferral, { authorizationNotesUpdated, saveReferral: true }).catch(error => {
+                console.warn("Could not add the Request Rates Timeline note.", error);
+                const prefix = authorizationNotesUpdated ? "Authorization Notes updated. " : "";
+                showCenteredOverlayMessage(prefix + "Review the Timeline note manually.", false, 4500);
+            });
+        };
+        const reportReferralChanged = () => {
+            showCenteredOverlayMessage("Could not verify the referral. Authorization Notes were left as is.", false, 3500);
+        };
+
+        if (!stillOnReferral()) {
+            reportReferralChanged();
+            return;
+        }
+
+        ddAuthClickDynamicsTabByLabel("General", found => {
+            if (!found) return;
+
+            const deadline = Date.now() + 4000;
+            const updateNotes = () => {
+                if (!stillOnReferral()) {
+                    reportReferralChanged();
+                    return;
+                }
+
+                const payer = document.querySelector('[data-id*="gtt_payerid"][data-id*="selected_tag_text"]') ||
+                    document.querySelector('[data-id*="gtt_payerid"][data-id*="selected_tag"]');
+                const payerName = payer?.textContent?.trim() ||
+                    payer?.getAttribute("title")?.trim() ||
+                    payer?.getAttribute("aria-label")?.trim() || "";
+                if (/coventry/i.test(payerName)) {
+                    addTimelineNote(false);
+                    return;
+                }
+
+                const notes = Array.from(document.querySelectorAll(authorizationNotesSelector)).find(ddAuthVisibleElement);
+                if (!payerName || !notes || notes.disabled || notes.readOnly) {
+                    if (Date.now() < deadline) {
+                        setTimeout(updateNotes, 200);
+                    } else {
+                        showCenteredOverlayMessage("Could not verify the payer or edit Authorization Notes. Review the referral manually.", false, 4000);
+                    }
+                    return;
+                }
+
+                const updatedNotes = notes.value ? requestText + "\n\n" + notes.value : requestText;
+                if (notes.maxLength >= 0 && updatedNotes.length > notes.maxLength) {
+                    showCenteredOverlayMessage("Authorization Notes would exceed the character limit. Review the notes manually.", false, 4000);
+                    return;
+                }
+
+                ddAuthSetReactInputValue(notes, updatedNotes);
+                addTimelineNote(true);
+            };
+
+            updateNotes();
+        });
+    }
+
+    function showConfirmRatesDialog(onConfirm) {
+        const dialog = document.createElement("dialog");
+        dialog.setAttribute("aria-labelledby", "ddConfirmRatesTitle");
+        dialog.style.cssText = "width:380px;max-width:calc(100vw - 40px);margin:8vh auto auto;box-sizing:border-box;background:#fff;color:#000;border:0;border-radius:12px;box-shadow:0 15px 40px rgba(0,0,0,0.35);padding:22px;font-family:Arial,sans-serif;";
+
+        const title = document.createElement("h2");
+        title.id = "ddConfirmRatesTitle";
+        title.textContent = "Confirm Rates";
+        title.style.cssText = "font-size:20px;font-weight:bold;margin:0 0 12px;";
+
+        const actions = document.createElement("div");
+        actions.style.cssText = "display:flex;justify-content:flex-end;gap:10px;";
+
+        const confirmed = createModernButton("Confirmed", "#22c55e", "#4ade80", () => {
+            dialog.close();
+            onConfirm();
+        });
+        const manualFix = createModernButton("Manual Fix", "#e5e7eb", "#f3f4f6", () => dialog.close());
+        confirmed.type = manualFix.type = "button";
+        manualFix.autofocus = true;
+        actions.append(confirmed, manualFix);
+        dialog.append(title, actions);
+        dialog.addEventListener("close", () => dialog.remove(), { once: true });
+
+        document.body.appendChild(dialog);
+        dialog.showModal();
+    }
+
+
+    function confirmRequestRates(requestText, referralKey) {
+        showConfirmRatesDialog(() => prependRequestRatesToAuthorizationNotes(requestText, referralKey));
+    }
+
+    function applyMultiDayRates(applyRates) {
+        const referralKey = getRateRequestReferralKey();
+        const { payload, requestText } = ddLoadLastAuthorizedRateRecord();
+        if (!ddAuthAuthorizationPayloadHasAtLeastOneRate(payload)) {
+            showCenteredOverlayMessage("No saved rates found. Open Margin Calculator and use Request Rates, Apply & Staff, Homelink, or Boomerang first.", false, 3500);
+            return;
+        }
+
+        const noteText = requestText || "Request rates:\n" + Object.entries(payload)
+            .filter(([, value]) => value !== "" && value !== null && value !== undefined)
+            .map(([label, value]) => label + ": " + value)
+            .join("\n");
+        applyRates(payload, () => confirmRequestRates(noteText, referralKey));
+    }
+
+    window.ddApplyLastAuthorizedRates = () => applyMultiDayRates(ddAuthApplyHigherRatesToAuthorizationFields);
 
     const style = document.createElement('style');
     style.innerHTML = `
@@ -1199,6 +1587,13 @@ function getNoShowAmountFromRow() {
             return { amount: 35, rule: "Flat rule fallback = $35" };
         }
 
+        if (headerText.startsWith("133-") && productName === "Transport Wheelchair") {
+            return {
+                amount: priceValue * 14,
+                rule: "Wheelchair rule: gtt_price x 14 (" + priceValue.toFixed(2) + " x 14)"
+            };
+        }
+
         if (group15.some(prefix => headerText.startsWith(prefix))) {
             if (
                 (headerText.startsWith("202-") || headerText.startsWith("9616-")) &&
@@ -1354,36 +1749,16 @@ function getTransportPreviewAmount() {
             const marginType = marginValue < 0 ? "negative margin" : "low margin";
             const baseText = `Management aware of Transportation ${marginType}. Ok to staff approx. Margin ${marginDisplay}%`;
 
-            const doCopy = (textToCopy) => {
-                navigator.clipboard.writeText(textToCopy).then(() => {
-                    const copiedMsg = document.createElement("div");
-                    copiedMsg.innerText = `"${textToCopy}" copied!`;
-                    copiedMsg.style.position = "fixed";
-                    copiedMsg.style.top = "50%";
-                    copiedMsg.style.left = "50%";
-                    copiedMsg.style.transform = "translate(-50%, -50%)";
-                    copiedMsg.style.background = "rgba(0,0,0,0.8)";
-                    copiedMsg.style.color = "#fff";
-                    copiedMsg.style.padding = "15px 25px";
-                    copiedMsg.style.borderRadius = "8px";
-                    copiedMsg.style.zIndex = "10001";
-                    copiedMsg.style.fontSize = "18px";
-                    copiedMsg.style.fontWeight = "bold";
-                    copiedMsg.style.textAlign = "center";
-                    copiedMsg.style.maxWidth = "80%";
-                    copiedMsg.style.wordWrap = "break-word";
-                    document.body.appendChild(copiedMsg);
-                    setTimeout(() => copiedMsg.remove(), 1500);
-                });
+            const referralKey = getRateRequestReferralKey();
+            const addApproval = reason => {
+                const noteText = reason ? baseText + " Reason: " + reason : baseText;
+                addCalculatorTimelineNote(noteText, referralKey, box);
             };
 
             if (marginValue < 0) {
-                showReasonPrompt((reason) => {
-                    const textToCopy = reason ? `${baseText} Reason: ${reason}` : baseText;
-                    doCopy(textToCopy);
-                });
+                showReasonPrompt(addApproval);
             } else {
-                doCopy(baseText);
+                addApproval();
             }
         };
 
@@ -1424,55 +1799,17 @@ function getTransportPreviewAmount() {
             });
         };
 
-        const waittimeButton = createModernButton("Wait Time Request", "#3b82f6", "#60a5fa");
-        waittimeButton.onclick = () => {
-            const textToCopy = "Ok to request wait time";
-            navigator.clipboard.writeText(textToCopy).then(() => {
-                const copiedMsg = document.createElement("div");
-                copiedMsg.innerText = `"${textToCopy}" copied!`;
-                copiedMsg.style.position = "fixed";
-                copiedMsg.style.top = "50%";
-                copiedMsg.style.left = "50%";
-                copiedMsg.style.transform = "translate(-50%, -50%)";
-                copiedMsg.style.background = "rgba(0,0,0,0.8)";
-                copiedMsg.style.color = "#fff";
-                copiedMsg.style.padding = "15px 25px";
-                copiedMsg.style.borderRadius = "8px";
-                copiedMsg.style.zIndex = "10001";
-                copiedMsg.style.fontSize = "18px";
-                copiedMsg.style.fontWeight = "bold";
-                copiedMsg.style.textAlign = "center";
-                copiedMsg.style.maxWidth = "80%";
-                copiedMsg.style.wordWrap = "break-word";
-                document.body.appendChild(copiedMsg);
-                setTimeout(() => copiedMsg.remove(), 1000);
-            });
-        };
+        const waittimeButton = createModernButton("Wait Time Request", "#3b82f6", "#60a5fa", () => {
+            addCalculatorTimelineNote("Ok to request wait time", getRateRequestReferralKey(), box);
+        });
 
-        const WaitStaffButton = createModernButton("Wait Time Staff", "#3b82f6", "#60a5fa");
-        WaitStaffButton.onclick = () => {
-            const textToCopy = "Ok to apply wait time and include in staffing email due to mileage.";
-            navigator.clipboard.writeText(textToCopy).then(() => {
-                const copiedMsg = document.createElement("div");
-                copiedMsg.innerText = `"${textToCopy}" copied!`;
-                copiedMsg.style.position = "fixed";
-                copiedMsg.style.top = "50%";
-                copiedMsg.style.left = "50%";
-                copiedMsg.style.transform = "translate(-50%, -50%)";
-                copiedMsg.style.background = "rgba(0,0,0,0.8)";
-                copiedMsg.style.color = "#fff";
-                copiedMsg.style.padding = "15px 25px";
-                copiedMsg.style.borderRadius = "8px";
-                copiedMsg.style.zIndex = "10001";
-                copiedMsg.style.fontSize = "18px";
-                copiedMsg.style.fontWeight = "bold";
-                copiedMsg.style.textAlign = "center";
-                copiedMsg.style.maxWidth = "80%";
-                copiedMsg.style.wordWrap = "break-word";
-                document.body.appendChild(copiedMsg);
-                setTimeout(() => copiedMsg.remove(), 1000);
-            });
-        };
+        const WaitStaffButton = createModernButton("Wait Time Staff", "#3b82f6", "#60a5fa", () => {
+            addCalculatorTimelineNote(
+                "Ok to apply wait time and include in staffing email due to mileage.",
+                getRateRequestReferralKey(),
+                box
+            );
+        });
 
         function buildPartsString(productInputs, quantities, miles, loadFeeQuantity) {
             if (productInputs["One Way Surcharge"] && quantities["One Way Surcharge"] !== undefined) {
@@ -1535,19 +1872,6 @@ function getTransportPreviewAmount() {
 
         function getHigherRateInputValue(label) {
             return (productInputs[label]?.value || "").trim();
-        }
-
-        function getContractPriceForProduct(productName) {
-            const rows = document.querySelectorAll('div[row-index], [role="row"]');
-            for (const row of rows) {
-                const productCell = row.querySelector('[col-id="gtt_accountproduct"]');
-                const priceCell = row.querySelector('[col-id="gtt_price"]');
-                if (!productCell || !priceCell) continue;
-                if ((productCell.innerText || "").trim() !== productName) continue;
-                const priceValue = parseFloat((priceCell.innerText || "").replace(/[^0-9.-]+/g, ''));
-                if (!isNaN(priceValue) && priceValue > 0) return priceValue.toFixed(2);
-            }
-            return "";
         }
 
         function normalizeHigherRateValue(label) {
@@ -1619,7 +1943,8 @@ function getTransportPreviewAmount() {
 
         function setReactInputValue(input, value) {
             if (!input || value === "" || value === null || value === undefined) return false;
-            const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+            const inputPrototype = input.tagName === "TEXTAREA" ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+            const valueSetter = Object.getOwnPropertyDescriptor(inputPrototype, 'value')?.set;
             valueSetter ? valueSetter.call(input, value) : input.value = value;
             input.dispatchEvent(new Event('input', { bubbles: true }));
             input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -1627,9 +1952,6 @@ function getTransportPreviewAmount() {
             return true;
         }
 
-        function findFieldByAriaLabel(label) {
-            return document.querySelector(`input[aria-label="${CSS.escape(label)}"], textarea[aria-label="${CSS.escape(label)}"]`);
-        }
 
         function findFieldNearVisibleLabel(label) {
             const labelEls = Array.from(document.querySelectorAll('label, span, div')).filter(el => (el.textContent || '').trim() === label);
@@ -1643,7 +1965,7 @@ function getTransportPreviewAmount() {
 
         function setFieldByLabel(label, value) {
             if (value === "" || value === null || value === undefined) return false;
-            const field = findFieldByAriaLabel(label) || findFieldNearVisibleLabel(label);
+            const field = ddAuthFindFieldByAriaLabel(label) || findFieldNearVisibleLabel(label);
             if (!field) {
                 console.warn(`Authorization field not found: ${label}`);
                 return false;
@@ -1885,7 +2207,8 @@ function getTransportPreviewAmount() {
                 "Cancel Fee": noShowValue,
                 "Dead Miles": normalizeHigherRateValueForAuth("Miscellaneous Dead Miles"),
                 "Tolls": normalizeHigherRateValueForAuth("Tolls"),
-                "Additional Passenger Fee": normalizeHigherRateValueForAuth("Additional Passenger")
+                "Additional Passenger Fee": normalizeHigherRateValueForAuth("Additional Passenger"),
+                [DD_ASSISTANCE_FEE_LABEL]: normalizeHigherRateValueForAuth(DD_ASSISTANCE_FEE_LABEL)
             };
         }
 
@@ -1893,7 +2216,7 @@ function getTransportPreviewAmount() {
             return Object.entries(ratePayload).some(([label, value]) => label !== "Transport Rate Type" && value !== "" && value !== null && value !== undefined);
         }
 
-        function saveLastAuthorizedRatesFromCalculator() {
+        function saveLastAuthorizedRatesFromCalculator(requestText) {
             const ratePayload = buildAuthorizationRatePayload();
 
             if (!authorizationPayloadHasAtLeastOneRate(ratePayload)) {
@@ -1901,12 +2224,12 @@ function getTransportPreviewAmount() {
                 return false;
             }
 
-            ddSaveLastAuthorizedRatesGlobal(ratePayload);
+            ddSaveLastAuthorizedRatesGlobal(ratePayload, requestText);
             console.log("Saved Authorized Rates payload", window.ddLastAuthorizedRatePayload);
             return true;
         }
 
-        function applyHigherRatesToAuthorizationFields(savedPayload) {
+        function applyHigherRatesToAuthorizationFields(savedPayload, onApplied) {
             const ratePayload = savedPayload || buildAuthorizationRatePayload();
 
             if (!authorizationPayloadHasAtLeastOneRate(ratePayload)) {
@@ -1914,11 +2237,13 @@ function getTransportPreviewAmount() {
                 return;
             }
 
-            clickDynamicsTabByLabel("General", () => {
+            clickDynamicsTabByLabel("General", found => {
+                if (!found) return;
                 setTimeout(() => {
                     setLookupOrDropdownByLabel("Rate Approval Status", "Pending - RATE Authorization Requested", () => {
                         setTimeout(() => {
-                            clickDynamicsTabByLabel("Authorized Rates", () => {
+                            clickDynamicsTabByLabel("Authorized Rates", found => {
+                                if (!found) return;
                                 let updatedCount = 0;
 
                                 const applyTextFields = () => {
@@ -1928,7 +2253,11 @@ function getTransportPreviewAmount() {
                                     });
 
                                     setTimeout(() => {
-                                        showCenteredOverlayMessage("Please reveiw rates. Notate and save referral.", true, 3000);
+                                        if (onApplied) {
+                                            onApplied();
+                                        } else {
+                                            showCenteredOverlayMessage("Please reveiw rates. Notate and save referral.", true, 3000);
+                                        }
                                         console.log("Authorized Rates payload applied", ratePayload, "Fields updated:", updatedCount);
                                     }, 900);
                                 };
@@ -1948,14 +2277,7 @@ function getTransportPreviewAmount() {
             }, 900);
         }
 
-        window.ddApplyLastAuthorizedRates = function() {
-            const savedPayload = ddLoadLastAuthorizedRatesGlobal();
-            if (!savedPayload || !authorizationPayloadHasAtLeastOneRate(savedPayload)) {
-                showCenteredOverlayMessage("No saved rates found. Open Margin Calculator and use Request Rates, Apply & Staff, Homelink, or Boomerang first.", false, 3500);
-                return;
-            }
-            applyHigherRatesToAuthorizationFields(savedPayload);
-        };
+        window.ddApplyLastAuthorizedRates = () => applyMultiDayRates(applyHigherRatesToAuthorizationFields);
 
         const applySavedRatesButton = createModernButton("Apply Rates", "#16a34a", "#86efac");
         applySavedRatesButton.onclick = () => {
@@ -1976,6 +2298,8 @@ function getTransportPreviewAmount() {
 
         const requestRatesButton = createModernButton("Request Rates", "#22c55e", "#4ade80");
         requestRatesButton.onclick = () => {
+            requestRatesButton.disabled = true;
+            const referralKey = getRateRequestReferralKey();
             let miles = 0;
             let loadFeeQuantity = 0;
 
@@ -2001,8 +2325,8 @@ function getTransportPreviewAmount() {
                 .replace(/\bWait Time\b/g, "Wait Time per hour");
 
             calculateMargin();
-            saveLastAuthorizedRatesFromCalculator();
-            setTimeout(saveLastAuthorizedRatesFromCalculator, 600);
+            saveLastAuthorizedRatesFromCalculator(finalText);
+            setTimeout(() => saveLastAuthorizedRatesFromCalculator(finalText), 600);
 
             navigator.clipboard.writeText(finalText).then(() => {
                 const copiedMsg = document.createElement("div");
@@ -2023,9 +2347,12 @@ function getTransportPreviewAmount() {
                 copiedMsg.style.wordWrap = "break-word";
                 document.body.appendChild(copiedMsg);
                 setTimeout(() => copiedMsg.remove(), 1500);
-                applyHigherRatesToAuthorizationFields();
-                closeMarginCalcAfterRateAutomation();
+            }).catch(error => console.warn("Could not copy Request Rates text.", error));
+
+            applyHigherRatesToAuthorizationFields(undefined, () => {
+                confirmRequestRates(finalText, referralKey);
             });
+            closeMarginCalcAfterRateAutomation();
         };
 
         const applyRatesButton = createModernButton("Apply & Staff", "#a855f7", "#c084fc");
@@ -2111,19 +2438,19 @@ function getTransportPreviewAmount() {
             foundProducts.forEach(product => {
                 if (product === "Wait Time" || product === "No Show") return;
 
-                if (["Rush Fee", "Tolls", "Other", "Assistance Fee", "Passenger Fee", "Miscellaneous Dead Miles"].includes(product)) {
+                if (["Rush Fee", "Tolls", DD_ASSISTANCE_FEE_LABEL, DD_FUEL_SURCHARGE_LABEL, "Assistance Fee", "Passenger Fee", "Miscellaneous Dead Miles"].includes(product)) {
                     if (alreadyCounted.has(product)) return;
                     alreadyCounted.add(product);
                 }
 
                 const enteredValueRaw = productInputs[product]?.value;
-                const enteredValue = parseFloat(enteredValueRaw);
+                const enteredValue = readHigherRateAmount(product, enteredValueRaw);
                 const qty = quantities[product] || 0;
 
                 if (!isNaN(enteredValue)) {
                     if (product === "Miscellaneous Dead Miles" || product === "One Way Surcharge") {
                         higherTotal += enteredValue * (activeTransportRate / 2);
-                    } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
+                    } else if (["Tolls", DD_ASSISTANCE_FEE_LABEL, DD_FUEL_SURCHARGE_LABEL, "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
                         higherTotal += enteredValue;
                     } else {
                         higherTotal += enteredValue * qty;
@@ -2186,6 +2513,8 @@ function getTransportPreviewAmount() {
 
         const boomerangButton = createModernButton("Boomerang Request & Staff", "#f97316", "#fb923c");
         boomerangButton.onclick = () => {
+            if (boomerangButton.disabled) return;
+            const referralKey = getRateRequestReferralKey();
             const titleHeader = document.querySelector('[id^="formHeaderTitle"]');
             const titleText = titleHeader ? titleHeader.innerText.trim() : "";
             const isHomeLink = titleText.startsWith("212-");
@@ -2247,13 +2576,13 @@ function getTransportPreviewAmount() {
             Object.keys(productInputs).forEach(product => {
                 if (product === "Wait Time" || product === "No Show") return;
 
-                const enteredValue = parseFloat(productInputs[product]?.value);
+                const enteredValue = readHigherRateAmount(product, productInputs[product]?.value);
                 const qty = quantities[product] || 0;
 
                 if (!isNaN(enteredValue)) {
                     if (product === "Miscellaneous Dead Miles") {
                         higherTotal += enteredValue * (flatRateValue / 2);
-                    } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
+                    } else if (["Tolls", DD_ASSISTANCE_FEE_LABEL, DD_FUEL_SURCHARGE_LABEL, "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
                         if (!alreadyCounted.has(product)) {
                             alreadyCounted.add(product);
                             higherTotal += enteredValue;
@@ -2287,7 +2616,6 @@ function getTransportPreviewAmount() {
                     partsString
                     .replace(/,\s*/g, "\n")
                     .replace(/\/mile/g, " per mile")
-                    .replace(/\bcontract Wait Time\b/gi, "contract Wait Time per hour")
                     .replace(/\bWait Time\b/gi, "Wait Time per hour") +
                     "\n**Secure with Boomerang and leave in provider stage until rates approved";
             }
@@ -2313,9 +2641,13 @@ function getTransportPreviewAmount() {
                 copiedMsg.style.wordWrap = "break-word";
                 document.body.appendChild(copiedMsg);
                 setTimeout(() => copiedMsg.remove(), 1500);
-                applyHigherRatesToAuthorizationFields();
-                closeMarginCalcAfterRateAutomation();
+            }).catch(error => console.warn("Could not copy Boomerang request text.", error));
+
+            boomerangButton.disabled = true;
+            applyHigherRatesToAuthorizationFields(undefined, () => {
+                confirmRequestRates(boomerangText, referralKey);
             });
+            closeMarginCalcAfterRateAutomation();
         };
 
         const calculateMargin = () => {
@@ -2418,7 +2750,7 @@ function getTransportPreviewAmount() {
                 foundProducts.add("Miscellaneous Dead Miles");
             }
 
-            ["Tolls", "Other", "No Show", "Wait Time"].forEach(p => foundProducts.add(p));
+            ["Tolls", DD_ASSISTANCE_FEE_LABEL, DD_FUEL_SURCHARGE_LABEL, "No Show", "Wait Time"].forEach(p => foundProducts.add(p));
 
             const preferredOrder = [
                 "Transport Ambulatory",
@@ -2428,7 +2760,8 @@ function getTransportPreviewAmount() {
                 "One Way Surcharge",
                 "Load Fee",
                 "Tolls",
-                "Other",
+                DD_ASSISTANCE_FEE_LABEL,
+                DD_FUEL_SURCHARGE_LABEL,
                 "Wait Time",
                 "Additional Passenger",
                 "Rush Fee",
@@ -2492,7 +2825,7 @@ function getTransportPreviewAmount() {
                         leftGroup.appendChild(transportPreview);
                     }
 
-                    if (["Wait Time", "No Show", "Load Fee", "Additional Passenger", "Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS", "After Hours Fee", "Weekend Holiday"].includes(product)) {
+                    if (["Wait Time", "No Show", "Load Fee", "Additional Passenger", "Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS", "After Hours Fee", "Weekend Holiday", DD_FUEL_SURCHARGE_LABEL].includes(product)) {
                         const contractBtn = document.createElement("button");
                         contractBtn.innerText = "Contract Rates";
                         contractBtn.style.marginLeft = "10px";
@@ -2593,13 +2926,13 @@ ${loadFeeLine}
             let alreadyCounted = new Set();
 
             foundProducts.forEach(product => {
-                if (["Rush Fee", "Tolls", "Other", "Assistance Fee", "Passenger Fee", "Miscellaneous Dead Miles"].includes(product)) {
+                if (["Rush Fee", "Tolls", DD_ASSISTANCE_FEE_LABEL, DD_FUEL_SURCHARGE_LABEL, "Assistance Fee", "Passenger Fee", "Miscellaneous Dead Miles"].includes(product)) {
                     if (alreadyCounted.has(product)) return;
                     alreadyCounted.add(product);
                 }
 
                 let enteredValueRaw = productInputs[product]?.value;
-                let enteredValue = parseFloat(enteredValueRaw);
+                let enteredValue = readHigherRateAmount(product, enteredValueRaw);
                 let qty = product === "Wait Time" ? 1 : (quantities[product] || 0);
 
                 const contractProducts = {
@@ -2662,7 +2995,7 @@ ${loadFeeLine}
                 if (!isNaN(enteredValue)) {
                     if (product === "Miscellaneous Dead Miles" || product === "One Way Surcharge") {
                         higherTotal += enteredValue * (activeTransportRate / 2);
-                    } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
+                    } else if (["Tolls", DD_ASSISTANCE_FEE_LABEL, DD_FUEL_SURCHARGE_LABEL, "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
                         higherTotal += enteredValue;
                     } else if (product === "Wait Time") {
                         higherTotal += enteredValue;
@@ -5842,17 +6175,16 @@ function showTemplateReminderPopup(message) {
     const marginType = marginValue < 0 ? "negative margin" : "low margin";
     const baseText = `Management aware of Interpretation ${marginType}. Ok to staff approx. Margin ${marginDisplay}%`;
 
+    const referralKey = getRateRequestReferralKey();
+    const addApproval = reason => {
+        const noteText = reason ? baseText + " Reason: " + reason : baseText;
+        addCalculatorTimelineNote(noteText, referralKey, box);
+    };
+
     if (marginValue < 0) {
-      showReasonPrompt((reason) => {
-        const textToCopy = reason ? `${baseText} Reason: ${reason}` : baseText;
-        navigator.clipboard.writeText(textToCopy).then(() => {
-          showCenteredOverlayMessage(`"${textToCopy}" copied!`, true, 1000);
-        });
-      });
+        showReasonPrompt(addApproval);
     } else {
-      navigator.clipboard.writeText(baseText).then(() => {
-        showCenteredOverlayMessage(`"${baseText}" copied!`, true, 1000);
-      });
+        addApproval();
     }
   }
 );
@@ -7632,6 +7964,13 @@ function getNoShowAmountFromRow() {
             return { amount: 35, rule: "Flat rule fallback = $35" };
         }
 
+        if (headerText.startsWith("133-") && productName === "Transport Wheelchair") {
+            return {
+                amount: priceValue * 14,
+                rule: "Wheelchair rule: gtt_price x 14 (" + priceValue.toFixed(2) + " x 14)"
+            };
+        }
+
         if (group15.some(prefix => headerText.startsWith(prefix))) {
             if (
                 (headerText.startsWith("202-") || headerText.startsWith("9616-")) &&
@@ -8025,19 +8364,19 @@ homelinkButton.onclick = () => {
   foundProducts.forEach(product => {
     if (product === "Wait Time" || product === "No Show") return;
 
-    if (["Rush Fee", "Tolls", "Other", "Assistance Fee", "Passenger Fee", "Miscellaneous Dead Miles"].includes(product)) {
+    if (["Rush Fee", "Tolls", DD_ASSISTANCE_FEE_LABEL, DD_FUEL_SURCHARGE_LABEL, "Assistance Fee", "Passenger Fee", "Miscellaneous Dead Miles"].includes(product)) {
       if (alreadyCounted.has(product)) return;
       alreadyCounted.add(product);
     }
 
     const enteredValueRaw = productInputs[product]?.value;
-    const enteredValue = parseFloat(enteredValueRaw);
+    const enteredValue = readHigherRateAmount(product, enteredValueRaw);
     const qty = quantities[product] || 0;
 
     if (!isNaN(enteredValue)) {
       if (product === "Miscellaneous Dead Miles" || product === "One Way Surcharge") {
         higherTotal += enteredValue * (activeTransportRate / 2);
-      } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
+      } else if (["Tolls", DD_ASSISTANCE_FEE_LABEL, DD_FUEL_SURCHARGE_LABEL, "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
         higherTotal += enteredValue;
       } else {
         higherTotal += enteredValue * qty;
@@ -8185,13 +8524,13 @@ const alreadyCounted = new Set();
 Object.keys(productInputs).forEach(product => {
   if (product === "Wait Time" || product === "No Show") return;
 
-  const enteredValue = parseFloat(productInputs[product]?.value);
+  const enteredValue = readHigherRateAmount(product, productInputs[product]?.value);
   const qty = quantities[product] || 0;
 
   if (!isNaN(enteredValue)) {
     if (product === "Miscellaneous Dead Miles") {
       higherTotal += enteredValue * (flatRateValue / 2);
-    } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
+    } else if (["Tolls", DD_ASSISTANCE_FEE_LABEL, DD_FUEL_SURCHARGE_LABEL, "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
       if (!alreadyCounted.has(product)) {
         alreadyCounted.add(product);
         higherTotal += enteredValue;
@@ -8419,7 +8758,7 @@ rows.forEach(row => {
         }
 
         // Always add the remaining extras
-        ["Tolls", "Other", "No Show", "Wait Time"].forEach(p => foundProducts.add(p));
+        ["Tolls", DD_ASSISTANCE_FEE_LABEL, DD_FUEL_SURCHARGE_LABEL, "No Show", "Wait Time"].forEach(p => foundProducts.add(p));
 
 
 const preferredOrder = [
@@ -8430,7 +8769,8 @@ const preferredOrder = [
   "One Way Surcharge",
   "Load Fee",
   "Tolls",
-  "Other",
+  DD_ASSISTANCE_FEE_LABEL,
+  DD_FUEL_SURCHARGE_LABEL,
   "Wait Time",
   "Additional Passenger",
   "Rush Fee",
@@ -8493,7 +8833,7 @@ if (product === "No Show") {
     leftGroup.appendChild(transportPreview);
 }
 
-if (["Wait Time", "No Show", "Load Fee", "Additional Passenger", "Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS", "After Hours Fee", "Weekend Holiday"].includes(product)) {
+if (["Wait Time", "No Show", "Load Fee", "Additional Passenger", "Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS & BLS", "After Hours Fee", "Weekend Holiday", DD_FUEL_SURCHARGE_LABEL].includes(product)) {
     const contractBtn = document.createElement("button");
     contractBtn.innerText = "Contract Rates";
     contractBtn.style.marginLeft = "10px";
@@ -8611,13 +8951,13 @@ let alreadyCounted = new Set(); // Track items added once
 foundProducts.forEach(product => {
     // We now INCLUDE Wait Time in higherTotal
     // Prevent duplicates for Rush Fee, Tolls, etc.
-    if (["Rush Fee", "Tolls", "Other", "Assistance Fee", "Passenger Fee", "Miscellaneous Dead Miles"].includes(product)) {
+    if (["Rush Fee", "Tolls", DD_ASSISTANCE_FEE_LABEL, DD_FUEL_SURCHARGE_LABEL, "Assistance Fee", "Passenger Fee", "Miscellaneous Dead Miles"].includes(product)) {
         if (alreadyCounted.has(product)) return; // Skip if already counted
         alreadyCounted.add(product);
     }
 
     let enteredValueRaw = productInputs[product]?.value;
-    let enteredValue = parseFloat(enteredValueRaw);
+    let enteredValue = readHigherRateAmount(product, enteredValueRaw);
     let qty = product === "Wait Time" ? 1 : (quantities[product] || 0);
 
     //Enter Contract Rates
@@ -8689,7 +9029,7 @@ if ((enteredValueRaw || "").toLowerCase().includes("contract") && contractProduc
 if (!isNaN(enteredValue)) {
     if (product === "Miscellaneous Dead Miles" || product === "One Way Surcharge") {
         higherTotal += enteredValue * (activeTransportRate / 2);
-    } else if (["Tolls", "Other", "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
+    } else if (["Tolls", DD_ASSISTANCE_FEE_LABEL, DD_FUEL_SURCHARGE_LABEL, "Assistance Fee", "Passenger Fee", "Rush Fee"].includes(product)) {
         higherTotal += enteredValue;
     } else if (product === "Wait Time") {
         higherTotal += enteredValue * qty;
