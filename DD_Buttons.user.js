@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      5.1.0
+// @version      5.1.4
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Dynamics buttons: DD_Buttons_Lead members get admin tools; other users get regular tools.
@@ -1501,6 +1501,39 @@ async function showCalculatorUI() {
         twoColumnWrapper.appendChild(providerWrapper);
         twoColumnWrapper.appendChild(waitWrapper);
 
+        const noShowTopWrapper = document.createElement("div");
+        Object.assign(noShowTopWrapper.style, {
+            marginTop: "15px",
+            padding: "10px",
+            border: "2px solid #facc15",
+            borderRadius: "8px",
+            background: "#fffef0"
+        });
+
+        const noShowTopLabel = document.createElement("label");
+        noShowTopLabel.htmlFor = "ddAdminProviderNoShow";
+        Object.assign(noShowTopLabel.style, {
+            fontWeight: "bold",
+            display: "block",
+            marginBottom: "6px"
+        });
+
+        const noShowTopInput = document.createElement("input");
+        noShowTopInput.id = noShowTopLabel.htmlFor;
+        noShowTopInput.type = "number";
+        noShowTopInput.step = "0.01";
+        noShowTopInput.min = "0";
+        noShowTopInput.style.width = "100%";
+        noShowTopInput.placeholder = "Enter provider no show amount";
+        noShowTopWrapper.append(noShowTopLabel, noShowTopInput);
+
+        function updateProviderNoShowLabel(contractNoShow) {
+            noShowTopLabel.textContent = contractNoShow > 0
+                ? "No Show (contract $" + contractNoShow.toFixed(2) + "):"
+                : "No Show:";
+        }
+        updateProviderNoShowLabel(getNoShowAmountFromRow().amount);
+
         const result = document.createElement("div");
         result.style.marginTop = "3px";
         result.style.fontWeight = "bold";
@@ -1556,7 +1589,7 @@ function getNoShowAmountFromRow() {
     const headerElement = document.querySelector('[id^="formHeaderTitle"]');
     const headerText = headerElement?.textContent?.trim() || "";
 
-    const groupFlat = ["4474-","11525-","8814-","10837-","9996-","7091-","10094-"];
+    const groupFlat = ["4474-","11525-","8814-","10837-"];
     const group15 = ["133-","202-","9616-"];
     const group16 = [
         "9617-","145-","9548-","9337-","4234-","4403-","5219-",
@@ -1696,6 +1729,7 @@ function getTransportPreviewAmount() {
         resetButton.onclick = () => {
             input.value = "";
             waitTimeInput.value = "";
+            noShowTopInput.value = "";
             providerLoadFeeInput.value = "";
             providerLoadFeeWrap.style.display = "none";
             flatRadio.checked = true;
@@ -1746,7 +1780,12 @@ function getTransportPreviewAmount() {
             }
 
             const marginValue = parseFloat(marginDisplay);
-            const marginType = marginValue < 0 ? "negative margin" : "low margin";
+            const providerNoShow = noShowTopInput.valueAsNumber;
+            const contractNoShow = Number(getNoShowAmountFromRow().amount.toFixed(2));
+            const exceedsContractNoShow = contractNoShow > 0 &&
+                Number.isFinite(providerNoShow) && providerNoShow > contractNoShow;
+            const marginType = exceedsContractNoShow ? "margin and no show fee" :
+                (marginValue < 0 ? "negative margin" : "low margin");
             const baseText = `Management aware of Transportation ${marginType}. Ok to staff approx. Margin ${marginDisplay}%`;
 
             const referralKey = getRateRequestReferralKey();
@@ -2655,6 +2694,7 @@ function getTransportPreviewAmount() {
             const inputValue = parseFloat(input.value) || 0;
             const waitTimeValue = parseFloat(waitTimeInput.value) || 0;
             const noShowInfo = getNoShowAmountFromRow();
+            updateProviderNoShowLabel(noShowInfo.amount);
 
             if (noShowPreview) {
                 noShowPreview.innerText = noShowInfo.amount > 0
@@ -2911,13 +2951,13 @@ function getTransportPreviewAmount() {
                     ? `<span>Load Fee: $${providerLoadFee.toFixed(2)} x ${loadFeeQty} = $${(providerLoadFee * loadFeeQty).toFixed(2)}</span>`
                     : "";
 
-            result.innerHTML = `
-${milesLine}
-${loadFeeLine}
-<span>Total Paid: $${paidAmount.toFixed(2)}</span>
-<span>Total Billed: $${totalBilled.toFixed(2)}</span>
-<span style="color:${marginColor};font-weight:bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
-`;
+            result.innerHTML = [
+                milesLine,
+                loadFeeLine,
+                `<span>Total Paid: $${paidAmount.toFixed(2)}</span>`,
+                `<span>Total Billed: $${totalBilled.toFixed(2)}</span>`,
+                `<span style="color:${marginColor};font-weight:bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}`
+            ].filter(Boolean).join("\n");
 
             const target = totalBilled * (1 - marginRule.regular.green_min / 100);
             targetLabel.innerHTML = `<span>Target to pay this or less: $${target.toFixed(2)}</span>`;
@@ -3024,6 +3064,7 @@ ${loadFeeLine}
         flatRadio.addEventListener("change", () => {
             input.value = "";
             waitTimeInput.value = "";
+            noShowTopInput.value = "";
             providerLoadFeeInput.value = "";
             providerLoadFeeWrap.style.display = "none";
             if (noShowPreview) {
@@ -3039,6 +3080,7 @@ ${loadFeeLine}
         mileRadio.addEventListener("change", () => {
             input.value = "";
             waitTimeInput.value = "";
+            noShowTopInput.value = "";
             providerLoadFeeInput.value = "";
             if (noShowPreview) {
                 noShowPreview.innerText = "";
@@ -3061,6 +3103,7 @@ ${loadFeeLine}
         box.appendChild(mileRadio);
         box.appendChild(mileLabel);
         box.appendChild(twoColumnWrapper);
+        box.appendChild(noShowTopWrapper);
         box.appendChild(result);
         box.appendChild(targetLabel);
         box.appendChild(higherHeader);
@@ -3070,16 +3113,16 @@ ${loadFeeLine}
         box.appendChild(uberLMButton);
         box.appendChild(waittimeButton);
         box.appendChild(WaitStaffButton);
-        box.appendChild(boomerangButton);
-
-        if (headerText.startsWith("212-")) {
-            box.appendChild(homelinkButton);
-        } else {
-            box.appendChild(requestRatesButton);
-            box.appendChild(applyRatesButton);
+        const rateActionRow = document.createElement("div");
+        Object.assign(rateActionRow.style, { display: "flex", flexWrap: "wrap", columnGap: "8px" });
+        const rateButtons = headerText.startsWith("212-")
+            ? [homelinkButton]
+            : [requestRatesButton, applyRatesButton];
+        for (const button of [boomerangButton, ...rateButtons, resetButton]) {
+            button.style.marginRight = "0";
+            rateActionRow.appendChild(button);
         }
-
-        box.appendChild(resetButton);
+        box.appendChild(rateActionRow);
         document.body.appendChild(box);
 
         let isDragging = false;
