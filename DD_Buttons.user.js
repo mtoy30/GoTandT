@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      5.1.4
+// @version      5.1.6
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Dynamics buttons: DD_Buttons_Lead members get admin tools; other users get regular tools.
@@ -1468,13 +1468,16 @@ async function showCalculatorUI() {
         mileLabel.htmlFor = "rateMile";
         mileLabel.innerText = "Per Mile";
 
-        const twoColumnWrapper = document.createElement("div");
-        twoColumnWrapper.style.display = "flex";
-        twoColumnWrapper.style.gap = "15px";
-        twoColumnWrapper.style.marginTop = "15px";
+        const providerInputs = document.createElement("div");
+        Object.assign(providerInputs.style, {
+            display: "grid",
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            columnGap: "10px",
+            marginTop: "15px"
+        });
 
         const providerWrapper = document.createElement("div");
-        providerWrapper.style.flex = "1";
+
 
         const inputLabel = document.createElement("label");
         inputLabel.innerText = "Enter Provider Rate:";
@@ -1484,6 +1487,7 @@ async function showCalculatorUI() {
         const input = document.createElement("input");
         input.type = "number";
         input.style.width = "100%";
+        input.style.boxSizing = "border-box";
         input.style.marginTop = "10px";
         input.style.marginBottom = "15px";
         providerWrapper.appendChild(input);
@@ -1507,7 +1511,7 @@ async function showCalculatorUI() {
         providerWrapper.appendChild(providerLoadFeeWrap);
 
         const waitWrapper = document.createElement("div");
-        waitWrapper.style.flex = "1";
+
 
         const waitTimeLabel = document.createElement("label");
         waitTimeLabel.innerText = "Enter Wait Time:";
@@ -1517,39 +1521,34 @@ async function showCalculatorUI() {
         const waitTimeInput = document.createElement("input");
         waitTimeInput.type = "number";
         waitTimeInput.style.width = "100%";
+        waitTimeInput.style.boxSizing = "border-box";
         waitTimeInput.style.marginTop = "10px";
         waitTimeInput.style.marginBottom = "15px";
         waitTimeInput.value = "";
         waitWrapper.appendChild(waitTimeInput);
 
-        twoColumnWrapper.appendChild(providerWrapper);
-        twoColumnWrapper.appendChild(waitWrapper);
-
-        const noShowTopWrapper = document.createElement("div");
-        Object.assign(noShowTopWrapper.style, {
-            marginTop: "15px",
-            padding: "10px",
-            border: "2px solid #facc15",
-            borderRadius: "8px",
-            background: "#fffef0"
-        });
 
         const noShowTopLabel = document.createElement("label");
         noShowTopLabel.htmlFor = "ddAdminProviderNoShow";
-        Object.assign(noShowTopLabel.style, {
-            fontWeight: "bold",
-            display: "block",
-            marginBottom: "6px"
-        });
+        noShowTopLabel.style.fontWeight = "bold";
 
         const noShowTopInput = document.createElement("input");
         noShowTopInput.id = noShowTopLabel.htmlFor;
         noShowTopInput.type = "number";
         noShowTopInput.step = "0.01";
         noShowTopInput.min = "0";
-        noShowTopInput.style.width = "100%";
+        Object.assign(noShowTopInput.style, {
+            width: "100%",
+            boxSizing: "border-box",
+            marginTop: "10px",
+            marginBottom: "15px",
+            borderColor: "#facc15",
+            background: "#fffef0"
+        });
         noShowTopInput.placeholder = "Enter provider no show amount";
+        const noShowTopWrapper = document.createElement("div");
         noShowTopWrapper.append(noShowTopLabel, noShowTopInput);
+        providerInputs.append(providerWrapper, waitWrapper, noShowTopWrapper);
 
         function updateProviderNoShowLabel(contractNoShow) {
             noShowTopLabel.textContent = contractNoShow > 0
@@ -3126,8 +3125,7 @@ function getTransportPreviewAmount() {
         box.appendChild(flatLabel);
         box.appendChild(mileRadio);
         box.appendChild(mileLabel);
-        box.appendChild(twoColumnWrapper);
-        box.appendChild(noShowTopWrapper);
+        box.appendChild(providerInputs);
         box.appendChild(result);
         box.appendChild(targetLabel);
         box.appendChild(higherHeader);
@@ -7782,8 +7780,8 @@ function renderCalculatorUI(marginSettings) {
     box.style.border = "2px solid #000";
     box.style.borderRadius = "10px";
     box.style.zIndex = "10000";
-    box.style.minWidth = "500px";
-    box.style.maxWidth = "500px";
+    box.style.minWidth = "520px";
+    box.style.maxWidth = "520px";
     box.style.color = "black";
 
     // Auto height now that Higher Rates is collapsed by default; still scroll if content overflows.
@@ -7835,14 +7833,16 @@ function renderCalculatorUI(marginSettings) {
     mileLabel.htmlFor = "rateMile";
     mileLabel.innerText = "Per Mile";
 
-const twoColumnWrapper = document.createElement("div");
-twoColumnWrapper.style.display = "flex";
-twoColumnWrapper.style.gap = "15px";
-twoColumnWrapper.style.marginTop = "15px";
+const providerInputs = document.createElement("div");
+Object.assign(providerInputs.style, {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    columnGap: "10px",
+    marginTop: "15px"
+});
 
 // Provider Rate column
 const providerWrapper = document.createElement("div");
-providerWrapper.style.flex = "1";
 const inputLabel = document.createElement("label");
 inputLabel.innerText = "Enter Provider Rate:";
 inputLabel.style.fontWeight = "bold";
@@ -7850,6 +7850,7 @@ providerWrapper.appendChild(inputLabel);
 const input = document.createElement("input");
 input.type = "number";
 input.style.width = "100%";
+input.style.boxSizing = "border-box";
 input.style.marginTop = "10px";
 input.style.marginBottom = "15px";
 providerWrapper.appendChild(input);
@@ -7875,7 +7876,6 @@ providerWrapper.appendChild(providerLoadFeeWrap);
 
 // Wait Time column
 const waitWrapper = document.createElement("div");
-waitWrapper.style.flex = "1";
 const waitTimeLabel = document.createElement("label");
 waitTimeLabel.innerText = "Enter Wait Time:";
 waitTimeLabel.style.fontWeight = "bold";
@@ -7883,40 +7883,45 @@ waitWrapper.appendChild(waitTimeLabel);
 const waitTimeInput = document.createElement("input");
 waitTimeInput.type = "number";
 waitTimeInput.style.width = "100%";
+waitTimeInput.style.boxSizing = "border-box";
 waitTimeInput.style.marginTop = "10px";
 waitTimeInput.style.marginBottom = "15px";
 waitTimeInput.value = "";
 waitWrapper.appendChild(waitTimeInput);
 
-// Add both columns to the row
-twoColumnWrapper.appendChild(providerWrapper);
-twoColumnWrapper.appendChild(waitWrapper);
-
-// No Show box used for LMS API submit
-const noShowTopWrapper = document.createElement("div");
-noShowTopWrapper.style.marginTop = "15px";
-noShowTopWrapper.style.padding = "10px";
-noShowTopWrapper.style.border = "2px solid #facc15";
-noShowTopWrapper.style.borderRadius = "8px";
-noShowTopWrapper.style.background = "#fffef0";
-
+// Provider No Show is also used for LMS API submit.
 const noShowTopLabel = document.createElement("label");
-noShowTopLabel.innerText = "No Show:";
+noShowTopLabel.htmlFor = "ddUserProviderNoShow";
 noShowTopLabel.style.fontWeight = "bold";
-noShowTopLabel.style.display = "block";
-noShowTopLabel.style.marginBottom = "6px";
-noShowTopWrapper.appendChild(noShowTopLabel);
 
 const noShowTopInput = document.createElement("input");
+noShowTopInput.id = noShowTopLabel.htmlFor;
 noShowTopInput.type = "number";
 noShowTopInput.step = "0.01";
 noShowTopInput.min = "0";
-noShowTopInput.style.width = "100%";
+Object.assign(noShowTopInput.style, {
+    width: "100%",
+    boxSizing: "border-box",
+    marginTop: "10px",
+    marginBottom: "15px",
+    borderColor: "#facc15",
+    background: "#fffef0"
+});
 noShowTopInput.value = "";
 noShowTopInput.placeholder = "Enter provider no show amount";
 let noShowTopTouched = false;
 noShowTopInput.addEventListener("input", () => { noShowTopTouched = true; });
-noShowTopWrapper.appendChild(noShowTopInput);
+
+const noShowTopWrapper = document.createElement("div");
+noShowTopWrapper.append(noShowTopLabel, noShowTopInput);
+providerInputs.append(providerWrapper, waitWrapper, noShowTopWrapper);
+
+function updateProviderNoShowLabel(contractNoShow) {
+    noShowTopLabel.textContent = contractNoShow > 0
+        ? "No Show (contract $" + contractNoShow.toFixed(2) + "):"
+        : "No Show:";
+}
+updateProviderNoShowLabel(getNoShowAmountFromRow().amount);
 
 
     const result = document.createElement("div");
@@ -8727,6 +8732,7 @@ if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS &
         const inputValue = parseFloat(input.value) || 0;
         const waitTimeValue = parseFloat(waitTimeInput.value) || 0;
         const noShowInfo = getNoShowAmountFromRow();
+        updateProviderNoShowLabel(noShowInfo.amount);
 
 if (noShowPreview) {
     noShowPreview.innerText = noShowInfo.amount > 0
@@ -8991,13 +8997,13 @@ const loadFeeLine =
     ? `<span>Load Fee: $${providerLoadFee.toFixed(2)} x ${loadFeeQty} = $${(providerLoadFee * loadFeeQty).toFixed(2)}</span>`
     : "";
 
-result.innerHTML = `
-${milesLine}
-${loadFeeLine}
-<span>Total Paid: $${paidAmount.toFixed(2)}</span>
-<span>Total Billed: $${totalBilled.toFixed(2)}</span>
-<span style="color:${marginColor};font-weight:bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}
-`;
+        result.innerHTML = [
+            milesLine,
+            loadFeeLine,
+            `<span>Total Paid: $${paidAmount.toFixed(2)}</span>`,
+            `<span>Total Billed: $${totalBilled.toFixed(2)}</span>`,
+            `<span style="color:${marginColor};font-weight:bold;">Margin: ${margin.toFixed(2)}%</span>${approvalNote}`
+        ].filter(Boolean).join("\n");
 
         const target = totalBilled * (1 - marginRule.regular.green_min / 100);
         targetLabel.innerHTML = `<span>Target to pay this or less: $${target.toFixed(2)}</span>`;
@@ -9166,8 +9172,7 @@ calculateMargin();
     box.appendChild(flatLabel);
     box.appendChild(mileRadio);
     box.appendChild(mileLabel);
-    box.appendChild(twoColumnWrapper);
-    box.appendChild(noShowTopWrapper);
+    box.appendChild(providerInputs);
     box.appendChild(result);
     box.appendChild(targetLabel);
     box.appendChild(toggleHigherRatesButton);
