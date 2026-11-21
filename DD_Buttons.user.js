@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      5.1.6
+// @version      5.1.7
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Dynamics buttons: DD_Buttons_Lead members get admin tools; other users get regular tools.
@@ -1133,7 +1133,7 @@ function initSelectedMode() {
             return;
         }
 
-        if (action === "apply") {
+        if (action === "apply" && !/^Apply rates\b/i.test(requestText || "")) {
             if (requestText) GM_setClipboard(requestText);
             applyRates(payload, () =>
                 showCenteredOverlayMessage("Please review rates. Notate and save the referral.", true, 3000)
@@ -2359,6 +2359,36 @@ function getTransportPreviewAmount() {
             }, 500);
         }
 
+        function applyAndConfirmCalculatorRates(finalText, referralKey) {
+            saveLastAuthorizedRatesFromCalculator(finalText, "confirm");
+
+            navigator.clipboard.writeText(finalText).then(() => {
+                const copiedMsg = document.createElement("div");
+                copiedMsg.innerText = `"${finalText}" copied!`;
+                copiedMsg.style.position = "fixed";
+                copiedMsg.style.top = "50%";
+                copiedMsg.style.left = "50%";
+                copiedMsg.style.transform = "translate(-50%, -50%)";
+                copiedMsg.style.background = "rgba(0,0,0,0.8)";
+                copiedMsg.style.color = "#fff";
+                copiedMsg.style.padding = "15px 25px";
+                copiedMsg.style.borderRadius = "8px";
+                copiedMsg.style.zIndex = "10001";
+                copiedMsg.style.fontSize = "18px";
+                copiedMsg.style.fontWeight = "bold";
+                copiedMsg.style.textAlign = "center";
+                copiedMsg.style.maxWidth = "80%";
+                copiedMsg.style.wordWrap = "break-word";
+                document.body.appendChild(copiedMsg);
+                setTimeout(() => copiedMsg.remove(), 1500);
+            }).catch(error => console.warn("Could not copy calculator rate text.", error));
+
+            applyHigherRatesToAuthorizationFields(undefined, () => {
+                confirmRequestRates(finalText, referralKey);
+            });
+            closeMarginCalcAfterRateAutomation();
+        }
+
         const requestRatesButton = createModernButton("Request Rates", "#22c55e", "#4ade80");
         requestRatesButton.onclick = () => {
             requestRatesButton.disabled = true;
@@ -2388,37 +2418,12 @@ function getTransportPreviewAmount() {
                 .replace(/\bWait Time\b/g, "Wait Time per hour");
 
             calculateMargin();
-            saveLastAuthorizedRatesFromCalculator(finalText, "confirm");
-
-            navigator.clipboard.writeText(finalText).then(() => {
-                const copiedMsg = document.createElement("div");
-                copiedMsg.innerText = `"${finalText}" copied!`;
-                copiedMsg.style.position = "fixed";
-                copiedMsg.style.top = "50%";
-                copiedMsg.style.left = "50%";
-                copiedMsg.style.transform = "translate(-50%, -50%)";
-                copiedMsg.style.background = "rgba(0,0,0,0.8)";
-                copiedMsg.style.color = "#fff";
-                copiedMsg.style.padding = "15px 25px";
-                copiedMsg.style.borderRadius = "8px";
-                copiedMsg.style.zIndex = "10001";
-                copiedMsg.style.fontSize = "18px";
-                copiedMsg.style.fontWeight = "bold";
-                copiedMsg.style.textAlign = "center";
-                copiedMsg.style.maxWidth = "80%";
-                copiedMsg.style.wordWrap = "break-word";
-                document.body.appendChild(copiedMsg);
-                setTimeout(() => copiedMsg.remove(), 1500);
-            }).catch(error => console.warn("Could not copy Request Rates text.", error));
-
-            applyHigherRatesToAuthorizationFields(undefined, () => {
-                confirmRequestRates(finalText, referralKey);
-            });
-            closeMarginCalcAfterRateAutomation();
+            applyAndConfirmCalculatorRates(finalText, referralKey);
         };
 
         const applyRatesButton = createModernButton("Apply & Staff", "#a855f7", "#c084fc");
         applyRatesButton.onclick = () => {
+            const referralKey = getRateRequestReferralKey();
             let miles = 0;
             let loadFeeQuantity = 0;
 
@@ -2440,30 +2445,8 @@ function getTransportPreviewAmount() {
             const finalParts = buildPartsString(productInputs, {}, miles, loadFeeQuantity);
             const finalText = "Apply rates " + finalParts + " // Advise in Staffing email";
 
-            saveLastAuthorizedRatesFromCalculator(finalText, "apply");
-
-            navigator.clipboard.writeText(finalText).then(() => {
-                const copiedMsg = document.createElement("div");
-                copiedMsg.innerText = `"${finalText}" copied!`;
-                copiedMsg.style.position = "fixed";
-                copiedMsg.style.top = "50%";
-                copiedMsg.style.left = "50%";
-                copiedMsg.style.transform = "translate(-50%, -50%)";
-                copiedMsg.style.background = "rgba(0,0,0,0.8)";
-                copiedMsg.style.color = "#fff";
-                copiedMsg.style.padding = "15px 25px";
-                copiedMsg.style.borderRadius = "8px";
-                copiedMsg.style.zIndex = "10001";
-                copiedMsg.style.fontSize = "18px";
-                copiedMsg.style.fontWeight = "bold";
-                copiedMsg.style.textAlign = "center";
-                copiedMsg.style.maxWidth = "80%";
-                copiedMsg.style.wordWrap = "break-word";
-                document.body.appendChild(copiedMsg);
-                setTimeout(() => copiedMsg.remove(), 1500);
-                applyHigherRatesToAuthorizationFields();
-                closeMarginCalcAfterRateAutomation();
-            });
+            applyRatesButton.disabled = true;
+            applyAndConfirmCalculatorRates(finalText, referralKey);
         };
 
         const homelinkButton = createModernButton("Request Homelink Rates", "#a855f7", "#c084fc");
