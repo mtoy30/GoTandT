@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      5.1.7
+// @version      5.1.8
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Dynamics buttons: DD_Buttons_Lead members get admin tools; other users get regular tools.
@@ -1612,7 +1612,7 @@ function getNoShowAmountFromRow() {
     const headerElement = document.querySelector('[id^="formHeaderTitle"]');
     const headerText = headerElement?.textContent?.trim() || "";
 
-    const groupFlat = ["4474-","11525-","8814-","10837-"];
+    const groupFlat = ["4474-","11525-","8814-","10837-","10094-","11217-","9996-","7091-"];
     const group15 = ["133-","202-","9616-"];
     const group16 = [
         "9617-","145-","9548-","9337-","4234-","4403-","5219-",
