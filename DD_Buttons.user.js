@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      5.1.8
+// @version      5.1.9
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Dynamics buttons: DD_Buttons_Lead members get admin tools; other users get regular tools.
@@ -1117,7 +1117,10 @@ function initSelectedMode() {
     function applyMultiDayRates(applyRates) {
         const referralKey = getRateRequestReferralKey();
         const { payload, requestText, action = "confirm" } = ddLoadLastAuthorizedRateRecord();
-        if (action === "timeline" && requestText) {
+        // Older UBER LM records were saved as clipboard actions.
+        const legacyUberNote = action === "clipboard" &&
+            requestText?.startsWith("Management aware of Transportation low margin. Ok to staff with UBER based on round trip ");
+        if (requestText && (action === "timeline" || legacyUberNote)) {
             addCalculatorTimelineNote(requestText, referralKey);
             return;
         }
@@ -1839,27 +1842,7 @@ function getTransportPreviewAmount() {
             }
             const paidDisplay = paidMatch[1];
             const textToCopy = `Management aware of Transportation low margin. Ok to staff with UBER based on round trip $${paidDisplay} approx margin ${marginDisplay}%`;
-            ddSaveLastAuthorizedRatesGlobal(null, textToCopy, "clipboard");
-            navigator.clipboard.writeText(textToCopy).then(() => {
-                const copiedMsg = document.createElement("div");
-                copiedMsg.innerText = `"${textToCopy}" copied!`;
-                copiedMsg.style.position = "fixed";
-                copiedMsg.style.top = "50%";
-                copiedMsg.style.left = "50%";
-                copiedMsg.style.transform = "translate(-50%, -50%)";
-                copiedMsg.style.background = "rgba(0,0,0,0.8)";
-                copiedMsg.style.color = "#fff";
-                copiedMsg.style.padding = "15px 25px";
-                copiedMsg.style.borderRadius = "8px";
-                copiedMsg.style.zIndex = "10001";
-                copiedMsg.style.fontSize = "18px";
-                copiedMsg.style.fontWeight = "bold";
-                copiedMsg.style.textAlign = "center";
-                copiedMsg.style.maxWidth = "80%";
-                copiedMsg.style.wordWrap = "break-word";
-                document.body.appendChild(copiedMsg);
-                setTimeout(() => copiedMsg.remove(), 1500);
-            });
+            addCalculatorTimelineNote(textToCopy, getRateRequestReferralKey(), box);
         };
 
         const waittimeButton = createModernButton("Wait Time Request", "#3b82f6", "#60a5fa", () => {
