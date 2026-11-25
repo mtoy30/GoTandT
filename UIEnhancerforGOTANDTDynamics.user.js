@@ -5484,8 +5484,6 @@ function addPasteButton() {
         window.location.href='mailto:driverdeveloper@gotandt.com?subject='+encodeURIComponent(subject);
       },row);
       sendButton.className='send-dd';sendButton.title='Open an email to Driver Developer';
-      const detected=el('small',new Date(a.detected_at).toLocaleString(),row);
-      detected.title='Alert detected';
       const dismissButton=action('Dismiss for everyone',b=>dismiss([a.id],b),row);
       dismissButton.className='dismiss-referral';
     }
