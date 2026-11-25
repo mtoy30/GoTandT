@@ -5124,7 +5124,7 @@ function addPasteButton() {
   let scanPending=true, scanTimer=0, permissionBusy=false, scanStarted=0;
   let diagnosticsRoot=null, diagnosticsList=null;
   const ACTIVITY=BASE+'activity';
-  const panelWidth=680;
+  const panelWidth=530;
 
 
   // Per-account placement is shared by Tampermonkey across tabs and windows.
@@ -5499,7 +5499,7 @@ function addPasteButton() {
       '.body{position:absolute;left:0;bottom:50px;box-sizing:border-box;width:'+panelWidth+'px;max-width:calc(100vw - 16px);background:white;border:1px solid #ccd5df;border-radius:9px;margin-bottom:8px;box-shadow:0 4px 24px #0003;padding:12px;max-height:80vh;overflow:auto}',
       '[hidden]{display:none!important}.list{max-height:300px;overflow:auto}.entry{padding:9px 0;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}',
       'a{color:#005a9e;font-weight:700}small{font-size:11px;color:#526175;white-space:nowrap}.entry button{white-space:nowrap}',
-      '.referral-label{min-width:0;overflow-wrap:anywhere}.entry .send-dd{font-size:11px;padding:4px 6px}.dismiss-referral{margin-left:auto}',
+      '.referral-label{min-width:0;overflow-wrap:anywhere}.entry .send-dd{font-size:11px;padding:4px 6px}',
       '.status,.identity{font-size:11px;color:#526175;margin:8px 0;line-height:1.5;overflow-wrap:anywhere}',
       '.connection{margin:10px 0;padding:10px;background:#f1f5f9;border-radius:6px}input{width:100%;margin:6px 0;padding:7px;border:1px solid #cbd5e1;border-radius:5px}'
     ].join('');
