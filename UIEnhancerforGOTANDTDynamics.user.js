@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UIEnhancerforGOTANDTDynamics
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      2.2.2
+// @version      2.2.5
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/UIEnhancerforGOTANDTDynamics.user.js
 // @description  Dynamics UI tweaks; Boomerang form autofill (clipboard → GM storage bridge → googleusercontent iframe); PowerApps Copy button for Leg Info overlay; Uber Health ride autofill from Excel; shared LMS RUSH alerts for active monitoring users.
@@ -26,7 +26,6 @@
 // @run-at       document-start
 // @grant        GM_removeValueChangeListener
 // @grant        GM_addValueChangeListener
-// @grant        GM_notification
 // @grant        GM_openInTab
 // @grant        GM_registerMenuCommand
 // ==/UserScript==
@@ -5119,12 +5118,13 @@ function addPasteButton() {
   let scope = '', signature = '', stableSince = 0, enteredAt = 0;
   let nextRefresh = 0, nextPublish = 0, publishBusy = false, nextPoll = 0, pollBusy = false;
   let expanded = false, status = 'Starting', serverStatus = 'Not connected', lastScan = 0;
-  let panel, body, toggle, statusNode, list, connection, keyInput, identityNode, desktopButton, dismissAllButton, connectLmsButton;
+  let panel, body, toggle, statusNode, list, connection, keyInput, identityNode, connectLmsButton;
   let lastRows = '', unread = 0, claimBusy = false;
   let chain = Promise.resolve();
   let scanPending=true, scanTimer=0, permissionBusy=false, scanStarted=0;
   let diagnosticsRoot=null, diagnosticsList=null;
   const ACTIVITY=BASE+'activity';
+  const panelWidth=680;
 
 
   // Per-account placement is shared by Tampermonkey across tabs and windows.
@@ -5166,7 +5166,7 @@ function addPasteButton() {
     const y=g.minY+placement.y*Math.max(0,g.maxY-g.minY);
     panel.style.left=x+'px';panel.style.top=y+'px';
     if(body.hidden)return;
-    const bodyWidth=Math.min(410,Math.max(0,g.width-16));
+    const bodyWidth=Math.min(panelWidth,Math.max(0,g.width-16));
     body.style.width=bodyWidth+'px';
     body.style.left=(clampPlacement(x-bodyWidth/2,8,Math.max(8,g.width-bodyWidth-8))-x)+'px';
     const above=Math.max(0,y-g.buttonHeight-16);
@@ -5255,17 +5255,76 @@ function addPasteButton() {
       new URLSearchParams(location.search).get('pagetype') === 'entitylist';
   }
   function viewId() { return new URLSearchParams(location.search).get('viewid') || 'rush'; }
+  const rushGrid = '[role="grid"], [role="treegrid"], [role="table"], table, .ag-root';
+  const rushRow = '[role="row"], tr, .ag-row, [data-row-index]';
+  const rushCell = '[role="gridcell"], [role="cell"], td, .ag-cell';
+  const rushHeader = '[role="columnheader"], th, .ag-header-cell';
+
+  function gridText(element) {
+    if (!element) return '';
+    const content = element.cloneNode(true);
+    content.querySelectorAll('[hidden], [aria-hidden="true"], [role="tooltip"]').forEach(node => node.remove());
+    return (content.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+  function appointmentColumns(grid, cache) {
+    if (cache.has(grid)) return cache.get(grid);
+    const headers = [...grid.querySelectorAll(rushHeader)]
+      .filter(header => header.closest(rushGrid) === grid);
+    const findColumn = label => {
+      const index = headers.findIndex(header => [
+        header.getAttribute('aria-label'), header.getAttribute('title'), gridText(header)
+      ].some(text => text && (
+        text.trim().toLowerCase() === label ||
+        text.trim().toLowerCase().startsWith(label + ',')
+      )));
+      if (index < 0) return null;
+      return {header:headers[index], index, count:headers.length};
+    };
+    const columns = {time:findColumn('appointment time'), zone:findColumn('tz')};
+    cache.set(grid, columns);
+    return columns;
+  }
+  function appointmentCell(cells, column) {
+    if (!column) return undefined;
+    for (const attribute of ['col-id', 'data-attribute', 'aria-colindex']) {
+      const value = column.header.getAttribute(attribute);
+      if (!value) continue;
+      const cell = cells.find(candidate => candidate.getAttribute(attribute) === value);
+      if (cell) return gridText(cell);
+      // When the row exposes this column identifier, a missing match means the cell is absent.
+      if (cells.some(candidate => candidate.hasAttribute(attribute))) return undefined;
+    }
+    return cells.length === column.count ? gridText(cells[column.index]) : undefined;
+  }
   function records() {
     const result = new Map();
+    const columnsByGrid = new Map();
     for (const a of document.querySelectorAll('a[href*="etn=gtt_referral"]')) {
-      if (!a.closest('[role="row"], tr, .ag-row, [data-row-index]')) continue;
+      const row = a.closest(rushRow);
+      if (!row) continue;
       const number = (a.getAttribute('aria-label') || a.textContent || '').trim();
       if (!/^\d+-\d+(?:-\d+)?$/.test(number)) continue;
       const url = new URL(a.href, location.href);
-      if (url.origin === location.origin && url.searchParams.get('etn') === 'gtt_referral')
-        result.set(number, {number, url:url.href});
+      if (url.origin !== location.origin || url.searchParams.get('etn') !== 'gtt_referral') continue;
+      const record = {number, url:url.href};
+      const grid = row.closest(rushGrid);
+      if (grid) {
+        const cells = [...row.querySelectorAll(rushCell)].filter(cell => cell.closest(rushRow) === row);
+        const timeCell = cells.find(cell => cell.getAttribute('col-id') === 'gtt_appointmenttime');
+        const zoneCell = cells.find(cell => cell.getAttribute('col-id') === 'gtt_timezone');
+        const columns = timeCell && zoneCell ? null : appointmentColumns(grid, columnsByGrid);
+        const appointmentTime = timeCell ? gridText(timeCell) : appointmentCell(cells, columns?.time);
+        const appointmentTz = zoneCell ? gridText(zoneCell) : appointmentCell(cells, columns?.zone);
+        if (appointmentTime !== undefined) record.appointment_time = appointmentTime || null;
+        if (appointmentTz !== undefined) record.appointment_tz = appointmentTz || null;
+      }
+      result.set(number, record);
     }
     return [...result.values()];
+  }
+  function appointmentLabel({appointment_time, appointment_tz}) {
+    if (!appointment_time) return '';
+    return [appointment_time, appointment_tz].filter(Boolean).join(' ');
   }
   function loading() {
     return [...document.querySelectorAll('[role="grid"][aria-busy="true"], [role="progressbar"]')]
@@ -5345,7 +5404,7 @@ function addPasteButton() {
     if(loading()){queueScan();return;}
     const rows=records();
     if(!rows.length && !emptyList()){status='Waiting for referral rows or an empty-list message';queueScan();return;}
-    const sig=rows.map(r=>r.number).sort().join('|');
+    const sig=JSON.stringify([...rows].sort((a,b)=>a.number.localeCompare(b.number)));
     if(sig!==signature){signature=sig;stableSince=Date.now();nextPublish=0;queueScan();return;}
     if(Date.now()-stableSince<3000 || Date.now()-enteredAt<5000 || Date.now()<nextPublish){queueScan();return;}
     const currentScope=scope;
@@ -5371,25 +5430,10 @@ function addPasteButton() {
       claimBusy=false;
     },100+Math.random()*300);
   }
-  function notifyNew() {
-    // Only the browser poll leader creates desktop notifications.
-    const seenKey=BASE+'notified';
-    const saved=GM_getValue(seenKey,null);
-    const seen=new Set(saved || []);
-    const fresh=alerts.filter(a=>!seen.has(String(a.id)));
-    const all=[...new Set([...(saved || []),...alerts.map(a=>String(a.id))])].slice(-10000);
-    GM_setValue(seenKey,all);
-    if(!authorized || saved===null || !fresh.length || !GM_getValue(ROOT+'desktop',false))return;
-    try{GM_notification({
-      title:'New RUSH referral'+(fresh.length>1?'s':''),
-      text:fresh.map(a=>a.number).join(', '),timeout:15000,
-      onclick:()=>GM_openInTab(fresh[0].url,{active:true,insert:true})
-    });}catch(e){console.warn('[RUSH Watch]',e);}
-  }
   async function poll(force=false) {
     if(pollBusy || !getKey() || !email || (!force && !isLeader()) || Date.now()<nextPoll)return;
     pollBusy=true;nextPoll=Date.now()+settings.poll_seconds*1000;
-    try{await request('poll');if(isLeader())notifyNew();}
+    try{await request('poll');}
     catch(e){nextPoll=Date.now()+15000;}
     finally{pollBusy=false;}
   }
@@ -5412,7 +5456,6 @@ function addPasteButton() {
     if(connectLmsButton)connectLmsButton.hidden=authorized;
     if(!authorized)return;
     const total=alerts.length;
-    dismissAllButton.hidden=total<2;
     toggle.textContent='RUSH Referrals ('+total+')';
     toggle.style.background=total?'#b42318':'#164e63';
     if(total===0)expanded=false;
@@ -5421,7 +5464,6 @@ function addPasteButton() {
     body.hidden=!expanded;
     schedulePlacement();
     identityNode.textContent=email?'Dynamics email: '+email:'Open your Dynamics profile menu once to detect your email.';
-    desktopButton.textContent='Desktop alerts: '+(GM_getValue(ROOT+'desktop',false)?'ON':'OFF');
     const cached=GM_getValue(CACHE,{});
     const stale=cached.receivedAt && Date.now()-cached.receivedAt>Math.max(30000,settings.poll_seconds*5000);
     statusNode.textContent=serverStatus+(stale?' · Referrals may be out of date':'')+
@@ -5432,16 +5474,20 @@ function addPasteButton() {
     if(!force && stamp===lastRows)return;lastRows=stamp;list.replaceChildren();
     if(!total)el('p','No active RUSH referrals.',list);
     for(const a of alerts){
+      const appointment=appointmentLabel(a);
       const row=el('div',undefined,list);row.className='entry';
-      const referralActions=el('div',undefined,row);referralActions.className='referral-actions';
-      const link=el('a',a.number,referralActions);link.href=a.url;link.target='_blank';link.rel='noopener noreferrer';
+      const referralLabel=el('span',undefined,row);referralLabel.className='referral-label';
+      const link=el('a',a.number,referralLabel);link.href=a.url;link.target='_blank';link.rel='noopener noreferrer';
+      if(appointment)el('span',' — '+appointment,referralLabel);
       const sendButton=action('Send to DD',()=>{
-        const subject='Rush ('+a.number+')';
+        const subject='Rush ('+a.number+')'+(appointment?' — '+appointment:'');
         window.location.href='mailto:driverdeveloper@gotandt.com?subject='+encodeURIComponent(subject);
-      },referralActions);
+      },row);
       sendButton.className='send-dd';sendButton.title='Open an email to Driver Developer';
-      el('small',new Date(a.detected_at).toLocaleString(),row);
-      action('Dismiss for everyone',b=>dismiss([a.id],b),row);
+      const detected=el('small',new Date(a.detected_at).toLocaleString(),row);
+      detected.title='Alert detected';
+      const dismissButton=action('Dismiss for everyone',b=>dismiss([a.id],b),row);
+      dismissButton.className='dismiss-referral';
     }
   }
   function mount() {
@@ -5452,25 +5498,19 @@ function addPasteButton() {
       ':host{position:fixed;left:50%;top:calc(100vh - 18px);width:0;height:0;z-index:2147483646;font:13px Segoe UI,Arial,sans-serif;color:#172b4d}',
       '*{box-sizing:border-box}button{cursor:pointer;border:1px solid #cbd5e1;border-radius:6px;padding:6px 9px;background:#fff;color:#172b4d;font:inherit}button:disabled{opacity:.5;cursor:wait}',
       '.toggle{position:absolute;left:0;bottom:0;transform:translateX(-50%);white-space:nowrap;touch-action:none;user-select:none;cursor:move;display:block;color:white;font-weight:700;padding:10px 15px;border:0;box-shadow:0 3px 12px #0003}',
-      '.body{position:absolute;left:0;bottom:50px;box-sizing:border-box;width:410px;max-width:calc(100vw - 36px);background:white;border:1px solid #ccd5df;border-radius:9px;margin-bottom:8px;box-shadow:0 4px 24px #0003;padding:12px;max-height:80vh;overflow:auto}',
-      '[hidden]{display:none!important}.list{max-height:300px;overflow:auto}.entry{padding:9px 0;border-bottom:1px solid #e2e8f0;display:grid;grid-template-columns:1fr auto;gap:4px}',
-      'a{color:#005a9e;font-weight:700}small{grid-column:1;font-size:11px;color:#526175}.entry button{grid-column:2;grid-row:1/3}',
-      '.referral-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0}.entry .send-dd{font-size:11px;padding:4px 6px;white-space:nowrap;grid-column:auto;grid-row:auto}',
-      '.status,.identity{font-size:11px;color:#526175;margin:8px 0;line-height:1.5;overflow-wrap:anywhere}.tools{display:flex;gap:6px;flex-wrap:wrap}',
+      '.body{position:absolute;left:0;bottom:50px;box-sizing:border-box;width:'+panelWidth+'px;max-width:calc(100vw - 16px);background:white;border:1px solid #ccd5df;border-radius:9px;margin-bottom:8px;box-shadow:0 4px 24px #0003;padding:12px;max-height:80vh;overflow:auto}',
+      '[hidden]{display:none!important}.list{max-height:300px;overflow:auto}.entry{padding:9px 0;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}',
+      'a{color:#005a9e;font-weight:700}small{font-size:11px;color:#526175;white-space:nowrap}.entry button{white-space:nowrap}',
+      '.referral-label{min-width:0;overflow-wrap:anywhere}.entry .send-dd{font-size:11px;padding:4px 6px}.dismiss-referral{margin-left:auto}',
+      '.status,.identity{font-size:11px;color:#526175;margin:8px 0;line-height:1.5;overflow-wrap:anywhere}',
       '.connection{margin:10px 0;padding:10px;background:#f1f5f9;border-radius:6px}input{width:100%;margin:6px 0;padding:7px;border:1px solid #cbd5e1;border-radius:5px}'
     ].join('');
     body=el('div',undefined,shadow);body.className='body';
     el('strong','RUSH Referrals',body);
     statusNode=el('div','',body);statusNode.className='status';
-    const tools=el('div',undefined,body);tools.className='tools';
-    dismissAllButton=action('Dismiss all for everyone',b=>dismiss(alerts.map(a=>a.id),b),tools);
-    dismissAllButton.hidden=true;
     connectLmsButton=action('Connect LMS',()=>{
       connection.hidden=!connection.hidden;expanded=true;render();
-    },tools);
-    desktopButton=action('',()=>{
-      GM_setValue(ROOT+'desktop',!GM_getValue(ROOT+'desktop',false));render();
-    },tools);
+    },body);
     connection=el('div',undefined,body);connection.className='connection';
     connection.hidden=!!getKey();
     el('div','Paste the connection key from LMS RUSH Watch.',connection);
