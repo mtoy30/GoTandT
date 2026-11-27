@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DD_Buttons
 // @namespace    https://github.com/mtoy30/GoTandT
-// @version      5.1.9
+// @version      5.1.10
 // @updateURL    https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @downloadURL  https://raw.githubusercontent.com/mtoy30/GoTandT/main/DD_Buttons.user.js
 // @description  Dynamics buttons: DD_Buttons_Lead members get admin tools; other users get regular tools.
@@ -324,6 +324,12 @@ function readHigherRateAmount(product, inputValue) {
     return parseFloat(inputValue);
 }
 
+function formatStaffingRateNote(rateLines) {
+    return "Apply rates and include in staffing email:\n" + rateLines
+        .replace(/\/mile(?=\n|$)/g, " per mile")
+        .replace(/\bWait Time(?=\n|$)/g, "Wait Time per hour");
+}
+
 function initSelectedMode() {
     if (!ddSelectedModePromise) {
         ddSelectedModePromise = ddCurrentUserIsOnList(DD_LEAD_LIST).then(isLead => {
@@ -345,6 +351,8 @@ function initSelectedMode() {
 
     const DD_LAST_AUTH_RATES_STORAGE_KEY = "DD_Buttons_Admin_LastAuthorizedRates";
     const DD_LAST_AUTH_RATES_BACKUP_KEY = "DD_Buttons_Admin_LastAuthorizedRates_Backup";
+    const DD_PENDING_RATE_STATUS = "Pending - RATE Authorization Requested";
+    const DD_APPROVED_RATE_STATUS = "Rates Approved";
 
     function ddSafeGetGMValue(key, fallbackValue = null) {
         try {
@@ -574,7 +582,7 @@ function initSelectedMode() {
         return ddAuthFindFieldNearVisibleLabel(label);
     }
 
-    function ddAuthFindOpenDropdownOption(value) {
+    function ddAuthFindOpenDropdownOption(value, exactOnly = false) {
         const wanted = ddAuthNormalizeOptionText(value);
         const optionSelectors = [
             '[role="option"]',
@@ -595,8 +603,8 @@ function initSelectedMode() {
         let found = candidates.find(el => ddAuthNormalizeOptionText(el.textContent) === wanted) ||
                     candidates.find(el => ddAuthNormalizeOptionText(el.getAttribute('aria-label')) === wanted) ||
                     candidates.find(el => ddAuthNormalizeOptionText(el.getAttribute('title')) === wanted) ||
-                    candidates.find(el => ddAuthNormalizeOptionText(el.textContent).includes(wanted));
-        if (found) return found;
+                    (!exactOnly && candidates.find(el => ddAuthNormalizeOptionText(el.textContent).includes(wanted)));
+        if (found || exactOnly) return found;
 
         candidates = Array.from(document.querySelectorAll('li, button, span'))
             .filter(ddAuthVisibleElement)
@@ -683,6 +691,12 @@ function initSelectedMode() {
         }
 
         const input = control.tagName === 'INPUT' ? control : control.querySelector('input') || control;
+        const selectingApproved = label === "Rate Approval Status" && value === DD_APPROVED_RATE_STATUS;
+        const currentValue = input.tagName === 'INPUT' ? input.value : input.textContent || input.title;
+        if (selectingApproved && ddAuthNormalizeOptionText(currentValue) === ddAuthNormalizeOptionText(value)) {
+            if (callback) callback(true);
+            return true;
+        }
         ddAuthClickLikeUser(input);
 
         if (input.tagName === 'INPUT') {
@@ -693,7 +707,7 @@ function initSelectedMode() {
         const maxAttempts = 12;
         const trySelect = () => {
             attempts++;
-            const option = ddAuthFindOpenDropdownOption(value);
+            const option = ddAuthFindOpenDropdownOption(value, selectingApproved);
 
             if (option) {
                 option.scrollIntoView({ block: 'center' });
@@ -704,7 +718,7 @@ function initSelectedMode() {
                 return;
             }
 
-            if (attempts === 4) {
+            if (!selectingApproved && attempts === 4) {
                 input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', bubbles: true }));
                 input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
             }
@@ -726,7 +740,7 @@ function initSelectedMode() {
         return Object.entries(ratePayload).some(([label, value]) => label !== "Transport Rate Type" && value !== "" && value !== null && value !== undefined);
     }
 
-    function ddAuthApplyHigherRatesToAuthorizationFields(ratePayload, onApplied) {
+    function ddAuthApplyHigherRatesToAuthorizationFields(ratePayload, onApplied, rateStatus = DD_PENDING_RATE_STATUS) {
 
         if (!ddAuthAuthorizationPayloadHasAtLeastOneRate(ratePayload)) {
             showCenteredOverlayMessage("No saved rates found. Open Margin Calculator and use Request Rates, Apply & Staff, Homelink, or Boomerang first.", false, 3500);
@@ -736,7 +750,11 @@ function initSelectedMode() {
         ddAuthClickDynamicsTabByLabel("General", found => {
             if (!found) return;
             setTimeout(() => {
-                ddAuthSetLookupOrDropdownByLabel("Rate Approval Status", "Pending - RATE Authorization Requested", () => {
+                ddAuthSetLookupOrDropdownByLabel("Rate Approval Status", rateStatus, selected => {
+                    if (!selected && rateStatus === DD_APPROVED_RATE_STATUS) {
+                        showCenteredOverlayMessage("Could not select Rates Approved. Review the rate approval status in Dynamics.", false, 4000);
+                        return;
+                    }
                     setTimeout(() => {
                         ddAuthClickDynamicsTabByLabel("Authorized Rates", found => {
                             if (!found) return;
@@ -1149,7 +1167,10 @@ function initSelectedMode() {
             .map(([label, value]) => label + ": " + value)
             .join("\n");
         if (requestText) GM_setClipboard(requestText);
-        applyRates(payload, () => confirmRequestRates(noteText, referralKey));
+        const staffingAction = action === "staff" ||
+            (/^Apply rates\b/i.test(noteText) && / \/\/ Advise in Staffing email$/i.test(noteText));
+        const rateStatus = staffingAction ? DD_APPROVED_RATE_STATUS : DD_PENDING_RATE_STATUS;
+        applyRates(payload, () => confirmRequestRates(noteText, referralKey), rateStatus);
     }
 
     window.ddApplyLastAuthorizedRates = () => applyMultiDayRates(ddAuthApplyHigherRatesToAuthorizationFields);
@@ -1857,7 +1878,7 @@ function getTransportPreviewAmount() {
             );
         });
 
-        function buildPartsString(productInputs, quantities, miles, loadFeeQuantity) {
+        function buildPartsString(productInputs, quantities, miles, loadFeeQuantity, separator = ", ") {
             if (productInputs["One Way Surcharge"] && quantities["One Way Surcharge"] !== undefined) {
                 productInputs["One Way Surcharge"].value = quantities["One Way Surcharge"];
             }
@@ -1912,7 +1933,7 @@ function getTransportPreviewAmount() {
                 }
             });
 
-            return parts.join(", ");
+            return parts.join(separator);
         }
 
 
@@ -2063,7 +2084,7 @@ function getTransportPreviewAmount() {
             return findFieldNearVisibleLabel(label);
         }
 
-        function findOpenDropdownOption(value) {
+        function findOpenDropdownOption(value, exactOnly = false) {
             const wanted = normalizeOptionText(value);
 
             // Prefer real Fluent/Dynamics option rows first. Avoid broad parent DIVs that can contain
@@ -2087,8 +2108,8 @@ function getTransportPreviewAmount() {
             let found = candidates.find(el => normalizeOptionText(el.textContent) === wanted) ||
                         candidates.find(el => normalizeOptionText(el.getAttribute('aria-label')) === wanted) ||
                         candidates.find(el => normalizeOptionText(el.getAttribute('title')) === wanted) ||
-                        candidates.find(el => normalizeOptionText(el.textContent).includes(wanted));
-            if (found) return found;
+                        (!exactOnly && candidates.find(el => normalizeOptionText(el.textContent).includes(wanted)));
+            if (found || exactOnly) return found;
 
             // Fallback for Dynamics portals that render list items without role="option".
             candidates = Array.from(document.querySelectorAll('li, button, span'))
@@ -2194,6 +2215,12 @@ function getTransportPreviewAmount() {
             }
 
             const input = control.tagName === 'INPUT' ? control : control.querySelector('input') || control;
+            const selectingApproved = label === "Rate Approval Status" && value === DD_APPROVED_RATE_STATUS;
+            const currentValue = input.tagName === 'INPUT' ? input.value : input.textContent || input.title;
+            if (selectingApproved && normalizeOptionText(currentValue) === normalizeOptionText(value)) {
+                if (callback) callback(true);
+                return true;
+            }
             clickLikeUser(input);
 
             // First try typing the exact value. Dynamics choice controls often filter options this way.
@@ -2206,7 +2233,7 @@ function getTransportPreviewAmount() {
 
             const trySelect = () => {
                 attempts++;
-                const option = findOpenDropdownOption(value);
+                const option = findOpenDropdownOption(value, selectingApproved);
 
                 if (option) {
                     option.scrollIntoView({ block: 'center' });
@@ -2217,7 +2244,7 @@ function getTransportPreviewAmount() {
                     return;
                 }
 
-                if (attempts === 4) {
+                if (!selectingApproved && attempts === 4) {
                     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', bubbles: true }));
                     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
                 }
@@ -2275,7 +2302,7 @@ function getTransportPreviewAmount() {
             return true;
         }
 
-        function applyHigherRatesToAuthorizationFields(savedPayload, onApplied) {
+        function applyHigherRatesToAuthorizationFields(savedPayload, onApplied, rateStatus = DD_PENDING_RATE_STATUS) {
             const ratePayload = savedPayload || buildAuthorizationRatePayload();
 
             if (!authorizationPayloadHasAtLeastOneRate(ratePayload)) {
@@ -2286,7 +2313,11 @@ function getTransportPreviewAmount() {
             clickDynamicsTabByLabel("General", found => {
                 if (!found) return;
                 setTimeout(() => {
-                    setLookupOrDropdownByLabel("Rate Approval Status", "Pending - RATE Authorization Requested", () => {
+                    setLookupOrDropdownByLabel("Rate Approval Status", rateStatus, selected => {
+                        if (!selected && rateStatus === DD_APPROVED_RATE_STATUS) {
+                            showCenteredOverlayMessage("Could not select Rates Approved. Review the rate approval status in Dynamics.", false, 4000);
+                            return;
+                        }
                         setTimeout(() => {
                             clickDynamicsTabByLabel("Authorized Rates", found => {
                                 if (!found) return;
@@ -2342,8 +2373,8 @@ function getTransportPreviewAmount() {
             }, 500);
         }
 
-        function applyAndConfirmCalculatorRates(finalText, referralKey) {
-            saveLastAuthorizedRatesFromCalculator(finalText, "confirm");
+        function applyAndConfirmCalculatorRates(finalText, referralKey, action = "confirm") {
+            saveLastAuthorizedRatesFromCalculator(finalText, action);
 
             navigator.clipboard.writeText(finalText).then(() => {
                 const copiedMsg = document.createElement("div");
@@ -2366,9 +2397,10 @@ function getTransportPreviewAmount() {
                 setTimeout(() => copiedMsg.remove(), 1500);
             }).catch(error => console.warn("Could not copy calculator rate text.", error));
 
+            const rateStatus = action === "staff" ? DD_APPROVED_RATE_STATUS : DD_PENDING_RATE_STATUS;
             applyHigherRatesToAuthorizationFields(undefined, () => {
                 confirmRequestRates(finalText, referralKey);
-            });
+            }, rateStatus);
             closeMarginCalcAfterRateAutomation();
         }
 
@@ -2425,11 +2457,11 @@ function getTransportPreviewAmount() {
                 }
             });
 
-            const finalParts = buildPartsString(productInputs, {}, miles, loadFeeQuantity);
-            const finalText = "Apply rates " + finalParts + " // Advise in Staffing email";
+            const rateLines = buildPartsString(productInputs, {}, miles, loadFeeQuantity, "\n");
+            const finalText = formatStaffingRateNote(rateLines);
 
             applyRatesButton.disabled = true;
-            applyAndConfirmCalculatorRates(finalText, referralKey);
+            applyAndConfirmCalculatorRates(finalText, referralKey, "staff");
         };
 
         const homelinkButton = createModernButton("Request Homelink Rates", "#a855f7", "#c084fc");
@@ -8338,9 +8370,9 @@ applyRatesButton.onclick = () => {
     }
   });
 
-  const finalParts = buildPartsString(productInputs, {}, miles, loadFeeQuantity);
+  const rateLines = buildPartsString(productInputs, {}, miles, loadFeeQuantity, "\n");
 
-  const finalText = "Apply rates " + finalParts + " // Advise in Staffing email";
+  const finalText = formatStaffingRateNote(rateLines);
 
   navigator.clipboard.writeText(finalText).then(() => {
     const copiedMsg = document.createElement("div");
@@ -8633,7 +8665,7 @@ const extrasText = extras.length > 0 ? `. ${extras.join(", ")}` : "";
 };
 
 //Reusable partstring
-function buildPartsString(productInputs, quantities, miles, loadFeeQuantity) {
+function buildPartsString(productInputs, quantities, miles, loadFeeQuantity, separator = ", ") {
   // Prefill "One Way Surcharge" input with the quantity found, if available
   if (productInputs["One Way Surcharge"] && quantities["One Way Surcharge"] !== undefined) {
     productInputs["One Way Surcharge"].value = quantities["One Way Surcharge"];
@@ -8690,7 +8722,7 @@ if (["Transport Ambulatory", "Transport Wheelchair", "Transport Stretcher, ALS &
     }
   });
 
-  return parts.join(", ");
+  return parts.join(separator);
 }
 
     const calculateMargin = () => {
